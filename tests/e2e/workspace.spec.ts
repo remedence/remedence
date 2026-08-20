@@ -115,6 +115,42 @@ test("SEC-1042 preserves failed verification history after an independent pass",
   ).toBeVisible();
 });
 
+test("mobile actions, owner filtering, and queue sorting share real state", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 430, height: 932 });
+  await page.goto("/");
+
+  await page.getByRole("button", { name: "Start remediation" }).click();
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Remediation" }),
+  ).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Verify fix" })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Open navigation" }).click();
+  await page
+    .getByRole("navigation", { name: "Mobile navigation" })
+    .getByRole("button", { name: "Dashboard" })
+    .click();
+
+  const mobileFilters = page.locator(".mobile-filter-details");
+  await mobileFilters.locator("summary").click();
+  await mobileFilters.getByLabel("Owner").selectOption("S. Patel");
+  await expect(page.locator(".mobile-finding-row")).toHaveCount(1);
+  await expect(page.locator(".mobile-finding-row").first()).toContainText(
+    "SEC-1073",
+  );
+
+  await mobileFilters.getByLabel("Owner").selectOption("All owners");
+  await mobileFilters.getByLabel("Sort").selectOption("Newest");
+  await expect(page.locator(".mobile-finding-row").nth(0)).toContainText(
+    "SEC-1042",
+  );
+  await expect(page.locator(".mobile-finding-row").nth(1)).toContainText(
+    "SEC-1081",
+  );
+});
+
 test("import form exposes a written corrective error state", async ({
   page,
 }) => {

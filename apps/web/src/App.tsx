@@ -33,6 +33,8 @@ import {
   FindingState,
   verificationActivity,
 } from "./data";
+import { resolveFindingAction } from "./lib/findings/action";
+import { sortFindings, type QueueSort } from "./lib/findings/sort";
 import "./app.css";
 
 type PageName =
@@ -121,6 +123,8 @@ function App() {
     "All states",
   );
   const [severityFilter, setSeverityFilter] = useState("All severities");
+  const [ownerFilter, setOwnerFilter] = useState("All owners");
+  const [queueSort, setQueueSort] = useState<QueueSort>("Priority");
   const [verificationPassed, setVerificationPassed] = useState(false);
   const [reportReady, setReportReady] = useState(false);
   const [liveMessage, setLiveMessage] = useState("");
@@ -144,7 +148,7 @@ function App() {
 
   const filteredFindings = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    return effectiveFindings.filter((finding) => {
+    const filtered = effectiveFindings.filter((finding) => {
       const matchesQuery =
         !normalized ||
         [
@@ -164,9 +168,26 @@ function App() {
       const matchesSeverity =
         severityFilter === "All severities" ||
         finding.severity === severityFilter;
-      return matchesQuery && matchesCompany && matchesState && matchesSeverity;
+      const matchesOwner =
+        ownerFilter === "All owners" || finding.owner === ownerFilter;
+      return (
+        matchesQuery &&
+        matchesCompany &&
+        matchesState &&
+        matchesSeverity &&
+        matchesOwner
+      );
     });
-  }, [effectiveFindings, query, companyFilter, stateFilter, severityFilter]);
+    return sortFindings(filtered, queueSort);
+  }, [
+    effectiveFindings,
+    query,
+    companyFilter,
+    stateFilter,
+    severityFilter,
+    ownerFilter,
+    queueSort,
+  ]);
 
   function navigate(nextPage: PageName) {
     setPage(nextPage);
@@ -183,6 +204,15 @@ function App() {
   function closeFinding() {
     setActiveFinding(null);
     requestAnimationFrame(() => lastTriggerRef.current?.focus());
+  }
+
+  function handleFindingAction(finding: Finding, trigger: HTMLButtonElement) {
+    const action = resolveFindingAction(finding);
+    if (action.kind === "page") {
+      navigate(action.page);
+      return;
+    }
+    openFinding(finding, trigger);
   }
 
   function openOverlay(
@@ -423,6 +453,8 @@ function App() {
               companyFilter={companyFilter}
               stateFilter={stateFilter}
               severityFilter={severityFilter}
+              ownerFilter={ownerFilter}
+              queueSort={queueSort}
               expandedFinding={expandedFinding}
               verificationPassed={verificationPassed}
               reportReady={reportReady}
@@ -431,8 +463,10 @@ function App() {
               onCompanyFilter={setCompanyFilter}
               onStateFilter={setStateFilter}
               onSeverityFilter={setSeverityFilter}
+              onOwnerFilter={setOwnerFilter}
+              onQueueSort={setQueueSort}
               onExpand={setExpandedFinding}
-              onOpenFinding={openFinding}
+              onFindingAction={handleFindingAction}
               onNavigate={navigate}
               onOpenOverlay={openOverlay}
             />
@@ -499,6 +533,8 @@ interface DashboardProps {
   companyFilter: string;
   stateFilter: FindingState | "All states";
   severityFilter: string;
+  ownerFilter: string;
+  queueSort: QueueSort;
   expandedFinding: string;
   verificationPassed: boolean;
   reportReady: boolean;
@@ -507,8 +543,10 @@ interface DashboardProps {
   onCompanyFilter: (value: string) => void;
   onStateFilter: (value: FindingState | "All states") => void;
   onSeverityFilter: (value: string) => void;
+  onOwnerFilter: (value: string) => void;
+  onQueueSort: (value: QueueSort) => void;
   onExpand: (id: string) => void;
-  onOpenFinding: (finding: Finding, trigger: HTMLButtonElement) => void;
+  onFindingAction: (finding: Finding, trigger: HTMLButtonElement) => void;
   onNavigate: (page: PageName) => void;
   onOpenOverlay: (
     overlay: "import" | "report",
@@ -627,7 +665,10 @@ function Dashboard(props: DashboardProps) {
           </label>
           <label>
             <span>Owner</span>
-            <select defaultValue="All owners">
+            <select
+              value={props.ownerFilter}
+              onChange={(event) => props.onOwnerFilter(event.target.value)}
+            >
               <option>All owners</option>
               <option>L. Chen</option>
               <option>M. Ortiz</option>
@@ -636,7 +677,12 @@ function Dashboard(props: DashboardProps) {
           </label>
           <label>
             <span>Sort</span>
-            <select defaultValue="Priority">
+            <select
+              value={props.queueSort}
+              onChange={(event) =>
+                props.onQueueSort(event.target.value as QueueSort)
+              }
+            >
               <option>Priority</option>
               <option>Newest</option>
               <option>SLA</option>
@@ -691,7 +737,10 @@ function Dashboard(props: DashboardProps) {
             </label>
             <label>
               <span>Owner</span>
-              <select defaultValue="All owners">
+              <select
+                value={props.ownerFilter}
+                onChange={(event) => props.onOwnerFilter(event.target.value)}
+              >
                 <option>All owners</option>
                 <option>L. Chen</option>
                 <option>M. Ortiz</option>
@@ -700,7 +749,12 @@ function Dashboard(props: DashboardProps) {
             </label>
             <label>
               <span>Sort</span>
-              <select defaultValue="Priority">
+              <select
+                value={props.queueSort}
+                onChange={(event) =>
+                  props.onQueueSort(event.target.value as QueueSort)
+                }
+              >
                 <option>Priority</option>
                 <option>Newest</option>
                 <option>SLA</option>
@@ -738,8 +792,7 @@ function Dashboard(props: DashboardProps) {
                             : finding.id,
                         )
                       }
-                      onOpen={props.onOpenFinding}
-                      onNavigate={props.onNavigate}
+                      onAction={props.onFindingAction}
                     />
                   ))}
                 </tbody>
@@ -777,7 +830,7 @@ function Dashboard(props: DashboardProps) {
                     type="button"
                     className="row-action"
                     onClick={(event) =>
-                      props.onOpenFinding(finding, event.currentTarget)
+                      props.onFindingAction(finding, event.currentTarget)
                     }
                   >
                     {finding.action}
@@ -801,6 +854,8 @@ function Dashboard(props: DashboardProps) {
                 props.onCompanyFilter("All companies");
                 props.onStateFilter("All states");
                 props.onSeverityFilter("All severities");
+                props.onOwnerFilter("All owners");
+                props.onQueueSort("Priority");
               }}
             >
               Clear filters
@@ -902,21 +957,14 @@ function QueueRows({
   expanded,
   verificationPassed,
   onExpand,
-  onOpen,
-  onNavigate,
+  onAction,
 }: {
   finding: Finding;
   expanded: boolean;
   verificationPassed: boolean;
   onExpand: () => void;
-  onOpen: (finding: Finding, trigger: HTMLButtonElement) => void;
-  onNavigate: (page: PageName) => void;
+  onAction: (finding: Finding, trigger: HTMLButtonElement) => void;
 }) {
-  const actionPage: Record<string, PageName> = {
-    "Start remediation": "Remediation",
-    "View remediation": "Remediation",
-    "View evidence": "Evidence",
-  };
   return (
     <>
       <tr
@@ -957,11 +1005,7 @@ function QueueRows({
           <button
             type="button"
             className="row-action"
-            onClick={(event) => {
-              if (finding.id === "SEC-1042" || finding.action === "Verify fix")
-                onOpen(finding, event.currentTarget);
-              else onNavigate(actionPage[finding.action] ?? "Findings");
-            }}
+            onClick={(event) => onAction(finding, event.currentTarget)}
           >
             {finding.id === "SEC-1042" && verificationPassed
               ? "View evidence"
