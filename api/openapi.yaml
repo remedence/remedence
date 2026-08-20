@@ -860,20 +860,71 @@ components:
           type: string
           format: date-time
     DashboardFinding:
-      allOf:
-        - $ref: "#/components/schemas/Finding"
-        - type: object
-          additionalProperties: false
-          required: [company_name, sla_breached, priority_bucket]
-          properties:
-            company_name:
-              type: string
-            sla_breached:
-              type: boolean
-            priority_bucket:
-              type: integer
-              minimum: 1
-              maximum: 6
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - organization_id
+        - company_id
+        - finding_key
+        - title
+        - description
+        - source
+        - severity
+        - state
+        - owner
+        - asset_name
+        - detected_at
+        - sla_due_at
+        - created_at
+        - updated_at
+        - company_name
+        - sla_breached
+        - priority_bucket
+      properties:
+        id:
+          type: string
+        organization_id:
+          type: string
+        company_id:
+          type: string
+        finding_key:
+          type: string
+          examples: [SEC-1042]
+        title:
+          type: string
+        description:
+          type: string
+        source:
+          type: string
+        severity:
+          $ref: "#/components/schemas/Severity"
+        state:
+          $ref: "#/components/schemas/FindingState"
+        owner:
+          type: string
+        asset_name:
+          type: string
+        detected_at:
+          type: string
+          format: date-time
+        sla_due_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        company_name:
+          type: string
+        sla_breached:
+          type: boolean
+        priority_bucket:
+          type: integer
+          minimum: 1
+          maximum: 6
     FindingPage:
       type: object
       additionalProperties: false

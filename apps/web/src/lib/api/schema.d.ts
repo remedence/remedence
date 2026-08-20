@@ -425,7 +425,27 @@ export interface components {
             /** Format: date-time */
             updated_at: string;
         };
-        DashboardFinding: components["schemas"]["Finding"] & {
+        DashboardFinding: {
+            id: string;
+            organization_id: string;
+            company_id: string;
+            /** @example SEC-1042 */
+            finding_key: string;
+            title: string;
+            description: string;
+            source: string;
+            severity: components["schemas"]["Severity"];
+            state: components["schemas"]["FindingState"];
+            owner: string;
+            asset_name: string;
+            /** Format: date-time */
+            detected_at: string;
+            /** Format: date-time */
+            sla_due_at: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
             company_name: string;
             sla_breached: boolean;
             priority_bucket: number;
