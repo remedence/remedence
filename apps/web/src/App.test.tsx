@@ -11,22 +11,22 @@ describe("Remedence dashboard", () => {
       screen.getByRole("heading", { level: 1, name: "Dashboard" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /Managed companies: 12/i }),
+      screen.getByRole("button", { name: /Managed companies 12/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /Open findings: 47/i }),
+      screen.getByRole("button", { name: /Open findings 47/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /Awaiting verification: 8/i }),
+      screen.getByRole("button", { name: /Awaiting verification 8/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /Verification failed: 3/i }),
+      screen.getByRole("button", { name: /Verification failed 3/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /Verified fixed: 126/i }),
+      screen.getByRole("button", { name: /Verified fixed 126/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /SLA breaches: 4/i }),
+      screen.getByRole("button", { name: /SLA breaches 4/i }),
     ).toBeInTheDocument();
     expect(
       screen.getAllByText("Secondary query path remains exploitable.").length,
@@ -54,13 +54,13 @@ describe("Remedence dashboard", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Verification #1 failed")).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /Open findings: 46/i }),
+      screen.getByRole("button", { name: /Open findings 46/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /Verification failed: 2/i }),
+      screen.getByRole("button", { name: /Verification failed 2/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /Verified fixed: 127/i }),
+      screen.getByRole("button", { name: /Verified fixed 127/i }),
     ).toBeInTheDocument();
   });
 
@@ -95,7 +95,9 @@ describe("Remedence dashboard", () => {
       "Help",
       "Account",
     ]) {
-      await user.click(screen.getByRole("button", { name: destination }));
+      const navigationName =
+        destination === "Verification" ? "Verification 8" : destination;
+      await user.click(screen.getByRole("button", { name: navigationName }));
       expect(
         screen.getByRole("heading", { level: 1, name: destination }),
       ).toBeInTheDocument();

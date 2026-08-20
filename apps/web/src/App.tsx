@@ -263,13 +263,17 @@ function App() {
         <div className="sidebar-brand">
           <img
             className="brand-full"
-            src="/assets/brand/remedence-logo-primary.png"
+            src="/assets/brand/remedence-logo-primary-ui.png"
             alt="Remedence"
+            width={360}
+            height={120}
           />
           <img
             className="brand-mark"
-            src="/assets/brand/remedence-icon-mark.png"
+            src="/assets/brand/remedence-icon-mark-ui.png"
             alt=""
+            width={96}
+            height={96}
             aria-hidden="true"
           />
         </div>
@@ -280,7 +284,7 @@ function App() {
               type="button"
               className={page === label ? "nav-item active" : "nav-item"}
               aria-current={page === label ? "page" : undefined}
-              aria-label={label}
+              aria-label={count ? `${label} ${count}` : label}
               title={label}
               onClick={() => navigate(label)}
             >
@@ -382,7 +386,7 @@ function App() {
             <button
               type="button"
               className="user-button"
-              aria-label="Open account"
+              aria-label="HO, open account"
               onClick={() => navigate("Account")}
             >
               <span>HO</span>
@@ -549,7 +553,7 @@ function Dashboard(props: DashboardProps) {
           <button
             key={metric.label}
             type="button"
-            aria-label={`${metric.label}: ${metric.value}`}
+            aria-label={`${metric.label} ${metric.value}`}
             onClick={() => props.onMetric(metric.label)}
           >
             <span>{metric.label}</span>

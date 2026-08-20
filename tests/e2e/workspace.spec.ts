@@ -89,13 +89,13 @@ test("SEC-1042 preserves failed verification history after an independent pass",
   ).toBeVisible();
   await expect(dialog.getByText("Verification #1 failed")).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Open findings: 46" }),
+    page.getByRole("button", { name: "Open findings 46" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Verification failed: 2" }),
+    page.getByRole("button", { name: "Verification failed 2" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Verified fixed: 127" }),
+    page.getByRole("button", { name: "Verified fixed 127" }),
   ).toBeVisible();
 
   await page.keyboard.press("Escape");
@@ -107,7 +107,9 @@ test("SEC-1042 preserves failed verification history after an independent pass",
     page.getByText("Secondary query path remains exploitable."),
   ).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Verification", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Verification 8", exact: true })
+    .click();
   await expect(
     page.getByText("Secondary query path remains exploitable · 8 min ago"),
   ).toBeVisible();
