@@ -1,0 +1,18 @@
+# Remedence
+
+Remedence is an open-source, API-first security remediation platform focused on independent verification and evidence-backed closure.
+
+## Product rule
+
+A remediation claim is not equivalent to a verified fix. The workflow is:
+
+Remediate -> Verify -> Prove
+
+The v1 local interface uses a fictional Harborline Technology Group dataset and demonstrates a failed first verification for SEC-1042 before a later independent pass.
+
+## Canonical resources
+
+- Source: https://github.com/remedence/remedence
+- Public website: https://remedence.github.io/
+- API contract: https://github.com/remedence/remedence/blob/main/api/openapi.yaml
+- Documentation: https://github.com/remedence/remedence/tree/main/docs

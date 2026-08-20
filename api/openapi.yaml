@@ -1,0 +1,588 @@
+openapi: 3.1.0
+info:
+  title: Remedence API
+  version: 0.1.0
+  description: >-
+    Canonical API contract for Remedence findings, remediation, independent
+    verification, evidence, reporting, imports, webhooks, and integrations.
+    The v1 web interface currently uses the approved local demo dataset while
+    service implementations converge on this contract.
+servers:
+  - url: /api/v1
+    description: Relative Remedence API v1 namespace
+tags:
+  - name: Companies
+  - name: Assets
+  - name: Findings
+  - name: Remediations
+  - name: Verifications
+  - name: Evidence
+  - name: Reports
+  - name: Imports
+  - name: Webhooks
+  - name: Integrations
+paths:
+  /companies:
+    get:
+      tags: [Companies]
+      operationId: listCompanies
+      summary: List managed companies
+      responses:
+        "200":
+          description: Managed companies visible to the current organization.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Company"
+  /companies/{companyId}:
+    parameters:
+      - $ref: "#/components/parameters/CompanyId"
+    get:
+      tags: [Companies]
+      operationId: getCompany
+      summary: Get one managed company
+      responses:
+        "200":
+          description: Company record.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Company"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /assets:
+    get:
+      tags: [Assets]
+      operationId: listAssets
+      summary: List assets
+      parameters:
+        - $ref: "#/components/parameters/CompanyQuery"
+      responses:
+        "200":
+          description: Assets matching the current organization and filters.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Asset"
+  /findings:
+    get:
+      tags: [Findings]
+      operationId: listFindings
+      summary: List normalized findings
+      parameters:
+        - $ref: "#/components/parameters/CompanyQuery"
+        - name: state
+          in: query
+          schema:
+            $ref: "#/components/schemas/FindingState"
+        - name: severity
+          in: query
+          schema:
+            $ref: "#/components/schemas/Severity"
+      responses:
+        "200":
+          description: Findings in queue priority order unless another sort is requested.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Finding"
+  /findings/{findingId}:
+    parameters:
+      - $ref: "#/components/parameters/FindingId"
+    get:
+      tags: [Findings]
+      operationId: getFinding
+      summary: Get a finding with current closure state
+      responses:
+        "200":
+          description: Finding record.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Finding"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /remediations:
+    get:
+      tags: [Remediations]
+      operationId: listRemediations
+      summary: List remediation records
+      parameters:
+        - name: finding_id
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Remediation records.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Remediation"
+    post:
+      tags: [Remediations]
+      operationId: createRemediation
+      summary: Record remediation work for a finding
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRemediationRequest"
+      responses:
+        "201":
+          description: Remediation record created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Remediation"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /verifications:
+    get:
+      tags: [Verifications]
+      operationId: listVerifications
+      summary: List independent verification runs
+      parameters:
+        - name: finding_id
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Verification run history, including failed runs.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Verification"
+    post:
+      tags: [Verifications]
+      operationId: createVerification
+      summary: Request an independent verification run
+      description: >-
+        A successful remediation record does not close a finding. Verified fixed
+        requires an independent verification pass and recorded supporting evidence.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateVerificationRequest"
+      responses:
+        "202":
+          description: Verification accepted for execution.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Verification"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /evidence:
+    get:
+      tags: [Evidence]
+      operationId: listEvidence
+      summary: List evidence records
+      parameters:
+        - name: finding_id
+          in: query
+          schema:
+            type: string
+        - name: verification_id
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Evidence records with provenance metadata.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Evidence"
+  /reports:
+    get:
+      tags: [Reports]
+      operationId: listReports
+      summary: List client reports
+      parameters:
+        - $ref: "#/components/parameters/CompanyQuery"
+      responses:
+        "200":
+          description: Client reports.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Report"
+    post:
+      tags: [Reports]
+      operationId: createReport
+      summary: Generate a report from current verified state
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [company_id, period]
+              properties:
+                company_id:
+                  type: string
+                period:
+                  type: string
+      responses:
+        "202":
+          description: Report generation accepted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Report"
+  /imports:
+    post:
+      tags: [Imports]
+      operationId: createImport
+      summary: Import findings from a source system
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ImportRequest"
+      responses:
+        "202":
+          description: Import accepted and assigned an import record.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportRecord"
+  /webhooks:
+    get:
+      tags: [Webhooks]
+      operationId: listWebhooks
+      summary: List webhook registrations
+      responses:
+        "200":
+          description: Webhook registrations.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Webhook"
+    post:
+      tags: [Webhooks]
+      operationId: createWebhook
+      summary: Register a webhook endpoint
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url, events]
+              properties:
+                url:
+                  type: string
+                  format: uri
+                events:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: string
+      responses:
+        "201":
+          description: Webhook registered.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Webhook"
+  /integrations:
+    get:
+      tags: [Integrations]
+      operationId: listIntegrations
+      summary: List integration configurations and states
+      responses:
+        "200":
+          description: Integration configurations visible to the current organization.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Integration"
+components:
+  parameters:
+    CompanyId:
+      name: companyId
+      in: path
+      required: true
+      schema:
+        type: string
+    FindingId:
+      name: findingId
+      in: path
+      required: true
+      schema:
+        type: string
+    CompanyQuery:
+      name: company_id
+      in: query
+      schema:
+        type: string
+  responses:
+    BadRequest:
+      description: Request validation failed.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    NotFound:
+      description: The requested resource does not exist or is not visible to the current organization.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+  schemas:
+    Severity:
+      type: string
+      enum: [Critical, High, Medium, Low, Info]
+    FindingState:
+      type: string
+      enum:
+        - Needs remediation
+        - Remediating
+        - Awaiting verification
+        - Verification failed
+        - Verified fixed
+    Company:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        risk_score:
+          type: integer
+          minimum: 0
+          maximum: 100
+        open_findings:
+          type: integer
+          minimum: 0
+    Asset:
+      type: object
+      required: [id, company_id, name]
+      properties:
+        id:
+          type: string
+        company_id:
+          type: string
+        name:
+          type: string
+        kind:
+          type: string
+    Finding:
+      type: object
+      required: [id, company_id, title, severity, state, source]
+      properties:
+        id:
+          type: string
+          examples: [SEC-1042]
+        company_id:
+          type: string
+        asset_id:
+          type: [string, "null"]
+        title:
+          type: string
+        severity:
+          $ref: "#/components/schemas/Severity"
+        state:
+          $ref: "#/components/schemas/FindingState"
+        source:
+          type: string
+        owner:
+          type: [string, "null"]
+        sla_breached:
+          type: boolean
+          default: false
+        latest_verification_id:
+          type: [string, "null"]
+    Remediation:
+      type: object
+      required: [id, finding_id, reference, created_at]
+      properties:
+        id:
+          type: string
+        finding_id:
+          type: string
+        reference:
+          type: string
+        summary:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        actor_id:
+          type: [string, "null"]
+    CreateRemediationRequest:
+      type: object
+      required: [finding_id, reference]
+      properties:
+        finding_id:
+          type: string
+        reference:
+          type: string
+        summary:
+          type: string
+    Verification:
+      type: object
+      required: [id, finding_id, status, method, created_at]
+      properties:
+        id:
+          type: string
+        finding_id:
+          type: string
+        remediation_id:
+          type: [string, "null"]
+        status:
+          type: string
+          enum: [Queued, Verifying, Failed, Passed, Cancelled]
+        method:
+          type: string
+        scope:
+          type: string
+        failure_reason:
+          type: [string, "null"]
+        created_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: [string, "null"]
+          format: date-time
+    CreateVerificationRequest:
+      type: object
+      required: [finding_id, remediation_id, method, scope]
+      properties:
+        finding_id:
+          type: string
+        remediation_id:
+          type: string
+        method:
+          type: string
+        scope:
+          type: string
+    Evidence:
+      type: object
+      required: [id, finding_id, type, recorded_at]
+      properties:
+        id:
+          type: string
+        finding_id:
+          type: string
+        verification_id:
+          type: [string, "null"]
+        type:
+          type: string
+        uri:
+          type: [string, "null"]
+        hash:
+          type: [string, "null"]
+        recorded_at:
+          type: string
+          format: date-time
+        recorded_by:
+          type: [string, "null"]
+    Report:
+      type: object
+      required: [id, company_id, period, status]
+      properties:
+        id:
+          type: string
+        company_id:
+          type: string
+        period:
+          type: string
+        status:
+          type: string
+          enum: [Draft, Generating, Ready, Failed]
+        generated_at:
+          type: [string, "null"]
+          format: date-time
+    ImportRequest:
+      type: object
+      required: [source, company_id]
+      properties:
+        source:
+          type: string
+        company_id:
+          type: string
+        external_reference:
+          type: [string, "null"]
+    ImportRecord:
+      type: object
+      required: [id, source, status]
+      properties:
+        id:
+          type: string
+        source:
+          type: string
+        status:
+          type: string
+          enum: [Queued, Processing, Completed, Failed]
+        imported_findings:
+          type: integer
+          minimum: 0
+    Webhook:
+      type: object
+      required: [id, url, events, active]
+      properties:
+        id:
+          type: string
+        url:
+          type: string
+          format: uri
+        events:
+          type: array
+          items:
+            type: string
+        active:
+          type: boolean
+    Integration:
+      type: object
+      required: [id, name, status]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+          enum: [Configured, Disabled, Error, Not configured]
+    Problem:
+      type: object
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri-reference
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri-reference
