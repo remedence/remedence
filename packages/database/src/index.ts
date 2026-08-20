@@ -10,4 +10,5 @@ export {
   createFindingRepository,
   type FindingRepositoryOptions,
 } from "./repositories/finding-repository.js";
+export { seedHarborline, type HarborlineSeedRuntime } from "./seed.js";
 export { runTransaction } from "./transaction.js";
