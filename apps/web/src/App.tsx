@@ -411,8 +411,6 @@ function App() {
               <input
                 type="search"
                 value={globalQuery}
-                aria-expanded={searchOpen && Boolean(globalQuery.trim())}
-                aria-controls="global-search-results"
                 onChange={(event) => {
                   const value = event.target.value;
                   setGlobalQuery(value);
