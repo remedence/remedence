@@ -3,25 +3,56 @@ info:
   title: Remedence API
   version: 0.1.0
   description: >-
-    Canonical API contract for Remedence findings, remediation, independent
-    verification, evidence, reporting, imports, webhooks, and integrations.
-    The v1 web interface currently uses the approved local demo dataset while
-    service implementations converge on this contract.
+    Canonical local-first API for Remedence findings, remediation, independent
+    verification, immutable evidence metadata, reporting, and audit history.
+    Remedence local v1 binds to loopback and does not provide authentication,
+    webhook delivery, hosted verification workers, managed integrations, or AI inference.
 servers:
   - url: /api/v1
     description: Relative Remedence API v1 namespace
 tags:
+  - name: Dashboard
   - name: Companies
   - name: Assets
   - name: Findings
+  - name: Imports
   - name: Remediations
   - name: Verifications
   - name: Evidence
   - name: Reports
-  - name: Imports
+  - name: Audit
   - name: Webhooks
   - name: Integrations
 paths:
+  /dashboard:
+    get:
+      tags: [Dashboard]
+      operationId: getDashboard
+      summary: Get the persisted remediation workspace read model
+      parameters:
+        - $ref: "#/components/parameters/Search"
+        - $ref: "#/components/parameters/CompanyQuery"
+        - $ref: "#/components/parameters/StateQuery"
+        - $ref: "#/components/parameters/SeverityQuery"
+        - $ref: "#/components/parameters/OwnerQuery"
+        - $ref: "#/components/parameters/SortQuery"
+        - $ref: "#/components/parameters/IncludeVerified"
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: Current dashboard metrics, queue, activity, notifications, and report state.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSnapshot"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /companies:
     get:
       tags: [Companies]
@@ -29,13 +60,18 @@ paths:
       summary: List managed companies
       responses:
         "200":
-          description: Managed companies visible to the current organization.
+          description: Managed companies in the local organization.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestId"
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: "#/components/schemas/Company"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /companies/{companyId}:
     parameters:
       - $ref: "#/components/parameters/CompanyId"
@@ -45,92 +81,126 @@ paths:
       summary: Get one managed company
       responses:
         "200":
-          description: Company record.
+          description: Managed company.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestId"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Company"
         "404":
           $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /assets:
     get:
       tags: [Assets]
       operationId: listAssets
-      summary: List assets
+      summary: List persisted asset names referenced by findings
       parameters:
         - $ref: "#/components/parameters/CompanyQuery"
       responses:
         "200":
-          description: Assets matching the current organization and filters.
+          description: Assets referenced by findings in the local organization.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestId"
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Asset"
+                  $ref: "#/components/schemas/AssetSummary"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /findings:
     get:
       tags: [Findings]
       operationId: listFindings
-      summary: List normalized findings
+      summary: List normalized persisted findings
       parameters:
+        - $ref: "#/components/parameters/Search"
         - $ref: "#/components/parameters/CompanyQuery"
-        - name: state
-          in: query
-          schema:
-            $ref: "#/components/schemas/FindingState"
-        - name: severity
-          in: query
-          schema:
-            $ref: "#/components/schemas/Severity"
+        - $ref: "#/components/parameters/StateQuery"
+        - $ref: "#/components/parameters/SeverityQuery"
+        - $ref: "#/components/parameters/OwnerQuery"
+        - $ref: "#/components/parameters/SortQuery"
+        - $ref: "#/components/parameters/IncludeVerified"
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
       responses:
         "200":
-          description: Findings in queue priority order unless another sort is requested.
+          description: Paginated finding queue.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestId"
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Finding"
+                $ref: "#/components/schemas/FindingPage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /findings/{findingId}:
     parameters:
       - $ref: "#/components/parameters/FindingId"
     get:
       tags: [Findings]
       operationId: getFinding
-      summary: Get a finding with current closure state
+      summary: Get a finding with remediation, verification, evidence, and audit history
       responses:
         "200":
-          description: Finding record.
+          description: Complete persisted finding detail.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestId"
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Finding"
+                $ref: "#/components/schemas/FindingDetail"
         "404":
           $ref: "#/components/responses/NotFound"
-  /remediations:
-    get:
-      tags: [Remediations]
-      operationId: listRemediations
-      summary: List remediation records
-      parameters:
-        - name: finding_id
-          in: query
-          schema:
-            type: string
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /imports:
+    post:
+      tags: [Imports]
+      operationId: createImport
+      summary: Import one normalized finding into the local workspace
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateImportRequest"
       responses:
-        "200":
-          description: Remediation records.
+        "201":
+          description: Finding imported and audit history appended.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestId"
+            Location:
+              schema:
+                type: string
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Remediation"
+                $ref: "#/components/schemas/ImportResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "413":
+          $ref: "#/components/responses/RequestTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /remediations:
     post:
       tags: [Remediations]
       operationId: createRemediation
-      summary: Record remediation work for a finding
+      summary: Start a remediation record for an eligible finding
       requestBody:
         required: true
         content:
@@ -139,39 +209,68 @@ paths:
               $ref: "#/components/schemas/CreateRemediationRequest"
       responses:
         "201":
-          description: Remediation record created.
+          description: Remediation started.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestId"
+            Location:
+              schema:
+                type: string
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Remediation"
         "400":
           $ref: "#/components/responses/BadRequest"
-  /verifications:
-    get:
-      tags: [Verifications]
-      operationId: listVerifications
-      summary: List independent verification runs
-      parameters:
-        - name: finding_id
-          in: query
-          schema:
-            type: string
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "413":
+          $ref: "#/components/responses/RequestTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /remediations/{remediationId}/complete:
+    parameters:
+      - $ref: "#/components/parameters/RemediationId"
+    post:
+      tags: [Remediations]
+      operationId: completeRemediation
+      summary: Complete remediation and move the finding to awaiting verification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompleteRemediationRequest"
       responses:
         "200":
-          description: Verification run history, including failed runs.
+          description: Completed remediation.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestId"
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Verification"
+                $ref: "#/components/schemas/Remediation"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "413":
+          $ref: "#/components/responses/RequestTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /verifications:
     post:
       tags: [Verifications]
       operationId: createVerification
-      summary: Request an independent verification run
+      summary: Start an operator-recorded independent verification run
       description: >-
-        A successful remediation record does not close a finding. Verified fixed
-        requires an independent verification pass and recorded supporting evidence.
+        Local v1 records an independent verification result supplied by the operator.
+        It does not execute commands or fetch arbitrary URLs.
       requestBody:
         required: true
         content:
@@ -179,19 +278,102 @@ paths:
             schema:
               $ref: "#/components/schemas/CreateVerificationRequest"
       responses:
-        "202":
-          description: Verification accepted for execution.
+        "201":
+          description: Verification run created in Running state.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestId"
+            Location:
+              schema:
+                type: string
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Verification"
+                $ref: "#/components/schemas/VerificationWithChecks"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "413":
+          $ref: "#/components/responses/RequestTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /verifications/{verificationId}/checks:
+    parameters:
+      - $ref: "#/components/parameters/VerificationId"
+    post:
+      tags: [Verifications]
+      operationId: createVerificationCheck
+      summary: Record one check result for a running verification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateVerificationCheckRequest"
+      responses:
+        "201":
+          description: Verification check recorded.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerificationCheck"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "413":
+          $ref: "#/components/responses/RequestTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /verifications/{verificationId}/complete:
+    parameters:
+      - $ref: "#/components/parameters/VerificationId"
+    post:
+      tags: [Verifications]
+      operationId: completeVerification
+      summary: Complete a verification as Failed or atomically Verified fixed
+      description: >-
+        A Passed completion records and locks evidence, completes the verification,
+        transitions the finding to Verified fixed, and appends audit events in one transaction.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompleteVerificationRequest"
+      responses:
+        "200":
+          description: Verification completion and resulting finding state.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerificationCompletion"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "413":
+          $ref: "#/components/responses/RequestTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /evidence:
     get:
       tags: [Evidence]
       operationId: listEvidence
-      summary: List evidence records
+      summary: List immutable evidence metadata
       parameters:
         - name: finding_id
           in: query
@@ -201,128 +383,213 @@ paths:
           in: query
           schema:
             type: string
+        - name: locked
+          in: query
+          schema:
+            type: boolean
       responses:
         "200":
-          description: Evidence records with provenance metadata.
+          description: Evidence metadata matching the filters.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestId"
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Evidence"
-  /reports:
+                  $ref: "#/components/schemas/EvidenceItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /evidence/{evidenceId}:
+    parameters:
+      - $ref: "#/components/parameters/EvidenceId"
     get:
-      tags: [Reports]
-      operationId: listReports
-      summary: List client reports
-      parameters:
-        - $ref: "#/components/parameters/CompanyQuery"
+      tags: [Evidence]
+      operationId: getEvidence
+      summary: Get immutable evidence metadata
       responses:
         "200":
-          description: Client reports.
+          description: Evidence metadata.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestId"
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Report"
+                $ref: "#/components/schemas/EvidenceItem"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /reports:
     post:
       tags: [Reports]
       operationId: createReport
-      summary: Generate a report from current verified state
+      summary: Create an immutable client report snapshot
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [company_id, period]
-              properties:
-                company_id:
-                  type: string
-                period:
-                  type: string
+              $ref: "#/components/schemas/CreateReportRequest"
       responses:
-        "202":
-          description: Report generation accepted.
+        "201":
+          description: Report snapshot created.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestId"
+            Location:
+              schema:
+                type: string
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Report"
-  /imports:
-    post:
-      tags: [Imports]
-      operationId: createImport
-      summary: Import findings from a source system
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ImportRequest"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/RequestTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /reports/{reportId}:
+    parameters:
+      - $ref: "#/components/parameters/ReportId"
+    get:
+      tags: [Reports]
+      operationId: getReport
+      summary: Get an immutable report snapshot
       responses:
-        "202":
-          description: Import accepted and assigned an import record.
+        "200":
+          description: Report metadata and snapshot.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestId"
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ImportRecord"
+                $ref: "#/components/schemas/Report"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /reports/{reportId}/download:
+    parameters:
+      - $ref: "#/components/parameters/ReportId"
+    get:
+      tags: [Reports]
+      operationId: downloadReport
+      summary: Download a report snapshot as Markdown
+      responses:
+        "200":
+          description: Markdown rendering of the immutable report snapshot.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestId"
+            Content-Disposition:
+              schema:
+                type: string
+          content:
+            text/markdown:
+              schema:
+                type: string
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /audit-events:
+    get:
+      tags: [Audit]
+      operationId: listAuditEvents
+      summary: List append-only audit events in sequence order
+      parameters:
+        - name: entity_type
+          in: query
+          schema:
+            type: string
+        - name: entity_id
+          in: query
+          schema:
+            type: string
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: Ordered audit events.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditEventPage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /webhooks:
     get:
       tags: [Webhooks]
       operationId: listWebhooks
-      summary: List webhook registrations
+      summary: List local webhook registrations
+      description: >-
+        Local v1 does not deliver outbound webhooks and exposes no webhook mutation endpoint.
       responses:
         "200":
-          description: Webhook registrations.
+          description: Local registrations. The v1 implementation returns an empty list.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestId"
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Webhook"
-    post:
-      tags: [Webhooks]
-      operationId: createWebhook
-      summary: Register a webhook endpoint
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [url, events]
-              properties:
-                url:
-                  type: string
-                  format: uri
-                events:
-                  type: array
-                  minItems: 1
-                  items:
-                    type: string
-      responses:
-        "201":
-          description: Webhook registered.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Webhook"
+                  $ref: "#/components/schemas/WebhookRegistration"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /integrations:
     get:
       tags: [Integrations]
       operationId: listIntegrations
-      summary: List integration configurations and states
+      summary: List local integration capability states
+      description: Local v1 records no credentials and provides no managed connector execution.
       responses:
         "200":
-          description: Integration configurations visible to the current organization.
+          description: Integration capability states.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestId"
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Integration"
+                  $ref: "#/components/schemas/IntegrationState"
+        "500":
+          $ref: "#/components/responses/InternalError"
 components:
+  headers:
+    RequestId:
+      description: Correlation identifier for this request.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 80
   parameters:
     CompanyId:
       name: companyId
@@ -330,26 +597,146 @@ components:
       required: true
       schema:
         type: string
+        minLength: 1
+        maxLength: 100
     FindingId:
       name: findingId
       in: path
       required: true
       schema:
         type: string
+        minLength: 1
+        maxLength: 100
+    RemediationId:
+      name: remediationId
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 100
+    VerificationId:
+      name: verificationId
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 100
+    EvidenceId:
+      name: evidenceId
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 100
+    ReportId:
+      name: reportId
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 100
+    Search:
+      name: search
+      in: query
+      schema:
+        type: string
+        maxLength: 200
     CompanyQuery:
       name: company_id
       in: query
       schema:
         type: string
+        maxLength: 100
+    StateQuery:
+      name: state
+      in: query
+      schema:
+        $ref: "#/components/schemas/FindingState"
+    SeverityQuery:
+      name: severity
+      in: query
+      schema:
+        $ref: "#/components/schemas/Severity"
+    OwnerQuery:
+      name: owner
+      in: query
+      schema:
+        type: string
+        maxLength: 120
+    SortQuery:
+      name: sort
+      in: query
+      schema:
+        type: string
+        enum: [priority, newest, sla]
+        default: priority
+    IncludeVerified:
+      name: include_verified
+      in: query
+      schema:
+        type: boolean
+        default: false
+    Page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    PageSize:
+      name: page_size
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 25
   responses:
     BadRequest:
       description: Request validation failed.
+      headers:
+        X-Request-ID:
+          $ref: "#/components/headers/RequestId"
       content:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/Problem"
     NotFound:
-      description: The requested resource does not exist or is not visible to the current organization.
+      description: The requested resource does not exist.
+      headers:
+        X-Request-ID:
+          $ref: "#/components/headers/RequestId"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Conflict:
+      description: The requested mutation conflicts with persisted workflow state.
+      headers:
+        X-Request-ID:
+          $ref: "#/components/headers/RequestId"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    RequestTooLarge:
+      description: JSON request body exceeds 256 KiB.
+      headers:
+        X-Request-ID:
+          $ref: "#/components/headers/RequestId"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    InternalError:
+      description: Unexpected server error without stack traces or local paths.
+      headers:
+        X-Request-ID:
+          $ref: "#/components/headers/RequestId"
       content:
         application/problem+json:
           schema:
@@ -366,11 +753,33 @@ components:
         - Awaiting verification
         - Verification failed
         - Verified fixed
+    RemediationStatus:
+      type: string
+      enum: [In progress, Completed, Cancelled]
+    VerificationStatus:
+      type: string
+      enum: [Queued, Running, Passed, Failed, Cancelled]
+    VerificationCheckStatus:
+      type: string
+      enum: [Pending, Passed, Failed, Skipped]
+    RiskLevel:
+      type: string
+      enum: [Low, Medium, High, Critical]
     Company:
       type: object
-      required: [id, name]
+      additionalProperties: false
+      required:
+        - id
+        - organization_id
+        - name
+        - risk_score
+        - risk_level
+        - created_at
+        - updated_at
       properties:
         id:
+          type: string
+        organization_id:
           type: string
         name:
           type: string
@@ -378,189 +787,778 @@ components:
           type: integer
           minimum: 0
           maximum: 100
-        open_findings:
-          type: integer
-          minimum: 0
-    Asset:
-      type: object
-      required: [id, company_id, name]
-      properties:
-        id:
+        risk_level:
+          $ref: "#/components/schemas/RiskLevel"
+        created_at:
           type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    AssetSummary:
+      type: object
+      additionalProperties: false
+      required: [company_id, name]
+      properties:
         company_id:
           type: string
         name:
           type: string
-        kind:
-          type: string
     Finding:
       type: object
-      required: [id, company_id, title, severity, state, source]
+      additionalProperties: false
+      required:
+        - id
+        - organization_id
+        - company_id
+        - finding_key
+        - title
+        - description
+        - source
+        - severity
+        - state
+        - owner
+        - asset_name
+        - detected_at
+        - sla_due_at
+        - created_at
+        - updated_at
       properties:
         id:
           type: string
-          examples: [SEC-1042]
+        organization_id:
+          type: string
         company_id:
           type: string
-        asset_id:
-          type: [string, "null"]
+        finding_key:
+          type: string
+          examples: [SEC-1042]
         title:
+          type: string
+        description:
+          type: string
+        source:
           type: string
         severity:
           $ref: "#/components/schemas/Severity"
         state:
           $ref: "#/components/schemas/FindingState"
-        source:
-          type: string
         owner:
-          type: [string, "null"]
-        sla_breached:
-          type: boolean
-          default: false
-        latest_verification_id:
-          type: [string, "null"]
-    Remediation:
-      type: object
-      required: [id, finding_id, reference, created_at]
-      properties:
-        id:
           type: string
-        finding_id:
+        asset_name:
           type: string
-        reference:
+        detected_at:
           type: string
-        summary:
+          format: date-time
+        sla_due_at:
           type: string
+          format: date-time
         created_at:
           type: string
           format: date-time
-        actor_id:
-          type: [string, "null"]
-    CreateRemediationRequest:
+        updated_at:
+          type: string
+          format: date-time
+    DashboardFinding:
+      allOf:
+        - $ref: "#/components/schemas/Finding"
+        - type: object
+          additionalProperties: false
+          required: [company_name, sla_breached, priority_bucket]
+          properties:
+            company_name:
+              type: string
+            sla_breached:
+              type: boolean
+            priority_bucket:
+              type: integer
+              minimum: 1
+              maximum: 6
+    FindingPage:
       type: object
-      required: [finding_id, reference]
+      additionalProperties: false
+      required: [items, page, page_size, total]
       properties:
-        finding_id:
-          type: string
-        reference:
-          type: string
-        summary:
-          type: string
-    Verification:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/DashboardFinding"
+        page:
+          type: integer
+          minimum: 1
+        page_size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
+          minimum: 0
+    Remediation:
       type: object
-      required: [id, finding_id, status, method, created_at]
+      additionalProperties: false
+      required:
+        - id
+        - finding_id
+        - status
+        - summary
+        - reference
+        - owner
+        - started_at
+        - completed_at
+        - created_at
+        - updated_at
       properties:
         id:
           type: string
         finding_id:
           type: string
-        remediation_id:
-          type: [string, "null"]
         status:
+          $ref: "#/components/schemas/RemediationStatus"
+        summary:
           type: string
-          enum: [Queued, Verifying, Failed, Passed, Cancelled]
-        method:
+        reference:
           type: string
-        scope:
+        owner:
           type: string
-        failure_reason:
-          type: [string, "null"]
-        created_at:
+        started_at:
           type: string
           format: date-time
         completed_at:
           type: [string, "null"]
           format: date-time
-    CreateVerificationRequest:
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    VerificationRun:
       type: object
-      required: [finding_id, remediation_id, method, scope]
+      additionalProperties: false
+      required:
+        - id
+        - finding_id
+        - remediation_id
+        - status
+        - method
+        - worker_name
+        - scope
+        - result_summary
+        - started_at
+        - completed_at
+        - created_at
       properties:
+        id:
+          type: string
         finding_id:
           type: string
         remediation_id:
           type: string
+        status:
+          $ref: "#/components/schemas/VerificationStatus"
         method:
+          type: string
+        worker_name:
           type: string
         scope:
           type: string
-    Evidence:
+        result_summary:
+          type: string
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: [string, "null"]
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+    VerificationCheck:
       type: object
-      required: [id, finding_id, type, recorded_at]
+      additionalProperties: false
+      required:
+        [id, verification_id, sequence, name, status, message, created_at]
+      properties:
+        id:
+          type: string
+        verification_id:
+          type: string
+        sequence:
+          type: integer
+          minimum: 1
+        name:
+          type: string
+        status:
+          $ref: "#/components/schemas/VerificationCheckStatus"
+        message:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+    VerificationWithChecks:
+      type: object
+      additionalProperties: false
+      required: [verification, checks]
+      properties:
+        verification:
+          $ref: "#/components/schemas/VerificationRun"
+        checks:
+          type: array
+          items:
+            $ref: "#/components/schemas/VerificationCheck"
+    EvidenceItem:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - finding_id
+        - verification_id
+        - kind
+        - label
+        - source_reference
+        - content_hash
+        - metadata
+        - created_at
+        - locked_at
       properties:
         id:
           type: string
         finding_id:
           type: string
         verification_id:
-          type: [string, "null"]
-        type:
           type: string
-        uri:
-          type: [string, "null"]
-        hash:
-          type: [string, "null"]
-        recorded_at:
+        kind:
+          type: string
+        label:
+          type: string
+        source_reference:
+          type: string
+        content_hash:
+          type: string
+          pattern: "^[a-f0-9]{64}$"
+        metadata:
+          type: object
+          additionalProperties: true
+        created_at:
           type: string
           format: date-time
-        recorded_by:
-          type: [string, "null"]
-    Report:
-      type: object
-      required: [id, company_id, period, status]
-      properties:
-        id:
-          type: string
-        company_id:
-          type: string
-        period:
-          type: string
-        status:
-          type: string
-          enum: [Draft, Generating, Ready, Failed]
-        generated_at:
+        locked_at:
           type: [string, "null"]
           format: date-time
-    ImportRequest:
+    AuditEvent:
       type: object
-      required: [source, company_id]
-      properties:
-        source:
-          type: string
-        company_id:
-          type: string
-        external_reference:
-          type: [string, "null"]
-    ImportRecord:
-      type: object
-      required: [id, source, status]
+      additionalProperties: false
+      required:
+        - id
+        - organization_id
+        - actor_type
+        - actor_id
+        - action
+        - entity_type
+        - entity_id
+        - details
+        - occurred_at
       properties:
         id:
-          type: string
-        source:
-          type: string
-        status:
-          type: string
-          enum: [Queued, Processing, Completed, Failed]
-        imported_findings:
           type: integer
-          minimum: 0
-    Webhook:
+          minimum: 1
+        organization_id:
+          type: string
+        actor_type:
+          type: string
+        actor_id:
+          type: string
+        action:
+          type: string
+        entity_type:
+          type: string
+        entity_id:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+        occurred_at:
+          type: string
+          format: date-time
+    AuditEventPage:
       type: object
-      required: [id, url, events, active]
+      additionalProperties: false
+      required: [items, page, page_size, total]
       properties:
-        id:
-          type: string
-        url:
-          type: string
-          format: uri
-        events:
+        items:
           type: array
           items:
-            type: string
-        active:
-          type: boolean
-    Integration:
+            $ref: "#/components/schemas/AuditEvent"
+        page:
+          type: integer
+          minimum: 1
+        page_size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
+          minimum: 0
+    FindingDetail:
       type: object
+      additionalProperties: false
+      required:
+        [finding, company, remediations, verifications, evidence, audit_events]
+      properties:
+        finding:
+          $ref: "#/components/schemas/Finding"
+        company:
+          $ref: "#/components/schemas/Company"
+        remediations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Remediation"
+        verifications:
+          type: array
+          items:
+            $ref: "#/components/schemas/VerificationWithChecks"
+        evidence:
+          type: array
+          items:
+            $ref: "#/components/schemas/EvidenceItem"
+        audit_events:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditEvent"
+    ImportRecord:
+      type: object
+      additionalProperties: false
+      required: [id, source, finding_id, created_at]
+      properties:
+        id:
+          type: string
+        source:
+          type: string
+        finding_id:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+    ImportResult:
+      type: object
+      additionalProperties: false
+      required: [import_record, finding]
+      properties:
+        import_record:
+          $ref: "#/components/schemas/ImportRecord"
+        finding:
+          $ref: "#/components/schemas/Finding"
+    DashboardMetrics:
+      type: object
+      additionalProperties: false
+      required:
+        - managed_companies
+        - open_findings
+        - awaiting_verification
+        - verification_failed
+        - verified_fixed
+        - sla_breaches
+      properties:
+        managed_companies:
+          type: integer
+          minimum: 0
+        open_findings:
+          type: integer
+          minimum: 0
+        awaiting_verification:
+          type: integer
+          minimum: 0
+        verification_failed:
+          type: integer
+          minimum: 0
+        verified_fixed:
+          type: integer
+          minimum: 0
+        sla_breaches:
+          type: integer
+          minimum: 0
+    CompanyRiskSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - company_id
+        - company_name
+        - risk_score
+        - risk_level
+        - open_findings
+        - awaiting_verification
+        - verification_failed
+      properties:
+        company_id:
+          type: string
+        company_name:
+          type: string
+        risk_score:
+          type: integer
+          minimum: 0
+          maximum: 100
+        risk_level:
+          $ref: "#/components/schemas/RiskLevel"
+        open_findings:
+          type: integer
+          minimum: 0
+        awaiting_verification:
+          type: integer
+          minimum: 0
+        verification_failed:
+          type: integer
+          minimum: 0
+    VerificationActivity:
+      type: object
+      additionalProperties: false
+      required:
+        - verification_id
+        - finding_key
+        - company_name
+        - status
+        - result_summary
+        - completed_at
+      properties:
+        verification_id:
+          type: string
+        finding_key:
+          type: string
+        company_name:
+          type: string
+        status:
+          $ref: "#/components/schemas/VerificationStatus"
+        result_summary:
+          type: string
+        completed_at:
+          type: [string, "null"]
+          format: date-time
+    NotificationItem:
+      type: object
+      additionalProperties: false
+      required: [id, status, message]
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum: [attention, resolved]
+        message:
+          type: string
+    DashboardSnapshot:
+      type: object
+      additionalProperties: false
+      required:
+        - metrics
+        - action_queue
+        - companies
+        - verification_activity
+        - notifications
+        - latest_report
+      properties:
+        metrics:
+          $ref: "#/components/schemas/DashboardMetrics"
+        action_queue:
+          type: array
+          items:
+            $ref: "#/components/schemas/DashboardFinding"
+        companies:
+          type: array
+          items:
+            $ref: "#/components/schemas/CompanyRiskSummary"
+        verification_activity:
+          type: array
+          items:
+            $ref: "#/components/schemas/VerificationActivity"
+        notifications:
+          type: array
+          items:
+            $ref: "#/components/schemas/NotificationItem"
+        latest_report:
+          oneOf:
+            - $ref: "#/components/schemas/Report"
+            - type: "null"
+    ReportSnapshot:
+      type: object
+      additionalProperties: false
+      required:
+        - company_name
+        - risk_score
+        - critical_findings
+        - high_findings
+        - verified_fixes
+        - sla_compliance_percent
+        - findings
+        - verification_history
+      properties:
+        company_name:
+          type: string
+        risk_score:
+          type: integer
+          minimum: 0
+          maximum: 100
+        critical_findings:
+          type: integer
+          minimum: 0
+        high_findings:
+          type: integer
+          minimum: 0
+        verified_fixes:
+          type: integer
+          minimum: 0
+        sla_compliance_percent:
+          type: number
+          minimum: 0
+          maximum: 100
+        findings:
+          type: array
+          items:
+            $ref: "#/components/schemas/Finding"
+        verification_history:
+          type: array
+          items:
+            $ref: "#/components/schemas/VerificationWithChecks"
+    Report:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - company_id
+        - title
+        - period_label
+        - status
+        - snapshot
+        - generated_at
+        - created_at
+      properties:
+        id:
+          type: string
+        company_id:
+          type: string
+        title:
+          type: string
+        period_label:
+          type: string
+        status:
+          type: string
+          enum: [Draft, Ready]
+        snapshot:
+          $ref: "#/components/schemas/ReportSnapshot"
+        generated_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+    VerificationCompletion:
+      type: object
+      additionalProperties: false
+      required: [verification, finding, evidence]
+      properties:
+        verification:
+          $ref: "#/components/schemas/VerificationRun"
+        finding:
+          $ref: "#/components/schemas/Finding"
+        evidence:
+          type: array
+          items:
+            $ref: "#/components/schemas/EvidenceItem"
+    CreateImportRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - company_id
+        - finding_key
+        - title
+        - description
+        - source
+        - severity
+        - owner
+        - asset_name
+        - detected_at
+        - sla_due_at
+      properties:
+        company_id:
+          type: string
+          minLength: 1
+          maxLength: 100
+        finding_key:
+          type: string
+          minLength: 1
+          maxLength: 100
+        title:
+          type: string
+          minLength: 1
+          maxLength: 300
+        description:
+          type: string
+          maxLength: 5000
+        source:
+          type: string
+          minLength: 1
+          maxLength: 120
+        severity:
+          $ref: "#/components/schemas/Severity"
+        owner:
+          type: string
+          maxLength: 120
+        asset_name:
+          type: string
+          maxLength: 200
+        detected_at:
+          type: string
+          format: date-time
+        sla_due_at:
+          type: string
+          format: date-time
+    CreateRemediationRequest:
+      type: object
+      additionalProperties: false
+      required: [finding_id, owner, summary, reference]
+      properties:
+        finding_id:
+          type: string
+          minLength: 1
+          maxLength: 100
+        owner:
+          type: string
+          minLength: 1
+          maxLength: 120
+        summary:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        reference:
+          type: string
+          minLength: 1
+          maxLength: 500
+    CompleteRemediationRequest:
+      type: object
+      additionalProperties: false
+      required: [summary, reference]
+      properties:
+        summary:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        reference:
+          type: string
+          minLength: 1
+          maxLength: 500
+    CreateVerificationRequest:
+      type: object
+      additionalProperties: false
+      required: [finding_id, remediation_id, method, worker_name, scope, checks]
+      properties:
+        finding_id:
+          type: string
+          minLength: 1
+          maxLength: 100
+        remediation_id:
+          type: string
+          minLength: 1
+          maxLength: 100
+        method:
+          type: string
+          minLength: 1
+          maxLength: 200
+        worker_name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        scope:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        checks:
+          type: array
+          minItems: 1
+          maxItems: 25
+          items:
+            type: string
+            minLength: 1
+            maxLength: 300
+    CreateVerificationCheckRequest:
+      type: object
+      additionalProperties: false
+      required: [sequence, name, status, message]
+      properties:
+        sequence:
+          type: integer
+          minimum: 1
+          maximum: 100
+        name:
+          type: string
+          minLength: 1
+          maxLength: 300
+        status:
+          type: string
+          enum: [Passed, Failed, Skipped]
+        message:
+          type: string
+          maxLength: 2000
+    CreateEvidenceItem:
+      type: object
+      additionalProperties: false
+      required: [kind, label, source_reference, metadata]
+      properties:
+        kind:
+          type: string
+          minLength: 1
+          maxLength: 100
+        label:
+          type: string
+          minLength: 1
+          maxLength: 300
+        source_reference:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        metadata:
+          type: object
+          additionalProperties: true
+    CompleteVerificationRequest:
+      type: object
+      additionalProperties: false
+      required: [result, summary]
+      properties:
+        result:
+          type: string
+          enum: [Passed, Failed]
+        summary:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        evidence:
+          type: array
+          maxItems: 25
+          items:
+            $ref: "#/components/schemas/CreateEvidenceItem"
+    CreateReportRequest:
+      type: object
+      additionalProperties: false
+      required: [company_id, period_label]
+      properties:
+        company_id:
+          type: string
+          minLength: 1
+          maxLength: 100
+        period_label:
+          type: string
+          minLength: 1
+          maxLength: 200
+    WebhookRegistration:
+      type: object
+      additionalProperties: false
+      required: [id, status]
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum: [Disabled]
+    IntegrationState:
+      type: object
+      additionalProperties: false
       required: [id, name, status]
       properties:
         id:
@@ -569,10 +1567,20 @@ components:
           type: string
         status:
           type: string
-          enum: [Configured, Disabled, Error, Not configured]
+          enum: [Not configured]
+    ProblemFieldError:
+      type: object
+      additionalProperties: false
+      required: [path, message]
+      properties:
+        path:
+          type: string
+        message:
+          type: string
     Problem:
       type: object
-      required: [type, title, status]
+      additionalProperties: false
+      required: [type, title, status, detail, instance, code, request_id]
       properties:
         type:
           type: string
@@ -581,8 +1589,18 @@ components:
           type: string
         status:
           type: integer
+          minimum: 400
+          maximum: 599
         detail:
           type: string
         instance:
           type: string
           format: uri-reference
+        code:
+          type: string
+        request_id:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProblemFieldError"

@@ -4,7 +4,8 @@
   "private": true,
   "workspaces": [
     "apps/*",
-    "packages/*"
+    "packages/*",
+    "tools/*"
   ],
   "scripts": {
     "dev": "npm run dev -w @remedence/web",
@@ -15,6 +16,8 @@
     "format": "prettier --write apps/web/src apps/web/index.html apps/web/package.json package.json api docs tests playwright.config.ts README.md --ignore-unknown",
     "format:check": "prettier --check apps/web/src apps/web/index.html apps/web/package.json package.json api docs tests playwright.config.ts README.md --ignore-unknown",
     "e2e": "playwright test",
+    "generate:api": "npm run generate -w @remedence/openapi-codegen",
+    "check:generated-api": "node scripts/check-generated-api.mjs",
     "check:current": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run build && npm run e2e"
   },
   "devDependencies": {
@@ -32,6 +35,7 @@
     "prettier": "^3.9.6",
     "typescript": "^7.0.2",
     "vite": "^8.2.2",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.11",
+    "yaml": "2.9.0"
   }
 }
