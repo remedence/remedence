@@ -23,7 +23,7 @@
 - Every mutation writes an append-only audit event.
 - Keep the approved IBM Plex typography, palette, 8px radius, evidence-first hierarchy, and WCAG 2.2 AA behavior.
 - No workflow may rely on sound.
-- Use TDD, microscopic commits, Codex review after each major checkpoint, and Design & Taste critique before merge.
+- Use TDD, microscopic commits, complete self-review after each major checkpoint, and the approved product UX spec before merge.
 - Do not force-push, reset hard, remove unrelated files, restart Home Computer Use, or terminate unrelated Node, browser, tunnel, gateway, or MCP processes.
 
 ---
@@ -370,15 +370,16 @@ npm run e2e -- --grep "mobile action|owner|sort"
 
 Expected: all focused tests pass.
 
-- [ ] **Step 7: Commit and review**
+- [ ] **Step 7: Commit and self-review**
 
 ```powershell
 git add apps/web/src tests/e2e/workspace.spec.ts
 git commit -m "fix(web): align finding actions and queue controls"
-codex review --commit HEAD "Review mobile and desktop action parity, filter correctness, sort determinism, and regression coverage."
+git diff HEAD~1..HEAD --check
+git diff -U20 HEAD~1..HEAD
 ```
 
-Fix every P1 and P2 review finding before continuing.
+Review mobile and desktop action parity, filter correctness, sort determinism, accessibility, and regression coverage. Fix every concrete finding before continuing.
 
 ---
 
@@ -627,15 +628,15 @@ git add apps/web/src tests/e2e/workspace.spec.ts
 git commit -m "fix(web): contain modal focus and background input"
 ```
 
-- [ ] **Step 7: Run the post-v1 Codex checkpoint review**
+- [ ] **Step 7: Run the post-v1 self-review checkpoint**
 
 ```powershell
-$base = git rev-parse 0367501
-$head = git rev-parse HEAD
-codex review --base 0367501 "Verify that all six platform findings from the prior review are fixed without regressions. Focus on mobile actions, duplicates, filters, sorting, modal focus, notifications, and global search."
+git diff 0367501..HEAD --check
+git diff --stat 0367501..HEAD
+git diff -U20 0367501..HEAD
 ```
 
-Fix every P1 and P2 issue. Record remaining P3 observations in the PR description rather than silently expanding scope.
+Verify that all six platform findings from the prior review are fixed without regressions. Focus on mobile actions, duplicates, filters, sorting, modal focus, notifications, and global search. Fix every concrete issue before continuing; record genuinely deferred observations in the PR description rather than silently expanding scope.
 
 ---
 
@@ -1475,13 +1476,15 @@ git add packages/core packages/database packages/evidence packages/verification
 git commit -m "feat(core): persist remediation verification and evidence"
 ```
 
-- [ ] **Step 7: Request checkpoint code review**
+- [ ] **Step 7: Run the security-sensitive self-review checkpoint**
 
 ```powershell
-codex review --base HEAD~3 "Review domain boundaries, state-transition correctness, SQL injection resistance, transaction atomicity, locked evidence behavior, and audit completeness."
+git diff HEAD~3..HEAD --check
+git diff --stat HEAD~3..HEAD
+git diff -U20 HEAD~3..HEAD
 ```
 
-Fix every P1 and P2 issue before creating HTTP routes.
+Review domain boundaries, state-transition correctness, SQL injection resistance, transaction atomicity, locked evidence behavior, and audit completeness. Add targeted tests for any weak boundary and fix every concrete issue before creating HTTP routes.
 
 ---
 
@@ -2148,13 +2151,15 @@ npm run check
 
 Expected: all checks pass with no hidden warning suppression.
 
-- [ ] **Step 4: Run final Codex review**
+- [ ] **Step 4: Run final complete self-review**
 
 ```powershell
-codex review --base origin/main "Review the complete persistent local core v1 against docs/superpowers/specs/2026-08-20-persistent-local-core-v1-design.md. Prioritize security boundaries, state invariants, transaction atomicity, API contract fidelity, persistence, accessibility, and truthful product claims."
+git diff origin/main..HEAD --check
+git diff --stat origin/main..HEAD
+git diff -U20 origin/main..HEAD
 ```
 
-Fix all P1 and P2 findings. Re-run `npm run check` after fixes.
+Review the complete persistent local core v1 against `docs/superpowers/specs/2026-08-20-persistent-local-core-v1-design.md`. Prioritize security boundaries, state invariants, transaction atomicity, API contract fidelity, persistence, accessibility, truthful product claims, unrelated changes, secrets, and personal/local paths. Fix all concrete findings and re-run `npm run check` after fixes.
 
 - [ ] **Step 5: Push and open PR**
 
@@ -2163,7 +2168,7 @@ git push -u origin feat/persistent-local-core-v1
 gh pr create --repo remedence/remedence --base main --head feat/persistent-local-core-v1 --title "feat: ship persistent local core v1" --body-file artifacts/pr-body.md
 ```
 
-The PR body includes architecture, implemented workflows, test counts, Codex review results, Lighthouse results, security boundary, screenshots, and deferred work.
+The PR body includes architecture, implemented workflows, test counts, self-review results, Lighthouse results, security boundary, screenshots, and deferred work.
 
 - [ ] **Step 6: Merge after validation**
 
