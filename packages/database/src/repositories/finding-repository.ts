@@ -1,11 +1,12 @@
-import type {
-  Company,
-  DashboardFinding,
-  Finding,
-  FindingDetail,
-  FindingQuery,
-  FindingRepository,
-  Page,
+import {
+  DomainError,
+  type Company,
+  type DashboardFinding,
+  type Finding,
+  type FindingDetail,
+  type FindingQuery,
+  type FindingRepository,
+  type Page,
 } from "@remedence/core";
 import { getDatabaseConnection, type RemedenceDatabase } from "../database.js";
 import {
@@ -165,6 +166,11 @@ export function createFindingRepository(
   requireCanonicalTimestamp(options.referenceTime, "referenceTime");
   const connection = getDatabaseConnection(database);
 
+  const getByIdStatement = connection.prepare(
+    `SELECT ${FINDING_COLUMNS}
+     FROM findings AS f
+     WHERE f.organization_id = ? AND f.id = ?`,
+  );
   const findByKeyStatement = connection.prepare(
     `SELECT ${FINDING_COLUMNS}
      FROM findings AS f
@@ -236,10 +242,15 @@ export function createFindingRepository(
   const updateStateStatement = connection.prepare(
     `UPDATE findings
      SET state = ?, updated_at = ?
-     WHERE id = ?`,
+     WHERE id = ? AND state = ?`,
   );
 
   return {
+    getById(organizationId: string, findingId: string): Finding | undefined {
+      const row = getByIdStatement.get(organizationId, findingId);
+      return row ? mapFindingRow(row) : undefined;
+    },
+
     findByKey(organizationId: string, findingKey: string): Finding | undefined {
       const row = findByKeyStatement.get(organizationId, findingKey);
       return row ? mapFindingRow(row) : undefined;
@@ -409,8 +420,21 @@ export function createFindingRepository(
       );
     },
 
-    updateState(id, state, updatedAt): void {
-      updateStateStatement.run(state, updatedAt, id);
+    updateState(id, expectedState, state, updatedAt): void {
+      const result = updateStateStatement.run(
+        state,
+        updatedAt,
+        id,
+        expectedState,
+      );
+      if (result.changes !== 1) {
+        throw new DomainError(
+          "CONCURRENT_STATE_CHANGE",
+          409,
+          "Finding state changed concurrently or the finding no longer exists.",
+          { findingId: id },
+        );
+      }
     },
   };
 }

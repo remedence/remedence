@@ -8,6 +8,9 @@ import type {
   Organization,
   Remediation,
   RemediationStatus,
+  Report,
+  ReportSnapshot,
+  ReportStatus,
   RiskLevel,
   Severity,
   VerificationCheck,
@@ -39,6 +42,7 @@ const VERIFICATION_CHECK_STATUSES = [
   "Failed",
   "Skipped",
 ] as const;
+const REPORT_STATUSES = ["Draft", "Ready"] as const;
 
 type Row = Record<string, unknown>;
 
@@ -118,6 +122,37 @@ function parseObjectJson(row: Row, key: string): Record<string, unknown> {
     throw new TypeError(`SQLite column ${key} must contain a JSON object.`);
   }
   return parsed as Record<string, unknown>;
+}
+
+function parseReportSnapshot(row: Row): ReportSnapshot {
+  const value = parseObjectJson(row, "snapshot_json");
+  const requiredStrings = ["companyName"] as const;
+  const requiredNumbers = [
+    "riskScore",
+    "criticalFindings",
+    "highFindings",
+    "verifiedFixes",
+    "slaCompliancePercent",
+  ] as const;
+  for (const key of requiredStrings) {
+    if (typeof value[key] !== "string") {
+      throw new TypeError(`Report snapshot ${key} must be a string.`);
+    }
+  }
+  for (const key of requiredNumbers) {
+    if (typeof value[key] !== "number" || !Number.isFinite(value[key])) {
+      throw new TypeError(`Report snapshot ${key} must be a finite number.`);
+    }
+  }
+  if (
+    !Array.isArray(value.findings) ||
+    !Array.isArray(value.verificationHistory)
+  ) {
+    throw new TypeError(
+      "Report snapshot findings and verificationHistory must be arrays.",
+    );
+  }
+  return value as unknown as ReportSnapshot;
 }
 
 export function mapOrganizationRow(value: unknown): Organization {
@@ -244,6 +279,20 @@ export function mapEvidenceItemRow(value: unknown): EvidenceItem {
     metadata: parseObjectJson(row, "metadata_json"),
     createdAt: requireString(row, "created_at"),
     lockedAt: requireNullableString(row, "locked_at"),
+  };
+}
+
+export function mapReportRow(value: unknown): Report {
+  const row = requireRow(value);
+  return {
+    id: requireString(row, "id"),
+    companyId: requireString(row, "company_id"),
+    title: requireString(row, "title"),
+    periodLabel: requireString(row, "period_label"),
+    status: requireEnum(row, "status", REPORT_STATUSES) as ReportStatus,
+    snapshot: parseReportSnapshot(row),
+    generatedAt: requireString(row, "generated_at"),
+    createdAt: requireString(row, "created_at"),
   };
 }
 

@@ -606,6 +606,7 @@ describe("FindingRepository", () => {
     });
     repository.updateState(
       "finding-inserted",
+      "Needs remediation",
       "Remediating",
       "2026-08-20T11:00:00.000Z",
     );

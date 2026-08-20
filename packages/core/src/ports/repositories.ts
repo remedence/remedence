@@ -53,6 +53,7 @@ export interface CompanyRepository {
 }
 
 export interface FindingRepository {
+  getById(organizationId: string, findingId: string): Finding | undefined;
   findByKey(organizationId: string, findingKey: string): Finding | undefined;
   list(query: FindingQuery): Page<DashboardFinding>;
   getDetail(
@@ -60,7 +61,12 @@ export interface FindingRepository {
     findingKey: string,
   ): FindingDetail | undefined;
   insert(finding: Finding): void;
-  updateState(id: string, state: FindingState, updatedAt: string): void;
+  updateState(
+    id: string,
+    expectedState: FindingState,
+    state: FindingState,
+    updatedAt: string,
+  ): void;
 }
 
 export interface RemediationRepository {
@@ -81,6 +87,13 @@ export interface VerificationRepository {
   listByFinding(findingId: string): VerificationRun[];
   insert(run: VerificationRun): void;
   insertCheck(check: VerificationCheck): void;
+  recordCheck(
+    verificationId: string,
+    sequence: number,
+    name: string,
+    status: Exclude<VerificationCheck["status"], "Pending">,
+    message: string,
+  ): void;
   listChecks(verificationId: string): VerificationCheck[];
   complete(
     id: string,
