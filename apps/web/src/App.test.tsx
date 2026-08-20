@@ -62,6 +62,17 @@ describe("Remedence dashboard", () => {
     expect(
       screen.getByRole("button", { name: /Verified fixed 127/i }),
     ).toBeInTheDocument();
+
+    await user.keyboard("{Escape}");
+    await user.click(
+      screen.getByRole("button", { name: "Notifications, 1 unread" }),
+    );
+    expect(
+      screen.getByText("SEC-1042 verified fixed. Evidence bundle locked."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/SEC-1042 verification failed/i),
+    ).not.toBeInTheDocument();
   });
 
   it("shows corrective validation for an incomplete local import", async () => {
@@ -77,6 +88,27 @@ describe("Remedence dashboard", () => {
     expect(
       screen.getByText("Finding ID and title are required before importing."),
     ).toBeInTheDocument();
+  });
+
+  it("rejects duplicate finding IDs case-insensitively", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "Import findings" }));
+    const dialog = screen.getByRole("dialog", { name: "Import findings" });
+    await user.type(screen.getByLabelText("Finding ID"), "sec-1042");
+    await user.type(
+      screen.getByLabelText("Finding title"),
+      "Duplicate finding",
+    );
+    await user.click(screen.getByRole("button", { name: "Import finding" }));
+
+    expect(
+      screen.getByText(
+        "SEC-1042 already exists in this workspace. Use a different finding ID.",
+      ),
+    ).toBeInTheDocument();
+    expect(dialog).toBeInTheDocument();
   });
 
   it("gives every sidebar destination meaningful content", async () => {

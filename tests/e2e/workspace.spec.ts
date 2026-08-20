@@ -165,6 +165,76 @@ test("import form exposes a written corrective error state", async ({
   await expect(dialog).toBeHidden();
 });
 
+test("case-insensitive duplicate imports stay rejected", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Import findings" }).click();
+  const dialog = page.getByRole("dialog", { name: "Import findings" });
+  await dialog.getByLabel("Finding ID").fill("sec-1042");
+  await dialog.getByLabel("Finding title").fill("Duplicate finding");
+  await dialog.getByRole("button", { name: "Import finding" }).click();
+
+  await expect(
+    dialog.getByText(
+      "SEC-1042 already exists in this workspace. Use a different finding ID.",
+    ),
+  ).toBeVisible();
+  await expect(dialog).toBeVisible();
+  await expect(
+    page.locator(".queue-table tbody tr").filter({ hasText: "SEC-1042" }),
+  ).toHaveCount(1);
+});
+
+test("global search works from secondary pages", async ({ page }) => {
+  await page.goto("/");
+  await page
+    .getByRole("navigation", { name: "Primary" })
+    .getByRole("button", { name: "Remediation", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Remediation" }),
+  ).toBeVisible();
+
+  const searchbox = page.getByRole("searchbox", { name: "Global search" });
+  await searchbox.fill("semgrep");
+  const results = page.getByRole("region", { name: "Global search results" });
+  await expect(results).toContainText("SEC-1042");
+
+  await page.keyboard.press("Escape");
+  await expect(results).toHaveCount(0);
+  await expect(searchbox).toHaveValue("semgrep");
+  await page.keyboard.press("Tab");
+  await searchbox.click();
+  await expect(results).toContainText("SEC-1042");
+  await results.getByRole("button", { name: "Open finding SEC-1042" }).click();
+  await expect(page.getByRole("dialog", { name: "Verify fix" })).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  await searchbox.fill("juniper");
+  await results
+    .getByRole("button", { name: "Open company Juniper Ridge Dental" })
+    .click();
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Companies" }),
+  ).toBeVisible();
+});
+
+test("resolved verification updates active notifications", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "View finding" }).click();
+  await page
+    .getByRole("dialog", { name: "Verify fix" })
+    .getByRole("button", { name: "Run independent verification" })
+    .click();
+  await page.keyboard.press("Escape");
+
+  await page.getByRole("button", { name: "Notifications, 1 unread" }).click();
+  const notifications = page.getByRole("region", { name: "Notifications" });
+  await expect(notifications).toContainText(
+    "SEC-1042 verified fixed. Evidence bundle locked.",
+  );
+  await expect(notifications).not.toContainText("SEC-1042 verification failed");
+});
+
 test("reduced motion removes meaningful drawer animation", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");

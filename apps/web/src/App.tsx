@@ -34,6 +34,11 @@ import {
   verificationActivity,
 } from "./data";
 import { resolveFindingAction } from "./lib/findings/action";
+import {
+  normalizeFindingKey,
+  searchWorkspace,
+  type WorkspaceSearchResult,
+} from "./lib/findings/search";
 import { sortFindings, type QueueSort } from "./lib/findings/sort";
 import "./app.css";
 
@@ -117,7 +122,9 @@ function App() {
   const [activeFinding, setActiveFinding] = useState<Finding | null>(null);
   const [expandedFinding, setExpandedFinding] = useState<string>("SEC-1042");
   const [findings, setFindings] = useState(seedFindings);
-  const [query, setQuery] = useState("");
+  const [globalQuery, setGlobalQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [queueQuery, setQueueQuery] = useState("");
   const [companyFilter, setCompanyFilter] = useState("All companies");
   const [stateFilter, setStateFilter] = useState<FindingState | "All states">(
     "All states",
@@ -146,8 +153,13 @@ function App() {
     [findings, verificationPassed],
   );
 
+  const workspaceSearchResults = useMemo(
+    () => searchWorkspace(globalQuery, effectiveFindings, companyRisk),
+    [globalQuery, effectiveFindings],
+  );
+
   const filteredFindings = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
+    const normalized = queueQuery.trim().toLowerCase();
     const filtered = effectiveFindings.filter((finding) => {
       const matchesQuery =
         !normalized ||
@@ -181,7 +193,7 @@ function App() {
     return sortFindings(filtered, queueSort);
   }, [
     effectiveFindings,
-    query,
+    queueQuery,
     companyFilter,
     stateFilter,
     severityFilter,
@@ -193,6 +205,7 @@ function App() {
     setPage(nextPage);
     setMobileNavOpen(false);
     setNotificationsOpen(false);
+    setSearchOpen(false);
     window.scrollTo({ top: 0, behavior: "auto" });
   }
 
@@ -243,6 +256,7 @@ function App() {
       else if (overlay) closeOverlay();
       else if (mobileNavOpen) setMobileNavOpen(false);
       else if (notificationsOpen) setNotificationsOpen(false);
+      else if (searchOpen) setSearchOpen(false);
     };
     document.addEventListener("keydown", onEscape);
     return () => document.removeEventListener("keydown", onEscape);
@@ -256,7 +270,7 @@ function App() {
     if (label === "Verified fixed") setStateFilter("Verified fixed");
     if (label === "Managed companies") navigate("Companies");
     if (label === "SLA breaches") {
-      setQuery("SEC-1058");
+      setQueueQuery("SEC-1058");
       setStateFilter("All states");
     }
   }
@@ -269,10 +283,40 @@ function App() {
   function addImportedFinding(imported: Finding) {
     setFindings((current) => [imported, ...current]);
     setLiveMessage(`${imported.id} imported into the local demo queue.`);
-    setQuery(imported.id);
+    setQueueQuery(imported.id);
     setStateFilter("All states");
     setPage("Dashboard");
   }
+
+  const notifications = verificationPassed
+    ? [
+        {
+          id: "sec-1042-resolved",
+          status: "resolved" as const,
+          message: "SEC-1042 verified fixed. Evidence bundle locked.",
+        },
+        {
+          id: "sla-breaches",
+          status: "attention" as const,
+          message: "4 findings are past their remediation SLA.",
+        },
+      ]
+    : [
+        {
+          id: "sec-1042-failed",
+          status: "attention" as const,
+          message:
+            "SEC-1042 verification failed. Secondary query path remains exploitable.",
+        },
+        {
+          id: "sla-breaches",
+          status: "attention" as const,
+          message: "4 findings are past their remediation SLA.",
+        },
+      ];
+  const unreadNotificationCount = notifications.filter(
+    (notification) => notification.status === "attention",
+  ).length;
 
   const metrics = [
     { label: "Managed companies", value: 12 },
@@ -371,16 +415,47 @@ function App() {
             <ChevronDown aria-hidden="true" />
           </label>
 
-          <label className="global-search">
-            <Search aria-hidden="true" />
-            <span className="sr-only">Global search</span>
-            <input
-              type="search"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search IDs, companies, findings"
-            />
-          </label>
+          <div className="global-search-wrap">
+            <label className="global-search">
+              <Search aria-hidden="true" />
+              <span className="sr-only">Global search</span>
+              <input
+                type="search"
+                value={globalQuery}
+                aria-expanded={searchOpen && Boolean(globalQuery.trim())}
+                aria-controls="global-search-results"
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setGlobalQuery(value);
+                  setSearchOpen(Boolean(value.trim()));
+                }}
+                onFocus={() => {
+                  if (globalQuery.trim()) setSearchOpen(true);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key !== "Escape" || !searchOpen) return;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setSearchOpen(false);
+                }}
+                placeholder="Search IDs, companies, findings"
+              />
+            </label>
+            {searchOpen && globalQuery.trim() ? (
+              <WorkspaceSearchPanel
+                results={workspaceSearchResults}
+                onOpenFinding={(id, trigger) => {
+                  const finding = effectiveFindings.find(
+                    (candidate) => candidate.id === id,
+                  );
+                  if (!finding) return;
+                  setSearchOpen(false);
+                  openFinding(finding, trigger);
+                }}
+                onOpenCompany={() => navigate("Companies")}
+              />
+            ) : null}
+          </div>
 
           <div className="topbar-actions">
             <span className="sync-state" title="Demo workspace data is current">
@@ -391,12 +466,14 @@ function App() {
               <button
                 type="button"
                 className="icon-button"
-                aria-label="Notifications, 2 unread"
+                aria-label={`Notifications, ${unreadNotificationCount} unread`}
                 aria-expanded={notificationsOpen}
                 onClick={() => setNotificationsOpen((value) => !value)}
               >
                 <Bell aria-hidden="true" />
-                <span className="notification-dot" aria-hidden="true" />
+                {unreadNotificationCount ? (
+                  <span className="notification-dot" aria-hidden="true" />
+                ) : null}
               </button>
               {notificationsOpen ? (
                 <div
@@ -404,12 +481,25 @@ function App() {
                   role="region"
                   aria-label="Notifications"
                 >
-                  <strong>Needs attention</strong>
-                  <p>
-                    <span className="mono">SEC-1042</span> verification failed.
-                    Secondary query path remains exploitable.
-                  </p>
-                  <p>4 findings are past their remediation SLA.</p>
+                  {notifications.map((notification) => (
+                    <div className="notification-item" key={notification.id}>
+                      <div
+                        className={`notification-status notification-${notification.status}`}
+                      >
+                        {notification.status === "resolved" ? (
+                          <CheckCircle2 aria-hidden="true" />
+                        ) : (
+                          <AlertCircle aria-hidden="true" />
+                        )}
+                        <strong>
+                          {notification.status === "resolved"
+                            ? "Resolved"
+                            : "Needs attention"}
+                        </strong>
+                      </div>
+                      <p>{notification.message}</p>
+                    </div>
+                  ))}
                 </div>
               ) : null}
             </div>
@@ -449,7 +539,7 @@ function App() {
             <Dashboard
               metrics={metrics}
               findings={filteredFindings}
-              query={query}
+              query={queueQuery}
               companyFilter={companyFilter}
               stateFilter={stateFilter}
               severityFilter={severityFilter}
@@ -459,7 +549,7 @@ function App() {
               verificationPassed={verificationPassed}
               reportReady={reportReady}
               onMetric={applyMetricFilter}
-              onQuery={setQuery}
+              onQuery={setQueueQuery}
               onCompanyFilter={setCompanyFilter}
               onStateFilter={setStateFilter}
               onSeverityFilter={setSeverityFilter}
@@ -500,6 +590,7 @@ function App() {
       {overlay === "import" ? (
         <ImportDialog
           closeRef={modalCloseRef}
+          existingIds={findings.map((finding) => finding.id)}
           onClose={closeOverlay}
           onImport={addImportedFinding}
         />
@@ -523,6 +614,65 @@ function App() {
         {liveMessage}
       </div>
     </div>
+  );
+}
+
+function WorkspaceSearchPanel({
+  results,
+  onOpenFinding,
+  onOpenCompany,
+}: {
+  results: WorkspaceSearchResult[];
+  onOpenFinding: (id: string, trigger: HTMLButtonElement) => void;
+  onOpenCompany: (id: string) => void;
+}) {
+  return (
+    <section
+      id="global-search-results"
+      className="workspace-search-panel"
+      role="region"
+      aria-label="Global search results"
+    >
+      <div className="workspace-search-summary">
+        <strong>Search workspace</strong>
+        <span>
+          {results.length} {results.length === 1 ? "result" : "results"}
+        </span>
+      </div>
+      {results.length ? (
+        <ul className="workspace-search-list">
+          {results.map((result) => (
+            <li
+              className="workspace-search-item"
+              key={`${result.kind}:${result.id}`}
+            >
+              <div className="workspace-search-copy">
+                <strong>{result.primary}</strong>
+                <span>{result.secondary}</span>
+              </div>
+              <button
+                type="button"
+                className="button secondary"
+                aria-label={`Open ${result.kind} ${result.id}`}
+                onClick={(event) => {
+                  if (result.kind === "finding") {
+                    onOpenFinding(result.id, event.currentTarget);
+                  } else {
+                    onOpenCompany(result.id);
+                  }
+                }}
+              >
+                Open {result.kind}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="workspace-search-empty">
+          No companies or findings match this search.
+        </p>
+      )}
+    </section>
   );
 }
 
@@ -1218,10 +1368,12 @@ function VerificationDrawer({
 
 function ImportDialog({
   closeRef,
+  existingIds,
   onClose,
   onImport,
 }: {
   closeRef: React.RefObject<HTMLButtonElement | null>;
+  existingIds: string[];
   onClose: () => void;
   onImport: (finding: Finding) => void;
 }) {
@@ -1238,8 +1390,19 @@ function ImportDialog({
       setError("Finding ID and title are required before importing.");
       return;
     }
+    const findingKey = normalizeFindingKey(id);
+    if (
+      existingIds.some(
+        (existingId) => normalizeFindingKey(existingId) === findingKey,
+      )
+    ) {
+      setError(
+        `${findingKey} already exists in this workspace. Use a different finding ID.`,
+      );
+      return;
+    }
     onImport({
-      id: id.trim().toUpperCase(),
+      id: findingKey,
       company,
       title: title.trim(),
       severity,
