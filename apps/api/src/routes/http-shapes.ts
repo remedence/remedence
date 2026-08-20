@@ -11,6 +11,7 @@ import type {
   Remediation,
   Report,
   VerificationCheck,
+  VerificationCompletion,
   VerificationRun,
 } from "@remedence/core";
 
@@ -55,7 +56,7 @@ function toDashboardFinding(finding: DashboardFinding) {
   };
 }
 
-function toRemediation(remediation: Remediation) {
+export function toRemediation(remediation: Remediation) {
   return {
     id: remediation.id,
     finding_id: remediation.findingId,
@@ -70,7 +71,7 @@ function toRemediation(remediation: Remediation) {
   };
 }
 
-function toVerificationRun(verification: VerificationRun) {
+export function toVerificationRun(verification: VerificationRun) {
   return {
     id: verification.id,
     finding_id: verification.findingId,
@@ -86,7 +87,7 @@ function toVerificationRun(verification: VerificationRun) {
   };
 }
 
-function toVerificationCheck(check: VerificationCheck) {
+export function toVerificationCheck(check: VerificationCheck) {
   return {
     id: check.id,
     verification_id: check.verificationId,
@@ -98,7 +99,7 @@ function toVerificationCheck(check: VerificationCheck) {
   };
 }
 
-function toVerificationWithChecks(
+export function toVerificationWithChecks(
   verification: VerificationRun & { checks: VerificationCheck[] },
 ) {
   const { checks, ...run } = verification;
@@ -108,7 +109,7 @@ function toVerificationWithChecks(
   };
 }
 
-function toEvidence(item: EvidenceItem) {
+export function toEvidence(item: EvidenceItem) {
   return {
     id: item.id,
     finding_id: item.findingId,
@@ -193,6 +194,14 @@ export function toImportResult(result: ImportResult) {
       created_at: result.importRecord.createdAt,
     },
     finding: toFinding(result.finding),
+  };
+}
+
+export function toVerificationCompletion(completion: VerificationCompletion) {
+  return {
+    verification: toVerificationRun(completion.verification),
+    finding: toFinding(completion.finding),
+    evidence: completion.evidence.map(toEvidence),
   };
 }
 

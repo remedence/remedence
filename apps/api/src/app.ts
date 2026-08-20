@@ -6,8 +6,11 @@ import { problemHandler } from "./middleware/problem-handler.js";
 import { createRequestContext } from "./middleware/request-context.js";
 import { createCompaniesRouter } from "./routes/companies.js";
 import { createDashboardRouter } from "./routes/dashboard.js";
+import { createEvidenceRouter } from "./routes/evidence.js";
 import { createFindingsRouter } from "./routes/findings.js";
 import { createImportsRouter } from "./routes/imports.js";
+import { createRemediationsRouter } from "./routes/remediations.js";
+import { createVerificationsRouter } from "./routes/verifications.js";
 
 const openApiPath = fileURLToPath(
   new URL("../../../api/openapi.yaml", import.meta.url),
@@ -44,8 +47,11 @@ export function createApp(dependencies: ApiDependencies): Express {
 
   app.use("/api/v1", createDashboardRouter(dependencies));
   app.use("/api/v1", createCompaniesRouter(dependencies));
+  app.use("/api/v1", createEvidenceRouter(dependencies));
   app.use("/api/v1", createFindingsRouter(dependencies));
   app.use("/api/v1", createImportsRouter(dependencies));
+  app.use("/api/v1", createRemediationsRouter(dependencies));
+  app.use("/api/v1", createVerificationsRouter(dependencies));
 
   app.use(problemHandler);
   return app;
