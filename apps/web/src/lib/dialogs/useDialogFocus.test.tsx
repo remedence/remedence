@@ -72,6 +72,21 @@ describe("useDialogFocus", () => {
     expect(last).toHaveFocus();
   });
 
+  it("recovers when focus leaves the layer before keyboard input", async () => {
+    const user = userEvent.setup();
+    render(<DialogHarness />);
+    const trigger = screen.getByRole("button", { name: "Open dialog" });
+
+    await user.click(trigger);
+    trigger.focus();
+    await user.keyboard("{Tab}");
+    expect(screen.getByRole("button", { name: "First action" })).toHaveFocus();
+
+    trigger.focus();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog", { name: "Test dialog" })).toBeNull();
+  });
+
   it("closes on Escape, restores the background, and returns focus", async () => {
     const user = userEvent.setup();
     render(<DialogHarness />);

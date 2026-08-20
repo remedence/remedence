@@ -99,10 +99,10 @@ export function useDialogFocus({
       }
     };
 
-    layer.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("keydown", handleKeyDown, true);
 
     return () => {
-      layer.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("keydown", handleKeyDown, true);
       if (addedLayerTabIndex) layer.removeAttribute("tabindex");
       for (const { element, inert } of priorInertState) {
         if (!inert) element.removeAttribute("inert");
