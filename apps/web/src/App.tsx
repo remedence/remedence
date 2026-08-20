@@ -33,6 +33,7 @@ import {
   FindingState,
   verificationActivity,
 } from "./data";
+import { DialogLayer } from "./lib/dialogs/DialogLayer";
 import { resolveFindingAction } from "./lib/findings/action";
 import {
   normalizeFindingKey,
@@ -216,7 +217,6 @@ function App() {
 
   function closeFinding() {
     setActiveFinding(null);
-    requestAnimationFrame(() => lastTriggerRef.current?.focus());
   }
 
   function handleFindingAction(finding: Finding, trigger: HTMLButtonElement) {
@@ -238,23 +238,12 @@ function App() {
 
   function closeOverlay() {
     setOverlay(null);
-    requestAnimationFrame(() => lastTriggerRef.current?.focus());
   }
-
-  useEffect(() => {
-    if (activeFinding) drawerCloseRef.current?.focus();
-  }, [activeFinding]);
-
-  useEffect(() => {
-    if (overlay) modalCloseRef.current?.focus();
-  }, [overlay]);
 
   useEffect(() => {
     const onEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
-      if (activeFinding) closeFinding();
-      else if (overlay) closeOverlay();
-      else if (mobileNavOpen) setMobileNavOpen(false);
+      if (mobileNavOpen) setMobileNavOpen(false);
       else if (notificationsOpen) setNotificationsOpen(false);
       else if (searchOpen) setSearchOpen(false);
     };
@@ -578,6 +567,7 @@ function App() {
           finding={activeFinding}
           verificationPassed={verificationPassed}
           closeRef={drawerCloseRef}
+          restoreFocusRef={lastTriggerRef}
           onClose={closeFinding}
           onRun={runVerification}
           onNavigate={(target) => {
@@ -590,6 +580,7 @@ function App() {
       {overlay === "import" ? (
         <ImportDialog
           closeRef={modalCloseRef}
+          restoreFocusRef={lastTriggerRef}
           existingIds={findings.map((finding) => finding.id)}
           onClose={closeOverlay}
           onImport={addImportedFinding}
@@ -599,6 +590,7 @@ function App() {
       {overlay === "report" ? (
         <ReportDialog
           closeRef={modalCloseRef}
+          restoreFocusRef={lastTriggerRef}
           ready={reportReady}
           onClose={closeOverlay}
           onReady={() => {
@@ -1188,6 +1180,7 @@ function VerificationDrawer({
   finding,
   verificationPassed,
   closeRef,
+  restoreFocusRef,
   onClose,
   onRun,
   onNavigate,
@@ -1195,184 +1188,179 @@ function VerificationDrawer({
   finding: Finding;
   verificationPassed: boolean;
   closeRef: React.RefObject<HTMLButtonElement | null>;
+  restoreFocusRef: React.RefObject<HTMLButtonElement | null>;
   onClose: () => void;
   onRun: () => void;
   onNavigate: (page: PageName) => void;
 }) {
   const heroFinding = finding.id === "SEC-1042";
   return (
-    <div
-      className="drawer-layer"
-      role="presentation"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
+    <DialogLayer
+      layerClassName="drawer-layer"
+      dialogClassName="verification-drawer"
+      labelledBy="verification-drawer-title"
+      element="aside"
+      initialFocusRef={closeRef}
+      restoreFocusRef={restoreFocusRef}
+      onClose={onClose}
     >
-      <aside
-        className="verification-drawer"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="verification-drawer-title"
-      >
-        <div className="drawer-header">
-          <div>
-            <span className="mono">{finding.id}</span>
-            <h2 id="verification-drawer-title">
-              {heroFinding ? "Verify fix" : finding.action}
-            </h2>
-          </div>
-          <button
-            ref={closeRef}
-            type="button"
-            className="icon-button"
-            aria-label="Close verification drawer"
-            onClick={onClose}
-          >
-            <X aria-hidden="true" />
-          </button>
+      <div className="drawer-header">
+        <div>
+          <span className="mono">{finding.id}</span>
+          <h2 id="verification-drawer-title">
+            {heroFinding ? "Verify fix" : finding.action}
+          </h2>
         </div>
-        <div className="drawer-content">
-          <div className="drawer-finding">
-            <SeverityChip severity={finding.severity} />
-            <h3>{finding.title}</h3>
-            <p>
-              {finding.company} · {finding.source}
-            </p>
-          </div>
-          {heroFinding ? (
-            <>
-              <section aria-labelledby="prior-run-title">
-                <h3 id="prior-run-title">Previous verification</h3>
-                <div className="verification-failure">
-                  <AlertCircle aria-hidden="true" />
-                  <div>
-                    <strong>Verification #1 failed</strong>
-                    <p>Secondary query path remains exploitable.</p>
-                    <span className="mono">
-                      2026-08-20 00:16 PDT · independent HTTP regression path
-                    </span>
-                  </div>
-                </div>
-              </section>
-              <dl className="verification-details">
+        <button
+          ref={closeRef}
+          type="button"
+          className="icon-button"
+          aria-label="Close verification drawer"
+          onClick={onClose}
+        >
+          <X aria-hidden="true" />
+        </button>
+      </div>
+      <div className="drawer-content">
+        <div className="drawer-finding">
+          <SeverityChip severity={finding.severity} />
+          <h3>{finding.title}</h3>
+          <p>
+            {finding.company} · {finding.source}
+          </p>
+        </div>
+        {heroFinding ? (
+          <>
+            <section aria-labelledby="prior-run-title">
+              <h3 id="prior-run-title">Previous verification</h3>
+              <div className="verification-failure">
+                <AlertCircle aria-hidden="true" />
                 <div>
-                  <dt>Remediation reference</dt>
-                  <dd className="mono">fix/patient-export-secondary-query</dd>
+                  <strong>Verification #1 failed</strong>
+                  <p>Secondary query path remains exploitable.</p>
+                  <span className="mono">
+                    2026-08-20 00:16 PDT · independent HTTP regression path
+                  </span>
                 </div>
+              </div>
+            </section>
+            <dl className="verification-details">
+              <div>
+                <dt>Remediation reference</dt>
+                <dd className="mono">fix/patient-export-secondary-query</dd>
+              </div>
+              <div>
+                <dt>Verification method</dt>
+                <dd>Security regression replay + scanner rescan</dd>
+              </div>
+              <div>
+                <dt>Independent worker</dt>
+                <dd>Remedence verification worker</dd>
+              </div>
+              <div>
+                <dt>Scope</dt>
+                <dd>Patient Portal API · patient-export routes</dd>
+              </div>
+              <div>
+                <dt>Expected checks</dt>
+                <dd>
+                  Primary query blocked · secondary query blocked · regression
+                  test passes
+                </dd>
+              </div>
+              <div>
+                <dt>Estimated compute spend</dt>
+                <dd>No paid AI inference in this demo run</dd>
+              </div>
+            </dl>
+            <section className="expected-checks" aria-labelledby="checks-title">
+              <h3 id="checks-title">Verification checks</h3>
+              <div>
+                <CheckCircle2 aria-hidden="true" />
+                <span>
+                  Primary query path no longer accepts injection payload
+                </span>
+              </div>
+              <div>
+                <CheckCircle2 aria-hidden="true" />
+                <span>
+                  Secondary query path is covered by the second remediation
+                </span>
+              </div>
+              <div>
+                <FileCheck2 aria-hidden="true" />
+                <span>
+                  Lock evidence only after every independent check passes
+                </span>
+              </div>
+            </section>
+            {verificationPassed ? (
+              <div className="verification-success" role="status">
+                <CheckCircle2 aria-hidden="true" />
                 <div>
-                  <dt>Verification method</dt>
-                  <dd>Security regression replay + scanner rescan</dd>
+                  <strong>Verified fixed. Evidence bundle locked.</strong>
+                  <p>
+                    The failed first verification remains in history. The second
+                    independent verification passed after the secondary path was
+                    remediated.
+                  </p>
                 </div>
-                <div>
-                  <dt>Independent worker</dt>
-                  <dd>Remedence verification worker</dd>
-                </div>
-                <div>
-                  <dt>Scope</dt>
-                  <dd>Patient Portal API · patient-export routes</dd>
-                </div>
-                <div>
-                  <dt>Expected checks</dt>
-                  <dd>
-                    Primary query blocked · secondary query blocked · regression
-                    test passes
-                  </dd>
-                </div>
-                <div>
-                  <dt>Estimated compute spend</dt>
-                  <dd>No paid AI inference in this demo run</dd>
-                </div>
-              </dl>
-              <section
-                className="expected-checks"
-                aria-labelledby="checks-title"
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="button primary full"
+                onClick={onRun}
               >
-                <h3 id="checks-title">Verification checks</h3>
-                <div>
-                  <CheckCircle2 aria-hidden="true" />
-                  <span>
-                    Primary query path no longer accepts injection payload
-                  </span>
-                </div>
-                <div>
-                  <CheckCircle2 aria-hidden="true" />
-                  <span>
-                    Secondary query path is covered by the second remediation
-                  </span>
-                </div>
-                <div>
-                  <FileCheck2 aria-hidden="true" />
-                  <span>
-                    Lock evidence only after every independent check passes
-                  </span>
-                </div>
-              </section>
+                <ShieldCheck aria-hidden="true" />
+                Run independent verification
+              </button>
+            )}
+            <div className="drawer-actions">
               {verificationPassed ? (
-                <div className="verification-success" role="status">
-                  <CheckCircle2 aria-hidden="true" />
-                  <div>
-                    <strong>Verified fixed. Evidence bundle locked.</strong>
-                    <p>
-                      The failed first verification remains in history. The
-                      second independent verification passed after the secondary
-                      path was remediated.
-                    </p>
-                  </div>
-                </div>
+                <button
+                  type="button"
+                  className="button secondary"
+                  onClick={() => onNavigate("Evidence")}
+                >
+                  View evidence
+                </button>
               ) : (
                 <button
                   type="button"
-                  className="button primary full"
-                  onClick={onRun}
+                  className="button secondary"
+                  onClick={() => onNavigate("Remediation")}
                 >
-                  <ShieldCheck aria-hidden="true" />
-                  Run independent verification
+                  Return to remediation
                 </button>
               )}
-              <div className="drawer-actions">
-                {verificationPassed ? (
-                  <button
-                    type="button"
-                    className="button secondary"
-                    onClick={() => onNavigate("Evidence")}
-                  >
-                    View evidence
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="button secondary"
-                    onClick={() => onNavigate("Remediation")}
-                  >
-                    Return to remediation
-                  </button>
-                )}
-              </div>
-            </>
-          ) : (
-            <div className="meaningful-state">
-              <ShieldCheck aria-hidden="true" />
-              <h3>Awaiting verification</h3>
-              <p>
-                This v1 scaffold preserves the verification method, scope, and
-                evidence boundary. The full worker integration remains
-                API-backed work.
-              </p>
             </div>
-          )}
-        </div>
-      </aside>
-    </div>
+          </>
+        ) : (
+          <div className="meaningful-state">
+            <ShieldCheck aria-hidden="true" />
+            <h3>Awaiting verification</h3>
+            <p>
+              This v1 scaffold preserves the verification method, scope, and
+              evidence boundary. The full worker integration remains API-backed
+              work.
+            </p>
+          </div>
+        )}
+      </div>
+    </DialogLayer>
   );
 }
 
 function ImportDialog({
   closeRef,
+  restoreFocusRef,
   existingIds,
   onClose,
   onImport,
 }: {
   closeRef: React.RefObject<HTMLButtonElement | null>;
+  restoreFocusRef: React.RefObject<HTMLButtonElement | null>;
   existingIds: string[];
   onClose: () => void;
   onImport: (finding: Finding) => void;
@@ -1416,123 +1404,115 @@ function ImportDialog({
   }
 
   return (
-    <div
-      className="modal-layer"
-      role="presentation"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
+    <DialogLayer
+      layerClassName="modal-layer"
+      dialogClassName="modal"
+      labelledBy="import-title"
+      initialFocusRef={closeRef}
+      restoreFocusRef={restoreFocusRef}
+      onClose={onClose}
     >
-      <section
-        className="modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="import-title"
-      >
-        <div className="modal-header">
-          <div>
-            <p className="section-kicker">Local v1 workflow</p>
-            <h2 id="import-title">Import findings</h2>
-          </div>
-          <button
-            ref={closeRef}
-            type="button"
-            className="icon-button"
-            aria-label="Close import dialog"
-            onClick={onClose}
+      <div className="modal-header">
+        <div>
+          <p className="section-kicker">Local v1 workflow</p>
+          <h2 id="import-title">Import findings</h2>
+        </div>
+        <button
+          ref={closeRef}
+          type="button"
+          className="icon-button"
+          aria-label="Close import dialog"
+          onClick={onClose}
+        >
+          <X aria-hidden="true" />
+        </button>
+      </div>
+      <form onSubmit={submit} noValidate>
+        <label>
+          <span>Source</span>
+          <select
+            value={source}
+            onChange={(event) => setSource(event.target.value)}
           >
-            <X aria-hidden="true" />
+            <option>Semgrep</option>
+            <option>Microsoft 365</option>
+            <option>Vulnerability scanner</option>
+            <option>CSPM</option>
+          </select>
+        </label>
+        <label>
+          <span>Company</span>
+          <select
+            value={company}
+            onChange={(event) => setCompany(event.target.value)}
+          >
+            <option>Juniper Ridge Dental</option>
+            <option>Alder & Pike Legal</option>
+            <option>Cedarline Health</option>
+          </select>
+        </label>
+        <label>
+          <span>Finding ID</span>
+          <input
+            value={id}
+            onChange={(event) => setId(event.target.value)}
+            aria-invalid={Boolean(error)}
+            aria-describedby={error ? "import-error" : undefined}
+            placeholder="SEC-1090"
+          />
+        </label>
+        <label>
+          <span>Finding title</span>
+          <input
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            aria-invalid={Boolean(error)}
+            aria-describedby={error ? "import-error" : undefined}
+            placeholder="Describe the finding"
+          />
+        </label>
+        <label>
+          <span>Severity</span>
+          <select
+            value={severity}
+            onChange={(event) =>
+              setSeverity(event.target.value as Finding["severity"])
+            }
+          >
+            <option>Critical</option>
+            <option>High</option>
+            <option>Medium</option>
+          </select>
+        </label>
+        {error ? (
+          <p id="import-error" className="form-error">
+            <AlertCircle aria-hidden="true" />
+            {error}
+          </p>
+        ) : null}
+        <div className="modal-actions">
+          <button type="button" className="button secondary" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="submit" className="button primary">
+            <Import aria-hidden="true" />
+            Import finding
           </button>
         </div>
-        <form onSubmit={submit} noValidate>
-          <label>
-            <span>Source</span>
-            <select
-              value={source}
-              onChange={(event) => setSource(event.target.value)}
-            >
-              <option>Semgrep</option>
-              <option>Microsoft 365</option>
-              <option>Vulnerability scanner</option>
-              <option>CSPM</option>
-            </select>
-          </label>
-          <label>
-            <span>Company</span>
-            <select
-              value={company}
-              onChange={(event) => setCompany(event.target.value)}
-            >
-              <option>Juniper Ridge Dental</option>
-              <option>Alder & Pike Legal</option>
-              <option>Cedarline Health</option>
-            </select>
-          </label>
-          <label>
-            <span>Finding ID</span>
-            <input
-              value={id}
-              onChange={(event) => setId(event.target.value)}
-              aria-invalid={Boolean(error)}
-              aria-describedby={error ? "import-error" : undefined}
-              placeholder="SEC-1090"
-            />
-          </label>
-          <label>
-            <span>Finding title</span>
-            <input
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              aria-invalid={Boolean(error)}
-              aria-describedby={error ? "import-error" : undefined}
-              placeholder="Describe the finding"
-            />
-          </label>
-          <label>
-            <span>Severity</span>
-            <select
-              value={severity}
-              onChange={(event) =>
-                setSeverity(event.target.value as Finding["severity"])
-              }
-            >
-              <option>Critical</option>
-              <option>High</option>
-              <option>Medium</option>
-            </select>
-          </label>
-          {error ? (
-            <p id="import-error" className="form-error">
-              <AlertCircle aria-hidden="true" />
-              {error}
-            </p>
-          ) : null}
-          <div className="modal-actions">
-            <button
-              type="button"
-              className="button secondary"
-              onClick={onClose}
-            >
-              Cancel
-            </button>
-            <button type="submit" className="button primary">
-              <Import aria-hidden="true" />
-              Import finding
-            </button>
-          </div>
-        </form>
-      </section>
-    </div>
+      </form>
+    </DialogLayer>
   );
 }
 
 function ReportDialog({
   closeRef,
+  restoreFocusRef,
   ready,
   onClose,
   onReady,
 }: {
   closeRef: React.RefObject<HTMLButtonElement | null>;
+  restoreFocusRef: React.RefObject<HTMLButtonElement | null>;
   ready: boolean;
   onClose: () => void;
   onReady: () => void;
@@ -1560,86 +1540,80 @@ function ReportDialog({
   }
 
   return (
-    <div
-      className="modal-layer"
-      role="presentation"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
+    <DialogLayer
+      layerClassName="modal-layer"
+      dialogClassName="modal report-modal"
+      labelledBy="report-title"
+      initialFocusRef={closeRef}
+      restoreFocusRef={restoreFocusRef}
+      onClose={onClose}
     >
-      <section
-        className="modal report-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="report-title"
-      >
-        <div className="modal-header">
-          <div>
-            <p className="section-kicker">Client report</p>
-            <h2 id="report-title">August Security Review</h2>
-          </div>
-          <button
-            ref={closeRef}
-            type="button"
-            className="icon-button"
-            aria-label="Close report dialog"
-            onClick={onClose}
-          >
-            <X aria-hidden="true" />
-          </button>
+      <div className="modal-header">
+        <div>
+          <p className="section-kicker">Client report</p>
+          <h2 id="report-title">August Security Review</h2>
         </div>
-        <div className="report-preview">
-          <strong>Juniper Ridge Dental</strong>
-          <div>
-            <span>Risk score</span>
-            <b>82 → 61</b>
-          </div>
-          <div>
-            <span>Critical findings</span>
-            <b>3 → 0</b>
-          </div>
-          <div>
-            <span>High findings</span>
-            <b>8 → 4</b>
-          </div>
-          <div>
-            <span>Verified fixes</span>
-            <b>+7</b>
-          </div>
-          <div>
-            <span>SLA compliance</span>
-            <b>94%</b>
-          </div>
+        <button
+          ref={closeRef}
+          type="button"
+          className="icon-button"
+          aria-label="Close report dialog"
+          onClick={onClose}
+        >
+          <X aria-hidden="true" />
+        </button>
+      </div>
+      <div className="report-preview">
+        <strong>Juniper Ridge Dental</strong>
+        <div>
+          <span>Risk score</span>
+          <b>82 → 61</b>
         </div>
-        <p className="report-note">
-          This v1 generates a local text preview. Server-side PDF/report
-          persistence belongs behind the canonical API.
-        </p>
-        <div className="modal-actions">
-          <button
-            type="button"
-            className="button secondary"
-            onClick={downloadReport}
-          >
-            <FileDown aria-hidden="true" />
-            Download text report
-          </button>
-          <button
-            type="button"
-            className="button primary"
-            disabled={ready}
-            onClick={onReady}
-          >
-            {ready ? (
-              <CheckCircle2 aria-hidden="true" />
-            ) : (
-              <FileCheck2 aria-hidden="true" />
-            )}
-            {ready ? "Report ready" : "Mark report ready"}
-          </button>
+        <div>
+          <span>Critical findings</span>
+          <b>3 → 0</b>
         </div>
-      </section>
-    </div>
+        <div>
+          <span>High findings</span>
+          <b>8 → 4</b>
+        </div>
+        <div>
+          <span>Verified fixes</span>
+          <b>+7</b>
+        </div>
+        <div>
+          <span>SLA compliance</span>
+          <b>94%</b>
+        </div>
+      </div>
+      <p className="report-note">
+        This v1 generates a local text preview. Server-side PDF/report
+        persistence belongs behind the canonical API.
+      </p>
+      <div className="modal-actions">
+        <button
+          type="button"
+          className="button secondary"
+          onClick={downloadReport}
+        >
+          <FileDown aria-hidden="true" />
+          Download text report
+        </button>
+        <button
+          type="button"
+          className="button primary"
+          disabled={ready}
+          onClick={onReady}
+        >
+          {ready ? (
+            <CheckCircle2 aria-hidden="true" />
+          ) : (
+            <FileCheck2 aria-hidden="true" />
+          )}
+          {ready ? "Report ready" : "Mark report ready"}
+        </button>
+      </div>
+    </DialogLayer>
   );
 }
 

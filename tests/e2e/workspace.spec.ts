@@ -115,6 +115,66 @@ test("SEC-1042 preserves failed verification history after an independent pass",
   ).toBeVisible();
 });
 
+test("verification drawer traps focus, inerts background, and restores its trigger", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const trigger = page.getByRole("button", { name: "View finding" });
+  await trigger.click();
+
+  const dialog = page.getByRole("dialog", { name: "Verify fix" });
+  const close = dialog.getByRole("button", {
+    name: "Close verification drawer",
+  });
+  const last = dialog.getByRole("button", { name: "Return to remediation" });
+
+  await expect(page.locator(".workspace")).toHaveAttribute("inert", "");
+  await expect(page.locator(".sidebar")).toHaveAttribute("inert", "");
+  await expect(close).toBeFocused();
+
+  await page.keyboard.press("Shift+Tab");
+  await expect(last).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(close).toBeFocused();
+
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator(".workspace")).not.toHaveAttribute("inert", "");
+  await expect(page.locator(".sidebar")).not.toHaveAttribute("inert", "");
+  await expect(trigger).toBeFocused();
+});
+
+test("import and report dialogs share the accessible dialog layer", async ({
+  page,
+}) => {
+  await page.goto("/");
+
+  const importTrigger = page.getByRole("button", { name: "Import findings" });
+  await importTrigger.click();
+  const importDialog = page.getByRole("dialog", { name: "Import findings" });
+  await expect(
+    importDialog.getByRole("button", { name: "Close import dialog" }),
+  ).toBeFocused();
+  await expect(page.locator(".workspace")).toHaveAttribute("inert", "");
+  await page.keyboard.press("Escape");
+  await expect(importDialog).toHaveCount(0);
+  await expect(importTrigger).toBeFocused();
+
+  const reportTrigger = page.getByRole("button", { name: "Generate report" });
+  await reportTrigger.click();
+  const reportDialog = page.getByRole("dialog", {
+    name: "August Security Review",
+  });
+  await expect(
+    reportDialog.getByRole("button", { name: "Close report dialog" }),
+  ).toBeFocused();
+  await expect(page.locator(".workspace")).toHaveAttribute("inert", "");
+  await page.keyboard.press("Escape");
+  await expect(reportDialog).toHaveCount(0);
+  await expect(page.locator(".workspace")).not.toHaveAttribute("inert", "");
+  await expect(reportTrigger).toBeFocused();
+});
+
 test("mobile actions, owner filtering, and queue sorting share real state", async ({
   page,
 }) => {
