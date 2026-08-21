@@ -4,6 +4,7 @@ export * from "./domain/priority.js";
 export * from "./errors/domain-error.js";
 export * from "./ports/repositories.js";
 export * from "./ports/runtime.js";
+export * from "./report-markdown.js";
 export * from "./services/dashboard-service.js";
 export * from "./services/import-finding.js";
 export * from "./services/remediation-service.js";

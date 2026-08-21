@@ -124,7 +124,7 @@ export function toEvidence(item: EvidenceItem) {
   };
 }
 
-function toAuditEvent(event: AuditEvent) {
+export function toAuditEvent(event: AuditEvent) {
   if (event.id === undefined) {
     throw new Error("Persisted audit event is missing its identifier.");
   }
@@ -141,7 +141,7 @@ function toAuditEvent(event: AuditEvent) {
   };
 }
 
-function toReport(report: Report) {
+export function toReport(report: Report) {
   return {
     id: report.id,
     company_id: report.companyId,
@@ -168,6 +168,15 @@ function toReport(report: Report) {
 export function toFindingPage(page: Page<DashboardFinding>) {
   return {
     items: page.items.map(toDashboardFinding),
+    page: page.page,
+    page_size: page.pageSize,
+    total: page.total,
+  };
+}
+
+export function toAuditEventPage(page: Page<AuditEvent>) {
+  return {
+    items: page.items.map(toAuditEvent),
     page: page.page,
     page_size: page.pageSize,
     total: page.total,

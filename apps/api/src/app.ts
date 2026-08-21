@@ -4,12 +4,14 @@ import * as OpenApiValidator from "express-openapi-validator";
 import type { ApiDependencies } from "./dependencies.js";
 import { problemHandler } from "./middleware/problem-handler.js";
 import { createRequestContext } from "./middleware/request-context.js";
+import { createAuditEventsRouter } from "./routes/audit-events.js";
 import { createCompaniesRouter } from "./routes/companies.js";
 import { createDashboardRouter } from "./routes/dashboard.js";
 import { createEvidenceRouter } from "./routes/evidence.js";
 import { createFindingsRouter } from "./routes/findings.js";
 import { createImportsRouter } from "./routes/imports.js";
 import { createRemediationsRouter } from "./routes/remediations.js";
+import { createReportsRouter } from "./routes/reports.js";
 import { createVerificationsRouter } from "./routes/verifications.js";
 
 const openApiPath = fileURLToPath(
@@ -46,11 +48,13 @@ export function createApp(dependencies: ApiDependencies): Express {
   );
 
   app.use("/api/v1", createDashboardRouter(dependencies));
+  app.use("/api/v1", createAuditEventsRouter(dependencies));
   app.use("/api/v1", createCompaniesRouter(dependencies));
   app.use("/api/v1", createEvidenceRouter(dependencies));
   app.use("/api/v1", createFindingsRouter(dependencies));
   app.use("/api/v1", createImportsRouter(dependencies));
   app.use("/api/v1", createRemediationsRouter(dependencies));
+  app.use("/api/v1", createReportsRouter(dependencies));
   app.use("/api/v1", createVerificationsRouter(dependencies));
 
   app.use(problemHandler);

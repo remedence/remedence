@@ -1,3 +1,4 @@
+export { backupDatabase } from "./backup.js";
 export {
   openRemedenceDatabase,
   type OpenDatabaseOptions,

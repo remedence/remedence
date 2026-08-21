@@ -18,6 +18,9 @@
     "e2e": "playwright test",
     "generate:api": "npm run generate -w @remedence/openapi-codegen",
     "check:generated-api": "node scripts/check-generated-api.mjs",
+    "db:migrate": "node scripts/db-migrate.mjs",
+    "db:seed": "node scripts/db-seed.mjs",
+    "db:backup": "node scripts/db-backup.mjs",
     "check:current": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run build && npm run e2e"
   },
   "devDependencies": {
