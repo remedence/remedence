@@ -11,6 +11,11 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { AppShell, type PageName } from "./AppShell";
 import { DashboardPage } from "../features/dashboard/DashboardPage";
+import { EvidencePage } from "../features/evidence/EvidencePage";
+import { ImportFindingDialog } from "../features/imports/ImportFindingDialog";
+import { RemediationPanel } from "../features/remediation/RemediationPanel";
+import { ReportDialog } from "../features/reports/ReportDialog";
+import { VerificationDrawer } from "../features/verification/VerificationDrawer";
 import {
   SeverityChip,
   StatusChip,
@@ -35,7 +40,6 @@ import "../app.css";
 
 type DashboardSnapshot = components["schemas"]["DashboardSnapshot"];
 type FindingDetail = components["schemas"]["FindingDetail"];
-type EvidenceItem = components["schemas"]["EvidenceItem"];
 type IntegrationState = components["schemas"]["IntegrationState"];
 type DashboardQuery = NonNullable<
   operations["getDashboard"]["parameters"]["query"]
@@ -145,12 +149,6 @@ async function loadFindingDetail(
   throw new ApiProblemError(problemFromResponse(error, response));
 }
 
-async function loadEvidence(signal: AbortSignal): Promise<EvidenceItem[]> {
-  const { data, error, response } = await api.GET("/evidence", { signal });
-  if (data !== undefined) return data;
-  throw new ApiProblemError(problemFromResponse(error, response));
-}
-
 async function loadIntegrations(
   signal: AbortSignal,
 ): Promise<IntegrationState[]> {
@@ -170,7 +168,15 @@ export default function App() {
   const [page, setPage] = useState<PageName>("Dashboard");
   const [filters, setFilters] = useState<FindingFilters>(filtersFromLocation);
   const [activeFindingKey, setActiveFindingKey] = useState("");
+  const [activeRemediationFinding, setActiveRemediationFinding] =
+    useState<DashboardFinding | null>(null);
+  const [activeVerificationFinding, setActiveVerificationFinding] =
+    useState<DashboardFinding | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [mutationAnnouncement, setMutationAnnouncement] = useState("");
   const lastTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const importTriggerRef = useRef<HTMLButtonElement | null>(null);
 
   const dashboard = useApiQuery<DashboardSnapshot>(
     (signal) => loadDashboard(filters, signal),
@@ -209,10 +215,29 @@ export default function App() {
     setActiveFindingKey(findingKey);
   }
 
+  function openReportDialog(trigger: HTMLButtonElement) {
+    lastTriggerRef.current = trigger;
+    setReportOpen(true);
+  }
+
   function handleFindingAction(
     finding: DashboardFinding,
     trigger: HTMLButtonElement,
   ) {
+    if (
+      finding.state === "Needs remediation" ||
+      finding.state === "Remediating" ||
+      finding.state === "Verification failed"
+    ) {
+      lastTriggerRef.current = trigger;
+      setActiveRemediationFinding(finding);
+      return;
+    }
+    if (finding.state === "Awaiting verification") {
+      lastTriggerRef.current = trigger;
+      setActiveVerificationFinding(finding);
+      return;
+    }
     const action = resolveFindingAction(finding);
     if (action.kind === "finding" || action.kind === "verification") {
       openFinding(finding.finding_key, trigger);
@@ -269,16 +294,28 @@ export default function App() {
           Loading remediation workspace.
         </p>
         {page === "Dashboard" ? (
-          <DashboardPage
-            key="dashboard-page"
-            dashboard={dashboard.data}
-            filters={filters}
-            onMetric={applyMetric}
-            onFiltersChange={updateFilters}
-            onClearFilters={clearFilters}
-            onFindingAction={handleFindingAction}
-            onNavigate={setPage}
-          />
+          <>
+            <div className="workspace-primary-action">
+              <button
+                ref={importTriggerRef}
+                type="button"
+                className="button primary"
+                onClick={() => setImportOpen(true)}
+              >
+                Import finding
+              </button>
+            </div>
+            <DashboardPage
+              key="dashboard-page"
+              dashboard={dashboard.data}
+              filters={filters}
+              onMetric={applyMetric}
+              onFiltersChange={updateFilters}
+              onClearFilters={clearFilters}
+              onFindingAction={handleFindingAction}
+              onNavigate={setPage}
+            />
+          </>
         ) : (
           <SecondaryPage
             key={`secondary:${page}`}
@@ -286,6 +323,7 @@ export default function App() {
             dashboard={dashboard.data}
             onNavigate={setPage}
             onOpenFinding={openFinding}
+            onGenerateReport={openReportDialog}
           />
         )}
       </>
@@ -304,6 +342,11 @@ export default function App() {
         onSearch={(search) => updateFilters({ ...filters, search }, "replace")}
         onOpenFinding={openFinding}
       >
+        {mutationAnnouncement ? (
+          <p className="mutation-announcement" role="status" aria-live="polite">
+            {mutationAnnouncement}
+          </p>
+        ) : null}
         {content}
       </AppShell>
       {activeFindingKey ? (
@@ -311,6 +354,50 @@ export default function App() {
           findingKey={activeFindingKey}
           restoreFocusRef={lastTriggerRef}
           onClose={() => setActiveFindingKey("")}
+        />
+      ) : null}
+      {activeRemediationFinding ? (
+        <RemediationPanel
+          finding={activeRemediationFinding}
+          restoreFocusRef={lastTriggerRef}
+          onClose={() => setActiveRemediationFinding(null)}
+          onPersistedChange={(message) => {
+            setMutationAnnouncement(message);
+            dashboard.reload();
+          }}
+        />
+      ) : null}
+      {activeVerificationFinding ? (
+        <VerificationDrawer
+          finding={activeVerificationFinding}
+          restoreFocusRef={lastTriggerRef}
+          onClose={() => setActiveVerificationFinding(null)}
+          onPersistedChange={(message) => {
+            setMutationAnnouncement(message);
+            dashboard.reload();
+          }}
+        />
+      ) : null}
+      {reportOpen && dashboard.data ? (
+        <ReportDialog
+          companies={dashboard.data.companies}
+          restoreFocusRef={lastTriggerRef}
+          onClose={() => setReportOpen(false)}
+          onSuccess={(report) => {
+            setMutationAnnouncement(`Report ${report.id} generated.`);
+            dashboard.reload();
+          }}
+        />
+      ) : null}
+      {importOpen && dashboard.data ? (
+        <ImportFindingDialog
+          companies={dashboard.data.companies}
+          restoreFocusRef={importTriggerRef}
+          onClose={() => setImportOpen(false)}
+          onSuccess={(result) => {
+            setMutationAnnouncement(`Imported ${result.finding.finding_key}.`);
+            dashboard.reload();
+          }}
         />
       ) : null}
     </>
@@ -455,11 +542,13 @@ function SecondaryPage({
   dashboard,
   onNavigate,
   onOpenFinding,
+  onGenerateReport,
 }: {
   page: PageName;
   dashboard: DashboardSnapshot;
   onNavigate: (page: PageName) => void;
   onOpenFinding: (findingKey: string, trigger: HTMLButtonElement) => void;
+  onGenerateReport: (trigger: HTMLButtonElement) => void;
 }) {
   if (page === "Companies") {
     return (
@@ -596,6 +685,15 @@ function SecondaryPage({
         title="Reports"
         copy="Client reporting reflects immutable persisted report snapshots."
       >
+        <div className="report-page-actions">
+          <button
+            type="button"
+            className="button primary"
+            onClick={(event) => onGenerateReport(event.currentTarget)}
+          >
+            Generate report
+          </button>
+        </div>
         {report ? (
           <div className="report-status page-report">
             <div>
@@ -610,13 +708,23 @@ function SecondaryPage({
                 · SLA compliance{" "}
                 <strong>{report.snapshot.sla_compliance_percent}%</strong>
               </p>
+              <p className="report-metadata">
+                Snapshot <span className="mono">{report.id}</span> ·{" "}
+                {report.period_label}
+              </p>
+              <a
+                className="button secondary"
+                href={`/api/v1/reports/${encodeURIComponent(report.id)}/download`}
+              >
+                Download Markdown
+              </a>
             </div>
             <span className="locked-state">{report.status}</span>
           </div>
         ) : (
           <EmptyState
             title="No report snapshot yet."
-            detail="A report will appear here after the persisted report workflow creates one."
+            detail="Generate a report to create a new immutable persisted snapshot."
           />
         )}
       </ScaffoldPage>
@@ -712,43 +820,6 @@ function SecondaryPage({
           </small>
         </div>
       </div>
-    </ScaffoldPage>
-  );
-}
-
-function EvidencePage() {
-  const evidence = useApiQuery<EvidenceItem[]>(
-    (signal) => loadEvidence(signal),
-    [],
-  );
-  return (
-    <ScaffoldPage
-      title="Evidence"
-      copy="Evidence reads come from immutable metadata stored behind the canonical API."
-    >
-      {evidence.status === "loading" || evidence.status === "idle" ? (
-        <LoadingState />
-      ) : evidence.status === "error" && evidence.problem ? (
-        <ProblemState problem={evidence.problem} onRetry={evidence.reload} />
-      ) : evidence.data?.length ? (
-        <ul className="evidence-list">
-          {evidence.data.map((item) => (
-            <li key={item.id}>
-              <FileCheck2 aria-hidden="true" />
-              <span>
-                {item.label}
-                <small className="mono">{item.content_hash}</small>
-              </span>
-              <span>{item.locked_at ? "Locked" : "Recorded"}</span>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <EmptyState
-          title="No evidence matches this workspace read."
-          detail="Evidence appears only after the persisted verification workflow records it."
-        />
-      )}
     </ScaffoldPage>
   );
 }

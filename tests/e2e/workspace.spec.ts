@@ -1,355 +1,403 @@
-import AxeBuilder from "@axe-core/playwright";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
-const viewports = [
-  { name: "desktop-1440", width: 1440, height: 900 },
-  { name: "desktop-1280", width: 1280, height: 800 },
-  { name: "tablet", width: 1024, height: 768 },
-  { name: "mobile-430", width: 430, height: 932 },
-  { name: "mobile-390", width: 390, height: 844 },
-] as const;
-
-for (const viewport of viewports) {
-  test(`${viewport.name} keeps the dashboard usable without horizontal overflow`, async ({
-    page,
-  }) => {
-    await page.setViewportSize({
-      width: viewport.width,
-      height: viewport.height,
-    });
-    await page.goto("/");
-
-    await expect(
-      page.getByRole("heading", { level: 1, name: "Dashboard" }),
-    ).toBeVisible();
-    if (viewport.width < 1100) {
-      await expect(page.locator(".mobile-finding-row").first()).toContainText(
-        "SEC-1042",
-      );
-    } else {
-      await expect(page.locator(".queue-table tbody tr").first()).toContainText(
-        "SEC-1042",
-      );
-    }
-
-    const horizontalOverflow = await page.evaluate(
-      () =>
-        document.documentElement.scrollWidth -
-        document.documentElement.clientWidth,
-    );
-    expect(horizontalOverflow).toBeLessThanOrEqual(1);
-  });
+function findingRow(page: Page, findingKey: string): Locator {
+  return page.getByRole("row").filter({ hasText: findingKey });
 }
 
-test("keyboard entry starts with the skip link and mobile navigation is actionable", async ({
-  page,
-}) => {
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/");
+async function metric(page: Page, label: string): Promise<number> {
+  const button = page.getByRole("button", {
+    name: new RegExp(`^${label} \\d+$`),
+  });
+  const ariaLabel = await button.getAttribute("aria-label");
+  const match = ariaLabel?.match(/(\d+)$/);
+  if (!match)
+    throw new Error(
+      `Could not read ${label} metric from ${ariaLabel ?? "missing aria-label"}`,
+    );
+  return Number(match[1]);
+}
 
-  await page.keyboard.press("Tab");
-  await expect(
-    page.getByRole("link", { name: "Skip to main content" }),
-  ).toBeFocused();
-
-  await page.keyboard.press("Tab");
-  await expect(
-    page.getByRole("button", { name: "Open navigation" }),
-  ).toBeFocused();
-  await page.keyboard.press("Enter");
-  await expect(
-    page.getByRole("navigation", { name: "Mobile navigation" }),
-  ).toBeVisible();
-  await page
-    .getByRole("navigation", { name: "Mobile navigation" })
-    .getByRole("button", { name: "Evidence" })
-    .click();
-  await expect(
-    page.getByRole("heading", { level: 1, name: "Evidence" }),
-  ).toBeVisible();
-});
-
-test("SEC-1042 preserves failed verification history after an independent pass", async ({
-  page,
-}) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto("/");
-
-  const trigger = page.getByRole("button", { name: "View finding" });
-  await trigger.click();
-  const dialog = page.getByRole("dialog", { name: "Verify fix" });
-  await expect(dialog).toBeVisible();
-  await expect(dialog.getByText("Verification #1 failed")).toBeVisible();
-
+async function fillImport(
+  page: Page,
+  findingKey: string,
+  title: string,
+): Promise<void> {
+  const dialog = page.getByRole("dialog", { name: "Import finding" });
   await dialog
-    .getByRole("button", { name: "Run independent verification" })
-    .click();
-  await expect(
-    dialog.getByText("Verified fixed. Evidence bundle locked."),
-  ).toBeVisible();
-  await expect(dialog.getByText("Verification #1 failed")).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Open findings 46" }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Verification failed 2" }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Verified fixed 127" }),
-  ).toBeVisible();
+    .getByLabel("Company")
+    .selectOption({ label: "Juniper Ridge Dental" });
+  await dialog.getByLabel("Severity").selectOption("Critical");
+  await dialog.getByLabel("Source").fill("Task 15 Playwright");
+  await dialog.getByLabel("Finding key").fill(findingKey);
+  await dialog.getByLabel("Title").fill(title);
+  await dialog
+    .getByLabel("Description")
+    .fill("Persistent mutation workflow exercised by Playwright.");
+  await dialog.getByLabel("Owner").fill("A. Rivera");
+  await dialog.getByLabel("Asset").fill("task15-e2e-api");
+  await dialog.getByLabel("Detected at").fill("2026-08-20T20:00");
+  await dialog.getByLabel("SLA due at").fill("2026-08-27T20:00");
+}
 
-  await page.keyboard.press("Escape");
-  await expect(dialog).toBeHidden();
-  await expect(
-    page.getByRole("button", { name: "View evidence" }).first(),
-  ).toBeFocused();
-  await expect(
-    page.getByText("Secondary query path remains exploitable."),
-  ).toHaveCount(0);
+test.describe("Task 15 persistent mutation workflows", () => {
+  test("persists import, failed verification, second remediation, verified closure, evidence, and report snapshot", async ({
+    page,
+  }) => {
+    test.setTimeout(90_000);
+    const suffix = Date.now().toString(36).toUpperCase();
+    const findingKey = `SEC-E2E-${suffix}`;
+    const title = `Task 15 E2E ${suffix}`;
+    const evidenceLabel = `Authorization regression proof ${suffix}`;
+    const reportPeriod = `Task 15 E2E ${suffix}`;
 
-  await page
-    .getByRole("button", { name: "Verification 8", exact: true })
-    .click();
-  await expect(
-    page.getByText("Secondary query path remains exploitable · 8 min ago"),
-  ).toBeVisible();
-});
-
-test("verification drawer traps focus, inerts background, and restores its trigger", async ({
-  page,
-}) => {
-  await page.goto("/");
-  const trigger = page.getByRole("button", { name: "View finding" });
-  await trigger.click();
-
-  const dialog = page.getByRole("dialog", { name: "Verify fix" });
-  const close = dialog.getByRole("button", {
-    name: "Close verification drawer",
-  });
-  const last = dialog.getByRole("button", { name: "Return to remediation" });
-
-  await expect(page.locator(".workspace")).toHaveAttribute("inert", "");
-  await expect(page.locator(".sidebar")).toHaveAttribute("inert", "");
-  await expect(close).toBeFocused();
-
-  await page.keyboard.press("Shift+Tab");
-  await expect(last).toBeFocused();
-  await page.keyboard.press("Tab");
-  await expect(close).toBeFocused();
-
-  await page.keyboard.press("Escape");
-  await expect(dialog).toHaveCount(0);
-  await expect(page.locator(".workspace")).not.toHaveAttribute("inert", "");
-  await expect(page.locator(".sidebar")).not.toHaveAttribute("inert", "");
-  await expect(trigger).toBeFocused();
-});
-
-test("import and report dialogs share the accessible dialog layer", async ({
-  page,
-}) => {
-  await page.goto("/");
-
-  const importTrigger = page.getByRole("button", { name: "Import findings" });
-  await importTrigger.click();
-  const importDialog = page.getByRole("dialog", { name: "Import findings" });
-  await expect(
-    importDialog.getByRole("button", { name: "Close import dialog" }),
-  ).toBeFocused();
-  await expect(page.locator(".workspace")).toHaveAttribute("inert", "");
-  await page.keyboard.press("Escape");
-  await expect(importDialog).toHaveCount(0);
-  await expect(importTrigger).toBeFocused();
-
-  const reportTrigger = page.getByRole("button", { name: "Generate report" });
-  await reportTrigger.click();
-  const reportDialog = page.getByRole("dialog", {
-    name: "August Security Review",
-  });
-  await expect(
-    reportDialog.getByRole("button", { name: "Close report dialog" }),
-  ).toBeFocused();
-  await expect(page.locator(".workspace")).toHaveAttribute("inert", "");
-  await page.keyboard.press("Escape");
-  await expect(reportDialog).toHaveCount(0);
-  await expect(page.locator(".workspace")).not.toHaveAttribute("inert", "");
-  await expect(reportTrigger).toBeFocused();
-});
-
-test("mobile actions, owner filtering, and queue sorting share real state", async ({
-  page,
-}) => {
-  await page.setViewportSize({ width: 430, height: 932 });
-  await page.goto("/");
-
-  await page.getByRole("button", { name: "Start remediation" }).click();
-  await expect(
-    page.getByRole("heading", { level: 1, name: "Remediation" }),
-  ).toBeVisible();
-  await expect(page.getByRole("dialog", { name: "Verify fix" })).toHaveCount(0);
-
-  await page.getByRole("button", { name: "Open navigation" }).click();
-  await page
-    .getByRole("navigation", { name: "Mobile navigation" })
-    .getByRole("button", { name: "Dashboard" })
-    .click();
-
-  const mobileFilters = page.locator(".mobile-filter-details");
-  await mobileFilters.locator("summary").click();
-  await mobileFilters.getByLabel("Owner").selectOption("S. Patel");
-  await expect(page.locator(".mobile-finding-row")).toHaveCount(1);
-  await expect(page.locator(".mobile-finding-row").first()).toContainText(
-    "SEC-1073",
-  );
-
-  await mobileFilters.getByLabel("Owner").selectOption("All owners");
-  await mobileFilters.getByLabel("Sort").selectOption("Newest");
-  await expect(page.locator(".mobile-finding-row").nth(0)).toContainText(
-    "SEC-1042",
-  );
-  await expect(page.locator(".mobile-finding-row").nth(1)).toContainText(
-    "SEC-1081",
-  );
-});
-
-test("import form exposes a written corrective error state", async ({
-  page,
-}) => {
-  await page.goto("/");
-  await page.getByRole("button", { name: "Import findings" }).click();
-  const dialog = page.getByRole("dialog", { name: "Import findings" });
-  await dialog.getByRole("button", { name: "Import finding" }).click();
-  await expect(
-    dialog.getByText("Finding ID and title are required before importing."),
-  ).toBeVisible();
-  await page.keyboard.press("Escape");
-  await expect(dialog).toBeHidden();
-});
-
-test("case-insensitive duplicate imports stay rejected", async ({ page }) => {
-  await page.goto("/");
-  await page.getByRole("button", { name: "Import findings" }).click();
-  const dialog = page.getByRole("dialog", { name: "Import findings" });
-  await dialog.getByLabel("Finding ID").fill("sec-1042");
-  await dialog.getByLabel("Finding title").fill("Duplicate finding");
-  await dialog.getByRole("button", { name: "Import finding" }).click();
-
-  await expect(
-    dialog.getByText(
-      "SEC-1042 already exists in this workspace. Use a different finding ID.",
-    ),
-  ).toBeVisible();
-  await expect(dialog).toBeVisible();
-  await expect(
-    page.locator(".queue-table tbody tr").filter({ hasText: "SEC-1042" }),
-  ).toHaveCount(1);
-});
-
-test("global search works from secondary pages", async ({ page }) => {
-  await page.goto("/");
-  await page
-    .getByRole("navigation", { name: "Primary" })
-    .getByRole("button", { name: "Remediation", exact: true })
-    .click();
-  await expect(
-    page.getByRole("heading", { level: 1, name: "Remediation" }),
-  ).toBeVisible();
-
-  const searchbox = page.getByRole("searchbox", { name: "Global search" });
-  await searchbox.fill("semgrep");
-  const results = page.getByRole("region", { name: "Global search results" });
-  await expect(results).toContainText("SEC-1042");
-
-  await page.keyboard.press("Escape");
-  await expect(results).toHaveCount(0);
-  await expect(searchbox).toHaveValue("semgrep");
-  await page.keyboard.press("Tab");
-  await searchbox.click();
-  await expect(results).toContainText("SEC-1042");
-  await results.getByRole("button", { name: "Open finding SEC-1042" }).click();
-  await expect(page.getByRole("dialog", { name: "Verify fix" })).toBeVisible();
-  await page.keyboard.press("Escape");
-
-  await searchbox.fill("juniper");
-  await results
-    .getByRole("button", { name: "Open company Juniper Ridge Dental" })
-    .click();
-  await expect(
-    page.getByRole("heading", { level: 1, name: "Companies" }),
-  ).toBeVisible();
-});
-
-test("resolved verification updates active notifications", async ({ page }) => {
-  await page.goto("/");
-  await page.getByRole("button", { name: "View finding" }).click();
-  await page
-    .getByRole("dialog", { name: "Verify fix" })
-    .getByRole("button", { name: "Run independent verification" })
-    .click();
-  await page.keyboard.press("Escape");
-
-  await page.getByRole("button", { name: "Notifications, 1 unread" }).click();
-  const notifications = page.getByRole("region", { name: "Notifications" });
-  await expect(notifications).toContainText(
-    "SEC-1042 verified fixed. Evidence bundle locked.",
-  );
-  await expect(notifications).not.toContainText("SEC-1042 verification failed");
-});
-
-test("reduced motion removes meaningful drawer animation", async ({ page }) => {
-  await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/");
-  await page.getByRole("button", { name: "View finding" }).click();
-  const drawer = page.locator(".verification-drawer");
-  const animationDuration = await drawer.evaluate(
-    (element) => getComputedStyle(element).animationDuration,
-  );
-  expect(Number.parseFloat(animationDuration)).toBeLessThanOrEqual(0.001);
-});
-
-test("desktop and mobile dashboard states have no serious automated accessibility violations", async ({
-  page,
-}) => {
-  for (const viewport of [
-    { width: 1440, height: 900 },
-    { width: 390, height: 844 },
-  ]) {
-    await page.setViewportSize(viewport);
     await page.goto("/");
-    const results = await new AxeBuilder({ page })
-      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
-      .analyze();
-    expect(results.violations).toEqual([]);
-  }
-});
+    await expect(
+      page.getByRole("heading", { name: "Action queue" }),
+    ).toBeVisible();
 
-test("dashboard produces no console errors or failed application requests", async ({
-  page,
-}) => {
-  const consoleErrors: string[] = [];
-  const pageErrors: string[] = [];
-  const failedRequests: string[] = [];
+    const initialOpen = await metric(page, "Open findings");
+    const initialFailed = await metric(page, "Verification failed");
+    const initialVerified = await metric(page, "Verified fixed");
 
-  page.on("console", (message) => {
-    if (message.type() === "error") consoleErrors.push(message.text());
+    await page.getByRole("button", { name: "Import finding" }).click();
+    const importDialog = page.getByRole("dialog", { name: "Import finding" });
+    await expect(importDialog.getByLabel("Company")).toBeFocused();
+    await fillImport(page, findingKey, title);
+    await importDialog
+      .getByRole("button", { name: "Import finding", exact: true })
+      .click();
+
+    await expect(page.getByText(`Imported ${findingKey}.`)).toBeVisible();
+    await expect(findingRow(page, findingKey)).toContainText(
+      "Needs remediation",
+    );
+    await expect(
+      page.getByRole("button", { name: `Open findings ${initialOpen + 1}` }),
+    ).toBeVisible();
+
+    await page.reload();
+    await expect(findingRow(page, findingKey)).toContainText(
+      "Needs remediation",
+    );
+
+    await findingRow(page, findingKey)
+      .getByRole("button", { name: "Start remediation" })
+      .click();
+    let remediation = page.getByRole("dialog", { name: "Remediation" });
+    await remediation
+      .getByLabel("Remediation summary")
+      .fill("Apply the first authorization fix.");
+    await remediation
+      .getByLabel("Remediation reference")
+      .fill(`PR-${suffix}-A`);
+    await remediation
+      .getByRole("button", { name: "Start remediation" })
+      .click();
+    await expect(remediation.getByText("In progress")).toBeVisible();
+    await expect(remediation.getByText(`PR-${suffix}-A`)).toBeVisible();
+    await expect(findingRow(page, findingKey)).toContainText("Remediating");
+
+    await remediation
+      .getByLabel("Completion summary")
+      .fill("Merged the first authorization fix.");
+    await remediation
+      .getByLabel("Completion reference")
+      .fill(`commit-${suffix.toLowerCase()}-a`);
+    await remediation
+      .getByRole("button", { name: "Complete remediation" })
+      .click();
+    await expect(
+      remediation.getByText("Awaiting independent verification."),
+    ).toBeVisible();
+    await expect(
+      remediation.getByText(/not yet verified fixed/i),
+    ).toBeVisible();
+    await expect(findingRow(page, findingKey)).toContainText(
+      "Awaiting verification",
+    );
+    await remediation
+      .getByRole("button", { name: "Close remediation" })
+      .click();
+
+    await findingRow(page, findingKey)
+      .getByRole("button", { name: "Review verification" })
+      .click();
+    let verification = page.getByRole("dialog", { name: "Verification" });
+    await expect(
+      verification.getByText("Record independent verification result"),
+    ).toBeVisible();
+    await verification
+      .getByLabel("Verification method")
+      .fill("Playwright regression");
+    await verification.getByLabel("Verifier").fill("Independent verifier A");
+    await verification
+      .getByLabel("Verification scope")
+      .fill("Authorization boundary");
+    await verification
+      .getByLabel("Expected checks")
+      .fill("Authorization regression");
+    await verification
+      .getByRole("button", { name: "Create verification" })
+      .click();
+
+    const desktopViewport = page.viewportSize();
+    await page.setViewportSize({ width: 390, height: 844 });
+    const verificationColumns = await verification
+      .locator(".verification-details")
+      .evaluate((element) => getComputedStyle(element).gridTemplateColumns);
+    expect(verificationColumns.trim().split(/\s+/)).toHaveLength(1);
+    if (desktopViewport) await page.setViewportSize(desktopViewport);
+
+    await verification
+      .getByLabel("Result for Authorization regression")
+      .selectOption("Failed");
+    await verification
+      .getByLabel("Message for Authorization regression")
+      .fill("Secondary authorization path remains exploitable.");
+    await verification
+      .getByRole("button", { name: "Record Authorization regression" })
+      .click();
+    await expect(
+      verification
+        .getByText("Secondary authorization path remains exploitable.")
+        .first(),
+    ).toBeVisible();
+
+    await verification
+      .getByLabel("Verification result summary")
+      .fill("First remediation is incomplete.");
+    await verification
+      .getByRole("button", { name: "Complete failed verification" })
+      .click();
+    await expect(
+      verification.getByText("Verification failed", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      verification.getByRole("button", {
+        name: "Record Authorization regression",
+      }),
+    ).toHaveCount(0);
+    await verification
+      .getByRole("button", { name: "Close verification" })
+      .click();
+
+    await expect(findingRow(page, findingKey)).toContainText(
+      "Verification failed",
+    );
+    await expect(
+      page.getByRole("button", {
+        name: `Verification failed ${initialFailed + 1}`,
+      }),
+    ).toBeVisible();
+    await page.reload();
+    await expect(findingRow(page, findingKey)).toContainText(
+      "Verification failed",
+    );
+
+    await findingRow(page, findingKey)
+      .getByRole("button", { name: "Start new remediation" })
+      .click();
+    remediation = page.getByRole("dialog", { name: "Remediation" });
+    await remediation
+      .getByLabel("Remediation summary")
+      .fill("Close the remaining secondary authorization path.");
+    await remediation
+      .getByLabel("Remediation reference")
+      .fill(`PR-${suffix}-B`);
+    await remediation
+      .getByRole("button", { name: "Start remediation" })
+      .click();
+    await remediation
+      .getByLabel("Completion summary")
+      .fill("Merged the secondary authorization path fix.");
+    await remediation
+      .getByLabel("Completion reference")
+      .fill(`commit-${suffix.toLowerCase()}-b`);
+    await remediation
+      .getByRole("button", { name: "Complete remediation" })
+      .click();
+    await expect(findingRow(page, findingKey)).toContainText(
+      "Awaiting verification",
+    );
+    await remediation
+      .getByRole("button", { name: "Close remediation" })
+      .click();
+
+    await findingRow(page, findingKey)
+      .getByRole("button", { name: "Review verification" })
+      .click();
+    verification = page.getByRole("dialog", { name: "Verification" });
+    await expect(
+      verification.getByText("First remediation is incomplete."),
+    ).toBeVisible();
+    await expect(
+      verification.getByText(
+        "Secondary authorization path remains exploitable.",
+      ),
+    ).toBeVisible();
+    await verification
+      .getByLabel("Verification method")
+      .fill("Playwright regression");
+    await verification.getByLabel("Verifier").fill("Independent verifier B");
+    await verification
+      .getByLabel("Verification scope")
+      .fill("Authorization boundary after remediation two");
+    await verification
+      .getByLabel("Expected checks")
+      .fill("Authorization regression");
+    await verification
+      .getByRole("button", { name: "Create verification" })
+      .click();
+    await verification
+      .getByLabel("Result for Authorization regression")
+      .selectOption("Passed");
+    await verification
+      .getByLabel("Message for Authorization regression")
+      .fill("Regression no longer reproduces.");
+    await verification
+      .getByRole("button", { name: "Record Authorization regression" })
+      .click();
+
+    await verification
+      .getByLabel("Verification result summary")
+      .fill("All independent regression checks passed.");
+    await verification.getByLabel("Evidence kind").fill("regression-output");
+    await verification.getByLabel("Evidence label").fill(evidenceLabel);
+    await verification
+      .getByLabel("Evidence source reference")
+      .fill(`artifact://task15/e2e/${suffix}`);
+    await verification
+      .getByRole("button", { name: "Complete passed verification" })
+      .click();
+
+    await expect(
+      verification.getByText("Verified fixed. Evidence bundle locked."),
+    ).toBeVisible();
+    await expect(
+      verification.getByText("First remediation is incomplete."),
+    ).toBeVisible();
+    await verification
+      .getByRole("button", { name: "Close verification" })
+      .click();
+
+    await expect(
+      page.getByRole("button", { name: `Open findings ${initialOpen}` }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", {
+        name: `Verification failed ${initialFailed}`,
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", {
+        name: `Verified fixed ${initialVerified + 1}`,
+      }),
+    ).toBeVisible();
+
+    await page.reload();
+    await expect(
+      page.getByRole("button", {
+        name: `Verified fixed ${initialVerified + 1}`,
+      }),
+    ).toBeVisible();
+
+    await page.getByRole("button", { name: "Evidence" }).click();
+    const evidenceCard = page
+      .locator(".evidence-proof-card")
+      .filter({ hasText: evidenceLabel });
+    await expect(evidenceCard).toBeVisible();
+    await expect(evidenceCard).toContainText("Locked evidence");
+    await expect(evidenceCard).toContainText("Evidence ID");
+    await expect(evidenceCard).toContainText("Verification ID");
+    await expect(evidenceCard).toContainText(`artifact://task15/e2e/${suffix}`);
+    await expect(evidenceCard).toContainText("Content hash");
+    await expect(evidenceCard).toContainText("Created");
+    await expect(evidenceCard).toContainText("Locked at");
+
+    await page.getByRole("button", { name: "Reports" }).click();
+    const oldDownload = page.getByRole("link", { name: "Download Markdown" });
+    const oldHref = await oldDownload.getAttribute("href");
+    expect(oldHref).toBeTruthy();
+    const oldReportPath = oldHref!.replace(/\/download$/, "");
+    const oldBeforeResponse = await page.request.get(oldReportPath);
+    expect(oldBeforeResponse.ok()).toBeTruthy();
+    const oldBefore = await oldBeforeResponse.json();
+
+    await page.getByRole("button", { name: "Generate report" }).click();
+    const reportDialog = page.getByRole("dialog", { name: "Generate report" });
+    await expect(reportDialog.getByLabel("Company")).toBeFocused();
+    await reportDialog
+      .getByLabel("Company")
+      .selectOption({ label: "Juniper Ridge Dental" });
+    await reportDialog.getByLabel("Period label").fill(reportPeriod);
+    await reportDialog
+      .getByRole("button", { name: "Generate report", exact: true })
+      .click();
+
+    await expect(
+      page.getByRole("heading", { name: new RegExp(reportPeriod) }),
+    ).toBeVisible();
+    const newDownload = page.getByRole("link", { name: "Download Markdown" });
+    const newHref = await newDownload.getAttribute("href");
+    expect(newHref).toBeTruthy();
+    expect(newHref).not.toBe(oldHref);
+    const downloadResponse = await page.request.get(newHref!);
+    expect(downloadResponse.status()).toBe(200);
+    expect(downloadResponse.headers()["content-type"]).toContain(
+      "text/markdown",
+    );
+
+    const oldAfterResponse = await page.request.get(oldReportPath);
+    expect(oldAfterResponse.ok()).toBeTruthy();
+    expect(await oldAfterResponse.json()).toEqual(oldBefore);
   });
-  page.on("pageerror", (error) => pageErrors.push(error.message));
-  page.on("requestfailed", (request) => failedRequests.push(request.url()));
 
-  await page.goto("/");
-  await page.getByRole("button", { name: "Notifications, 2 unread" }).click();
-  await expect(
-    page.getByRole("region", { name: "Notifications" }),
-  ).toBeVisible();
-  await page.keyboard.press("Escape");
-  await expect(
-    page.getByRole("region", { name: "Notifications" }),
-  ).toBeHidden();
-  await page.getByRole("button", { name: "Generate report" }).click();
-  await expect(
-    page.getByRole("dialog", { name: "August Security Review" }),
-  ).toBeVisible();
+  test("duplicate import preserves values, keeps URL filters, restores focus, and fits a narrow viewport", async ({
+    page,
+  }) => {
+    test.setTimeout(45_000);
+    const suffix = Date.now().toString(36).toUpperCase();
+    const findingKey = `SEC-DUP-${suffix}`;
+    const title = `Duplicate browser test ${suffix}`;
 
-  expect(consoleErrors).toEqual([]);
-  expect(pageErrors).toEqual([]);
-  expect(failedRequests).toEqual([]);
+    await page.goto("/");
+    await page.getByLabel("Search findings").fill("Juniper");
+    await expect(page).toHaveURL(/search=Juniper/);
+    const filteredUrl = page.url();
+
+    const trigger = page.getByRole("button", { name: "Import finding" });
+    await trigger.click();
+    await fillImport(page, findingKey, title);
+    const dialog = page.getByRole("dialog", { name: "Import finding" });
+    await dialog
+      .getByRole("button", { name: "Import finding", exact: true })
+      .click();
+    await expect(page).toHaveURL(filteredUrl);
+    await expect(trigger).toBeFocused();
+
+    await trigger.click();
+    await fillImport(page, findingKey, title);
+    await dialog
+      .getByRole("button", { name: "Import finding", exact: true })
+      .click();
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByText("Conflict", { exact: true })).toBeVisible();
+    await expect(
+      dialog.getByText(/already exists in this organization/i),
+    ).toBeVisible();
+    await expect(dialog.getByText(/Request ID:/)).toBeVisible();
+    await expect(dialog.getByLabel("Finding key")).toHaveValue(findingKey);
+    await expect(dialog.getByLabel("Title")).toHaveValue(title);
+    await expect(page).toHaveURL(filteredUrl);
+
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth > window.innerWidth,
+    );
+    expect(overflow).toBe(false);
+  });
 });

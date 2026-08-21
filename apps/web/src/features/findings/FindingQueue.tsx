@@ -70,7 +70,7 @@ export function SeverityChip({ severity }: { severity: Severity }) {
 export function findingActionLabel(finding: DashboardFinding): string {
   switch (finding.state) {
     case "Verification failed":
-      return "View finding";
+      return "Start new remediation";
     case "Awaiting verification":
       return "Review verification";
     case "Needs remediation":
