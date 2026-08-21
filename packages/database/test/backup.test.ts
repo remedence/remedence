@@ -11,7 +11,10 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { backupDatabase } from "../src/backup.js";
-import { openRemedenceDatabase, type RemedenceDatabase } from "../src/database.js";
+import {
+  openRemedenceDatabase,
+  type RemedenceDatabase,
+} from "../src/database.js";
 import { applyMigrations } from "../src/migrations.js";
 import { seedHarborline } from "../src/seed.js";
 import { createRepositorySet } from "../src/unit-of-work.js";
@@ -45,7 +48,8 @@ describe("Task 13 SQLite backup", () => {
     const sourceRepositories = createRepositorySet(source, { referenceTime });
     expect(sourceRepositories.companies.list(organizationId)).toHaveLength(12);
     expect(
-      sourceRepositories.findings.findByKey(organizationId, "SEC-1042")?.findingKey,
+      sourceRepositories.findings.findByKey(organizationId, "SEC-1042")
+        ?.findingKey,
     ).toBe("SEC-1042");
 
     const destination = join(
@@ -62,9 +66,9 @@ describe("Task 13 SQLite backup", () => {
     try {
       const repositories = createRepositorySet(backup, { referenceTime });
       expect(
-        repositories.companies.list(organizationId).some(
-          (company) => company.name === "Juniper Ridge Dental",
-        ),
+        repositories.companies
+          .list(organizationId)
+          .some((company) => company.name === "Juniper Ridge Dental"),
       ).toBe(true);
       expect(
         repositories.findings.findByKey(organizationId, "SEC-1042"),
@@ -78,8 +82,14 @@ describe("Task 13 SQLite backup", () => {
   });
 
   it("rejects a destination resolving to the live source database", async () => {
-    await expect(backupDatabase(source, join(temporaryDirectory, "source", ".", "remedence.db")))
-      .rejects.toThrow("Backup destination must differ from the live database path.");
+    await expect(
+      backupDatabase(
+        source,
+        join(temporaryDirectory, "source", ".", "remedence.db"),
+      ),
+    ).rejects.toThrow(
+      "Backup destination must differ from the live database path.",
+    );
   });
 
   it("refuses to overwrite an existing destination file", async () => {

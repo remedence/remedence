@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { API_HOST, DEFAULT_API_PORT, resolveApiPort } from "../src/config.js";
+import {
+  API_HOST,
+  DEFAULT_API_PORT,
+  isProductionMode,
+  resolveApiPort,
+} from "../src/config.js";
 
 describe("local API configuration", () => {
   it("keeps the unauthenticated API on loopback", () => {
@@ -9,6 +14,14 @@ describe("local API configuration", () => {
   it("uses the approved default port and accepts a bounded override", () => {
     expect(resolveApiPort(undefined)).toBe(DEFAULT_API_PORT);
     expect(resolveApiPort("5500")).toBe(5500);
+  });
+
+  it("enables built web serving for explicit production mode or npm start", () => {
+    expect(isProductionMode("production", undefined)).toBe(true);
+    expect(isProductionMode(undefined, "start")).toBe(true);
+    expect(isProductionMode("development", "start")).toBe(true);
+    expect(isProductionMode(undefined, "dev")).toBe(false);
+    expect(isProductionMode(undefined, undefined)).toBe(false);
   });
 
   it.each(["80", "65536", "43180.5", "abc", ""])(

@@ -88,6 +88,17 @@ export function problemHandler(
       ? (error as ErrorWithStatus)
       : undefined;
 
+  if (candidate?.status === 404) {
+    sendProblem(
+      response,
+      request,
+      404,
+      "NOT_FOUND",
+      "The requested resource was not found.",
+    );
+    return;
+  }
+
   if (candidate?.type === "entity.too.large" || candidate?.status === 413) {
     sendProblem(
       response,

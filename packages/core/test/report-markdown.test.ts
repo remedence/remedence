@@ -22,7 +22,8 @@ function reportFixture(): Report {
           organizationId: "org-harborline",
           companyId: "company-1",
           findingKey: "SEC-1042",
-          title: "SQL injection | secondary\nquery <script>alert(1)</script> path",
+          title:
+            "SQL injection | secondary\nquery <script>alert(1)</script> path",
           description: "Persistent description.",
           source: "Manual",
           severity: "Critical",
@@ -74,7 +75,9 @@ describe("report Markdown rendering", () => {
 
     const markdown = renderReportMarkdown(report);
 
-    expect(markdown).toContain("# Juniper Ridge Dental - August Security Review");
+    expect(markdown).toContain(
+      "# Juniper Ridge Dental - August Security Review",
+    );
     expect(markdown).toContain("Period: August");
     expect(markdown).toContain("Risk score: 82");
     expect(markdown).toContain("Verified fixes: 3");

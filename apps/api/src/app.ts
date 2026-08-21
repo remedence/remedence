@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import express, { type Express } from "express";
 import * as OpenApiValidator from "express-openapi-validator";
@@ -18,7 +19,53 @@ const openApiPath = fileURLToPath(
   new URL("../../../api/openapi.yaml", import.meta.url),
 );
 
-export function createApp(dependencies: ApiDependencies): Express {
+export interface AppOptions {
+  webDirectory?: string;
+}
+
+function configureProductionWeb(app: Express, webDirectory: string): void {
+  const assetsDirectory = join(webDirectory, "assets");
+  const indexPath = join(webDirectory, "index.html");
+
+  app.use(
+    "/assets",
+    express.static(assetsDirectory, {
+      dotfiles: "deny",
+      fallthrough: false,
+      immutable: true,
+      index: false,
+      maxAge: "1y",
+      redirect: false,
+    }),
+  );
+
+  app.use(
+    express.static(webDirectory, {
+      dotfiles: "deny",
+      fallthrough: true,
+      index: false,
+      maxAge: 0,
+      redirect: false,
+      setHeaders: (response) => {
+        response.setHeader("Cache-Control", "no-cache");
+      },
+    }),
+  );
+
+  app.use((request, response, next) => {
+    if (request.method !== "GET") {
+      next();
+      return;
+    }
+    response.setHeader("Cache-Control", "no-cache");
+    response.sendFile(indexPath);
+  });
+}
+
+export function createApp(
+  dependencies: ApiDependencies,
+  options: AppOptions = {},
+): Express {
   const app = express();
   app.disable("x-powered-by");
 
@@ -56,6 +103,17 @@ export function createApp(dependencies: ApiDependencies): Express {
   app.use("/api/v1", createRemediationsRouter(dependencies));
   app.use("/api/v1", createReportsRouter(dependencies));
   app.use("/api/v1", createVerificationsRouter(dependencies));
+
+  app.use("/api", (_request, _response, next) => {
+    const error = Object.assign(new Error("API route not found."), {
+      status: 404,
+    });
+    next(error);
+  });
+
+  if (options.webDirectory !== undefined) {
+    configureProductionWeb(app, options.webDirectory);
+  }
 
   app.use(problemHandler);
   return app;
