@@ -20,6 +20,7 @@ describe("local API configuration", () => {
     expect(isProductionMode("production", undefined)).toBe(true);
     expect(isProductionMode(undefined, "start")).toBe(true);
     expect(isProductionMode("development", "start")).toBe(true);
+    expect(isProductionMode("production", "dev")).toBe(false);
     expect(isProductionMode(undefined, "dev")).toBe(false);
     expect(isProductionMode(undefined, undefined)).toBe(false);
   });

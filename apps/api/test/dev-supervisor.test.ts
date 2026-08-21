@@ -60,7 +60,8 @@ function pidFiles(directory: string) {
 
 function fixtureEnvironment(
   directory: string,
-  mode: "unexpected" | "signal",
+  mode: "unexpected" | "signal" | "startup-failure",
+  failureRole?: "api" | "web",
 ): NodeJS.ProcessEnv {
   const files = pidFiles(directory);
   const environment = { ...process.env };
@@ -71,6 +72,7 @@ function fixtureEnvironment(
     ...environment,
     npm_execpath: fakeNpmPath,
     REMEDENCE_DEV_FIXTURE_MODE: mode,
+    ...(failureRole ? { REMEDENCE_DEV_FIXTURE_FAILURE_ROLE: failureRole } : {}),
     REMEDENCE_DEV_FIXTURE_API_PID_FILE: files.api,
     REMEDENCE_DEV_FIXTURE_API_GRANDCHILD_PID_FILE: files.apiGrandchild,
     REMEDENCE_DEV_FIXTURE_WEB_PID_FILE: files.web,
@@ -140,37 +142,74 @@ afterEach(() => {
 });
 
 describe("development process supervisor", () => {
-  it("terminates only its owned sibling process tree when one service exits unexpectedly", async () => {
-    const directory = mkdtempSync(join(tmpdir(), "remedence-dev-unexpected-"));
-    temporaryDirectories.push(directory);
-    const unrelated = spawn(
-      process.execPath,
-      ["-e", "setInterval(() => {}, 1000)"],
-      {
-        stdio: "ignore",
-      },
-    );
-    trackedChildren.push(unrelated);
-    expect(unrelated.pid).toBeDefined();
+  it.each(["api", "web"] as const)(
+    "terminates only its owned sibling process tree when %s exits unexpectedly",
+    async (failureRole) => {
+      const directory = mkdtempSync(
+        join(tmpdir(), `remedence-dev-unexpected-${failureRole}-`),
+      );
+      temporaryDirectories.push(directory);
+      const unrelated = spawn(
+        process.execPath,
+        ["-e", "setInterval(() => {}, 1000)"],
+        {
+          stdio: "ignore",
+        },
+      );
+      trackedChildren.push(unrelated);
+      expect(unrelated.pid).toBeDefined();
 
+      const supervisor = spawn(process.execPath, [supervisorPath], {
+        cwd: repositoryRoot,
+        env: fixtureEnvironment(directory, "unexpected", failureRole),
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+      trackedChildren.push(supervisor);
+      const result = await capture(supervisor);
+
+      expect(result.exit).toEqual({ code: 7, signal: null });
+      expect(result.stdout).toContain("[api] api fixture ready");
+      expect(result.stdout).toContain("[web] web fixture ready");
+      expect(result.stderr).toContain(
+        `[dev] ${failureRole} exited unexpectedly with code 7.`,
+      );
+
+      const files = pidFiles(directory);
+      const siblingRole = failureRole === "api" ? "web" : "api";
+      const siblingPid = readTrackedPid(files[siblingRole]);
+      const siblingGrandchildPid = readTrackedPid(
+        siblingRole === "api" ? files.apiGrandchild : files.webGrandchild,
+      );
+      expectStopped(siblingPid);
+      expectStopped(siblingGrandchildPid);
+      expect(isAlive(unrelated.pid!)).toBe(true);
+    },
+    15_000,
+  );
+
+  it("does not orphan the API tree when the web child fails during startup", async () => {
+    const directory = mkdtempSync(
+      join(tmpdir(), "remedence-dev-startup-failure-"),
+    );
+    temporaryDirectories.push(directory);
     const supervisor = spawn(process.execPath, [supervisorPath], {
       cwd: repositoryRoot,
-      env: fixtureEnvironment(directory, "unexpected"),
+      env: fixtureEnvironment(directory, "startup-failure", "web"),
       stdio: ["ignore", "pipe", "pipe"],
     });
     trackedChildren.push(supervisor);
     const result = await capture(supervisor);
 
-    expect(result.exit).toEqual({ code: 7, signal: null });
-    expect(result.stdout).toContain("[api] api fixture ready");
-    expect(result.stdout).toContain("[web] web fixture ready");
+    expect(result.exit).toEqual({ code: 9, signal: null });
+    expect(result.stderr).toContain(
+      "[dev] web exited unexpectedly with code 9.",
+    );
 
     const files = pidFiles(directory);
-    const webPid = readTrackedPid(files.web);
-    const webGrandchildPid = readTrackedPid(files.webGrandchild);
-    expectStopped(webPid);
-    expectStopped(webGrandchildPid);
-    expect(isAlive(unrelated.pid!)).toBe(true);
+    expect(existsSync(files.api)).toBe(true);
+    expect(existsSync(files.apiGrandchild)).toBe(true);
+    expectStopped(readTrackedPid(files.api));
+    expectStopped(readTrackedPid(files.apiGrandchild));
   }, 15_000);
 
   it.each(["SIGINT", "SIGTERM"] as const)(

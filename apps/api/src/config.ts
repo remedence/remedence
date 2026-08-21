@@ -25,7 +25,9 @@ export function isProductionMode(
   value: string | undefined,
   lifecycleEvent: string | undefined,
 ): boolean {
-  return value === "production" || lifecycleEvent === "start";
+  if (lifecycleEvent === "start") return true;
+  if (lifecycleEvent === "dev") return false;
+  return value === "production";
 }
 
 export function resolveApiPort(value = process.env.REMEDENCE_API_PORT): number {

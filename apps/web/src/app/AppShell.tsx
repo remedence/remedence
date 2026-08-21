@@ -394,7 +394,7 @@ export function AppShell({
           </nav>
         ) : null}
 
-        <main id="workspace-main" className="main-content">
+        <main id="workspace-main" className="main-content" tabIndex={-1}>
           {children}
         </main>
       </div>

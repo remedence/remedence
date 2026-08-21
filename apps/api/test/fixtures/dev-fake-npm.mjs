@@ -5,6 +5,7 @@ const workspaceIndex = process.argv.indexOf("-w");
 const workspace = workspaceIndex >= 0 ? process.argv[workspaceIndex + 1] : "";
 const role = workspace === "@remedence/api" ? "api" : "web";
 const mode = process.env.REMEDENCE_DEV_FIXTURE_MODE ?? "signal";
+const failureRole = process.env.REMEDENCE_DEV_FIXTURE_FAILURE_ROLE ?? "api";
 
 function recordPid(name, pid) {
   const path = process.env[`REMEDENCE_DEV_FIXTURE_${name}_PID_FILE`];
@@ -23,7 +24,9 @@ function spawnGrandchild() {
 recordPid(role.toUpperCase(), process.pid);
 console.log(`${role} fixture ready pid=${process.pid}`);
 
-if (mode === "unexpected" && role === "api") {
+if (mode === "startup-failure" && role === failureRole) {
+  process.exit(9);
+} else if (mode === "unexpected" && role === failureRole) {
   setTimeout(() => process.exit(7), 120);
 } else {
   spawnGrandchild();

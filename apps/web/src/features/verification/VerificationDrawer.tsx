@@ -261,7 +261,6 @@ export function VerificationDrawer({
       layerClassName="drawer-layer"
       dialogClassName="verification-drawer verification-workflow-drawer"
       labelledBy="verification-workflow-title"
-      element="aside"
       initialFocusRef={closeRef}
       restoreFocusRef={restoreFocusRef}
       onClose={onClose}

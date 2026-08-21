@@ -424,7 +424,6 @@ function FindingDetailDrawer({
       layerClassName="drawer-layer"
       dialogClassName="verification-drawer"
       labelledBy="finding-detail-title"
-      element="aside"
       initialFocusRef={closeRef}
       restoreFocusRef={restoreFocusRef}
       onClose={onClose}

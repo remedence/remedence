@@ -152,7 +152,6 @@ export function RemediationPanel({
       layerClassName="drawer-layer"
       dialogClassName="verification-drawer remediation-panel"
       labelledBy="remediation-panel-title"
-      element="aside"
       initialFocusRef={closeRef}
       restoreFocusRef={restoreFocusRef}
       onClose={onClose}

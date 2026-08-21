@@ -1007,6 +1007,20 @@ p {
   display: none;
 }
 
+.mobile-finding-top .mono {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.mobile-finding-top .severity {
+  flex: 0 0 auto;
+}
+
+.mobile-finding-row > .title-button {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
 .empty-state {
   min-height: 260px;
   display: flex;
@@ -1952,11 +1966,9 @@ p {
 @keyframes drawer-in {
   from {
     transform: translateX(18px);
-    opacity: 0;
   }
   to {
     transform: translateX(0);
-    opacity: 1;
   }
 }
 
