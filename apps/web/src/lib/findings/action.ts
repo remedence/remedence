@@ -1,11 +1,15 @@
-import type { Finding } from "../../data";
+import type { components } from "../api/schema";
+
+type FindingState = components["schemas"]["FindingState"];
 
 export type FindingAction =
   | { kind: "finding" }
   | { kind: "verification" }
   | { kind: "page"; page: "Remediation" | "Evidence" };
 
-export function resolveFindingAction(finding: Finding): FindingAction {
+export function resolveFindingAction(finding: {
+  state: FindingState;
+}): FindingAction {
   switch (finding.state) {
     case "Verification failed":
       return { kind: "finding" };
