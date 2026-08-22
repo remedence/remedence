@@ -31,7 +31,7 @@ export function problemFromResponse(
 
   return {
     type: "about:blank",
-    title: "Unable to load remediation workspace",
+    title: "Unable to complete request",
     status: response.status,
     detail: "The local API returned an unreadable error response.",
     instance: response.url || "/api/v1",
@@ -46,7 +46,7 @@ export function problemFromUnknown(error: unknown): ApiProblem {
 
   return {
     type: "about:blank",
-    title: "Unable to load remediation workspace",
+    title: "Unable to reach local API",
     status: 0,
     detail:
       "Remedence could not reach the local API. Check the local service and try again.",

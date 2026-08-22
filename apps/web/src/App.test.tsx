@@ -216,7 +216,7 @@ describe("Remedence API-backed read models", () => {
     render(<App />);
 
     expect(
-      await screen.findByText("Unable to load remediation workspace"),
+      await screen.findByText("Unable to reach local API"),
     ).toBeInTheDocument();
     expect(
       screen.getByText(
