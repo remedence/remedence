@@ -197,6 +197,7 @@ export function AppShell({
             <Building2 aria-hidden="true" />
             <select
               aria-label="Organization"
+              name="workspaceOrganization"
               defaultValue="Harborline Technology Group"
             >
               <option>Harborline Technology Group</option>
@@ -210,6 +211,7 @@ export function AppShell({
               <span className="sr-only">Global search</span>
               <input
                 type="search"
+                name="global-search"
                 value={search}
                 onChange={(event) => {
                   const value = event.target.value;

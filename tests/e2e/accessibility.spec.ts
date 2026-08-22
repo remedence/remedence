@@ -404,11 +404,16 @@ test.describe("Task 17 accessibility and browser regression pre-flight", () => {
     test.setTimeout(60_000);
     const findingKey = await importLongIdentifier(request);
     const viewports = [
+      { width: 1920, height: 1080 },
       { width: 1440, height: 900 },
       { width: 1280, height: 800 },
       { width: 1024, height: 768 },
+      { width: 768, height: 1024 },
       { width: 430, height: 932 },
       { width: 390, height: 844 },
+      { width: 375, height: 812 },
+      { width: 360, height: 800 },
+      { width: 320, height: 800 },
     ] as const;
 
     for (const viewport of viewports) {
@@ -464,6 +469,173 @@ test.describe("Task 17 accessibility and browser regression pre-flight", () => {
       expect(box!.y + box!.height).toBeLessThanOrEqual(viewport.height + 1);
       await page.keyboard.press("Escape");
     }
+  });
+
+  test("rendered form controls expose stable id or name attributes without Chrome form issues", async ({
+    page,
+  }) => {
+    const formIssues: string[] = [];
+    const cdp = await page.context().newCDPSession(page);
+    cdp.on("Audits.issueAdded", ({ issue }) => {
+      const errorType = issue.details.genericIssueDetails?.errorType;
+      if (errorType?.startsWith("Form")) formIssues.push(errorType);
+    });
+    await cdp.send("Audits.enable");
+
+    const expectNamedControls = async (surface: string) => {
+      const unnamed = await page
+        .locator(
+          "input:not([id]):not([name]), select:not([id]):not([name]), textarea:not([id]):not([name])",
+        )
+        .evaluateAll((elements) =>
+          elements.map((element) => ({
+            tag: element.tagName.toLowerCase(),
+            type: element.getAttribute("type"),
+            ariaLabel: element.getAttribute("aria-label"),
+            placeholder: element.getAttribute("placeholder"),
+          })),
+        );
+      expect(unnamed, `${surface} contains unnamed form controls`).toEqual([]);
+    };
+
+    await page.goto("/");
+    await expect(
+      page.getByRole("heading", { name: "Action queue" }),
+    ).toBeVisible();
+    await expectNamedControls("dashboard");
+
+    await page.getByRole("button", { name: "Import finding" }).click();
+    const importDialog = page.getByRole("dialog", { name: "Import finding" });
+    await expect(importDialog).toBeVisible();
+    await expectNamedControls("import dialog");
+    await page.keyboard.press("Escape");
+
+    await page
+      .getByRole("button", { name: /Start new remediation/ })
+      .first()
+      .click();
+    const remediation = page.getByRole("dialog", { name: "Remediation" });
+    await expect(remediation).toBeVisible();
+    await expectNamedControls("remediation dialog");
+    await page.keyboard.press("Escape");
+
+    await page.goto("/?search=SEC-1067");
+    await page
+      .getByRole("button", { name: "Review verification" })
+      .first()
+      .click();
+    const verification = page.getByRole("dialog", { name: "Verification" });
+    await expect(verification).toBeVisible();
+    await expectNamedControls("verification dialog");
+    await page.keyboard.press("Escape");
+
+    await page.getByRole("button", { name: "Reports", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Reports" })).toBeVisible();
+    await expectNamedControls("reports page");
+    await page.getByRole("button", { name: "Generate report" }).click();
+    const reportDialog = page.getByRole("dialog", { name: "Generate report" });
+    await expect(reportDialog).toBeVisible();
+    await expectNamedControls("report dialog");
+
+    await page.waitForTimeout(100);
+    expect([...new Set(formIssues)]).toEqual([]);
+    await cdp.detach();
+  });
+
+  test("operational dashboard text keeps a 12px legibility floor", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await expect(
+      page.getByRole("heading", { name: "Action queue" }),
+    ).toBeVisible();
+
+    const undersized = await page.evaluate(() => {
+      const selectors = [
+        ".sla-text",
+        ".finding-id",
+        ".queue-table small",
+        ".status-chip",
+        ".severity",
+        ".activity-list .mono",
+        ".activity-list time",
+        ".section-kicker",
+        ".report-meta > span",
+      ];
+      return selectors.flatMap((selector) =>
+        Array.from(document.querySelectorAll<HTMLElement>(selector))
+          .filter((element) => element.getClientRects().length > 0)
+          .map((element) => ({
+            selector,
+            text: (element.textContent ?? "").trim().slice(0, 80),
+            fontSize: Number.parseFloat(getComputedStyle(element).fontSize),
+          }))
+          .filter((item) => item.fontSize < 12),
+      );
+    });
+
+    expect(undersized).toEqual([]);
+  });
+
+  test("initial API failure stays accessible and Retry recovers the workspace", async ({
+    page,
+  }) => {
+    let failDashboard = true;
+    await page.route("**/*", async (route) => {
+      const url = new URL(route.request().url());
+      if (url.pathname !== "/api/v1/dashboard" || !failDashboard) {
+        await route.continue();
+        return;
+      }
+      await route.fulfill({
+        status: 500,
+        contentType: "application/problem+json",
+        body: JSON.stringify({
+          type: "about:blank",
+          title: "Internal Server Error",
+          status: 500,
+          detail: "The local remediation read model could not be loaded.",
+          instance: "/api/v1/dashboard",
+          code: "INTERNAL_ERROR",
+          request_id: "req-task18-browser-failure",
+        }),
+      });
+    });
+
+    await page.goto("/");
+    const problem = page.getByRole("alert");
+    await expect(problem).toContainText("Internal Server Error");
+    await expect(problem).toContainText(
+      "The local remediation read model could not be loaded.",
+    );
+    await expect(problem).toContainText("req-task18-browser-failure");
+    await expectNoSeriousAxeViolations(page, "dashboard-api-500");
+
+    failDashboard = false;
+    await problem.getByRole("button", { name: "Retry" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Action queue" }),
+    ).toBeVisible();
+  });
+
+  test("forced colors keeps core controls and dialogs operable", async ({
+    page,
+  }) => {
+    await page.emulateMedia({ forcedColors: "active" });
+    await page.goto("/");
+    await expect(
+      page.getByRole("heading", { name: "Action queue" }),
+    ).toBeVisible();
+    const trigger = page.getByRole("button", { name: "Import finding" });
+    await trigger.focus();
+    await expect(trigger).toBeFocused();
+    await page.keyboard.press("Enter");
+    const dialog = page.getByRole("dialog", { name: "Import finding" });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByLabel("Company")).toBeFocused();
+    await expectNoSeriousAxeViolations(page, "import-dialog-forced-colors");
+    await page.keyboard.press("Escape");
+    await expect(trigger).toBeFocused();
   });
 
   test("hostile-looking persisted text renders literally without script execution", async ({

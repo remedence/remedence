@@ -210,7 +210,7 @@ p {
   border-radius: 999px;
   background: var(--surface-subtle);
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
 }
 
@@ -741,7 +741,7 @@ p {
 .queue-toolbar label > span,
 .modal label > span {
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 16px;
   font-weight: 500;
 }
@@ -814,7 +814,7 @@ p {
   border-bottom: 1px solid var(--divider);
   color: var(--text-muted);
   background: var(--surface);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 16px;
   font-weight: 500;
   text-align: left;
@@ -863,7 +863,7 @@ p {
   display: block;
   margin-bottom: 4px;
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .title-button {
@@ -888,7 +888,7 @@ p {
   display: block;
   margin-top: 4px;
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .status-chip,
@@ -903,7 +903,7 @@ p {
   border: 1px solid var(--divider);
   border-radius: 999px;
   background: var(--surface);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 16px;
   font-weight: 600;
   white-space: nowrap;
@@ -967,7 +967,7 @@ p {
   gap: 4px;
   margin-top: 4px;
   color: var(--critical);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
 }
 
@@ -1133,7 +1133,7 @@ p {
 .activity-list .mono,
 .activity-list time {
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .activity-list > div:first-child strong,
@@ -1159,7 +1159,7 @@ p {
 .section-kicker {
   margin-bottom: 5px;
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 16px;
   font-weight: 500;
 }
@@ -1186,7 +1186,7 @@ p {
 
 .report-meta > span {
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .drawer-layer,
@@ -1223,7 +1223,7 @@ p {
   display: block;
   margin-bottom: 4px;
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .drawer-header h2,
@@ -1296,7 +1296,7 @@ p {
 
 .verification-failure .mono {
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .verification-success {
@@ -1325,7 +1325,7 @@ p {
 
 .verification-details dt {
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .verification-details dd {
@@ -1378,7 +1378,7 @@ p {
   display: grid;
   gap: 6px;
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
 }
 
@@ -1443,7 +1443,7 @@ p {
 .history-record .mono {
   overflow-wrap: anywhere;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .history-record p,
@@ -1457,7 +1457,7 @@ p {
 .history-record small,
 .verification-check-record small {
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 12px;
   line-height: 15px;
 }
 
@@ -1483,7 +1483,7 @@ p {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 3px 10px;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .verification-history-checks li small {
@@ -1499,7 +1499,7 @@ p {
   max-width: 100%;
   overflow-wrap: anywhere;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .meaningful-state {
@@ -1590,7 +1590,7 @@ p {
 .mutation-problem small {
   display: block;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .mutation-pending {
@@ -1724,7 +1724,7 @@ p {
   align-items: center;
   gap: 6px;
   color: var(--success);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
 }
 
@@ -1747,7 +1747,7 @@ p {
 .evidence-proof-details dt {
   margin-bottom: 4px;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 500;
 }
 
@@ -1812,7 +1812,7 @@ p {
 .integration-list > div > span,
 .setting-list > div > span {
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .setting-list p {
@@ -1843,7 +1843,7 @@ p {
   border-radius: 50%;
   color: var(--accent);
   font-family: "IBM Plex Mono", ui-monospace, monospace;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .timeline > div.failed > span,
@@ -1877,7 +1877,7 @@ p {
 
 .evidence-header .mono {
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .evidence-header h2 {
@@ -1916,7 +1916,7 @@ p {
 
 .evidence-list span {
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .page-report {
@@ -2192,7 +2192,7 @@ p {
 
   .mobile-finding-top .mono {
     color: var(--text-muted);
-    font-size: 11px;
+    font-size: 12px;
   }
 
   .mobile-finding-row > .title-button {
@@ -2430,7 +2430,7 @@ p {
 
   .mobile-finding-top .mono {
     color: var(--text-muted);
-    font-size: 11px;
+    font-size: 12px;
   }
 
   .mobile-finding-row > .title-button {
@@ -2531,7 +2531,7 @@ p {
 
   .mobile-filter-grid label > span {
     color: var(--text-muted);
-    font-size: 11px;
+    font-size: 12px;
   }
 
   .mobile-filter-grid select {

@@ -135,6 +135,7 @@ export function FindingQueue({
       <label>
         <span>Company</span>
         <select
+          name="findingCompanyFilter"
           value={filters.companyId}
           onChange={(event) => update({ companyId: event.target.value })}
         >
@@ -149,6 +150,7 @@ export function FindingQueue({
       <label>
         <span>State</span>
         <select
+          name="state"
           value={filters.state}
           onChange={(event) =>
             update({ state: event.target.value as "" | FindingState })
@@ -165,6 +167,7 @@ export function FindingQueue({
       <label>
         <span>Severity</span>
         <select
+          name="severity"
           value={filters.severity}
           onChange={(event) =>
             update({ severity: event.target.value as "" | Severity })
@@ -181,6 +184,7 @@ export function FindingQueue({
       <label>
         <span>Owner</span>
         <select
+          name="owner"
           value={filters.owner}
           onChange={(event) => update({ owner: event.target.value })}
         >
@@ -195,6 +199,7 @@ export function FindingQueue({
       <label>
         <span>Sort</span>
         <select
+          name="sort"
           value={filters.sort}
           onChange={(event) =>
             update({ sort: event.target.value as QueueSort })
@@ -228,6 +233,7 @@ export function FindingQueue({
             <Search aria-hidden="true" />
             <input
               type="search"
+              name="finding-search"
               value={filters.search}
               onChange={(event) =>
                 update({ search: event.target.value }, "replace")
