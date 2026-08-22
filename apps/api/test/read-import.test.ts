@@ -250,6 +250,32 @@ describe("Task 11 persisted API reads and imports", () => {
     ).toBe(true);
   });
 
+  it("persists offset import timestamps as canonical UTC", async () => {
+    const response = await request(fixture.app)
+      .post("/api/v1/imports")
+      .send({
+        ...validImport("SEC-OFFSET-UTC"),
+        detected_at: "2026-08-20T23:30:00-02:00",
+        sla_due_at: "2026-08-22T01:00:00+14:00",
+      })
+      .expect(201);
+
+    expect(response.body.finding).toMatchObject({
+      finding_key: "SEC-OFFSET-UTC",
+      detected_at: "2026-08-21T01:30:00.000Z",
+      sla_due_at: "2026-08-21T11:00:00.000Z",
+    });
+
+    const persisted = fixture.repositories.findings.findByKey(
+      organizationId,
+      "SEC-OFFSET-UTC",
+    );
+    expect(persisted).toMatchObject({
+      detectedAt: "2026-08-21T01:30:00.000Z",
+      slaDueAt: "2026-08-21T11:00:00.000Z",
+    });
+  });
+
   it("returns a stable conflict problem for case-variant duplicate imports", async () => {
     await request(fixture.app)
       .post("/api/v1/imports")

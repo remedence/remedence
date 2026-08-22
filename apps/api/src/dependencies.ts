@@ -80,13 +80,14 @@ export function createDependencies(
     applyMigrations(database, migrationsDirectory);
 
     const clock = config.clock ?? systemClock();
-    const referenceTime = config.referenceTime ?? clock.now();
+    const seedReferenceTime = config.referenceTime ?? clock.now();
     seedHarborline(database, {
       clock: {
-        now: () => referenceTime,
+        now: () => seedReferenceTime,
       },
     });
 
+    const referenceTime = config.referenceTime ?? (() => clock.now());
     const repositories = createRepositorySet(database, { referenceTime });
     const unitOfWork = createUnitOfWork(database, { referenceTime });
     const idGenerator = config.idGenerator ?? uuidGenerator();

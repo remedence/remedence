@@ -10,7 +10,7 @@ import { createVerificationRepository } from "./repositories/verification-reposi
 import { runTransaction } from "./transaction.js";
 
 export interface RepositorySetOptions {
-  referenceTime: string;
+  referenceTime: string | (() => string);
 }
 
 export function createRepositorySet(

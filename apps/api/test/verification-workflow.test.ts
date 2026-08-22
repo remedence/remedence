@@ -466,6 +466,49 @@ describe("Task 12 remediation, verification, and evidence workflow", () => {
     );
   });
 
+  it("rejects a second running verification through the persistent API", async () => {
+    const imported = await request(fixture.app)
+      .post("/api/v1/imports")
+      .send(importBody())
+      .expect(201);
+    const findingId = imported.body.finding.id as string;
+
+    const remediation = await request(fixture.app)
+      .post("/api/v1/remediations")
+      .send(remediationBody(findingId, 1))
+      .expect(201);
+    const remediationId = remediation.body.id as string;
+
+    await request(fixture.app)
+      .post(`/api/v1/remediations/${remediationId}/complete`)
+      .send({
+        summary: "Ready for one independent verification run.",
+        reference: "change://SEC-2099/single-running-verification",
+      })
+      .expect(200);
+
+    const first = await request(fixture.app)
+      .post("/api/v1/verifications")
+      .send(verificationBody(findingId, remediationId, 1))
+      .expect(201);
+
+    const second = await request(fixture.app)
+      .post("/api/v1/verifications")
+      .send(verificationBody(findingId, remediationId, 2))
+      .expect(409);
+    expect(second.headers["content-type"]).toMatch(
+      /^application\/problem\+json/,
+    );
+    expect(second.body.code).toBe("VERIFICATION_ALREADY_RUNNING");
+
+    const runs = fixture.repositories.verifications.listByFinding(findingId);
+    expect(runs).toHaveLength(1);
+    expect(runs[0]).toMatchObject({
+      id: first.body.verification.id,
+      status: "Running",
+    });
+  });
+
   it("rejects malformed Task 12 service output through OpenAPI response validation", async () => {
     const malformed: Remediation = {
       id: "malformed-remediation",

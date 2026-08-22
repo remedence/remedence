@@ -44,6 +44,10 @@ export function normalizeFindingKey(value: string): string {
   return value.trim().toLocaleUpperCase("en-US");
 }
 
+function canonicalizeTimestamp(value: string): string {
+  return new Date(value).toISOString();
+}
+
 export class ImportFindingService {
   constructor(
     private readonly dependencies: ImportFindingServiceDependencies,
@@ -96,8 +100,8 @@ export class ImportFindingService {
         state: "Needs remediation",
         owner: input.owner,
         assetName: input.assetName,
-        detectedAt: input.detectedAt,
-        slaDueAt: input.slaDueAt,
+        detectedAt: canonicalizeTimestamp(input.detectedAt),
+        slaDueAt: canonicalizeTimestamp(input.slaDueAt),
         createdAt: now,
         updatedAt: now,
       };

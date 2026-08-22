@@ -601,6 +601,36 @@ describe("ImportFindingService", () => {
     );
   });
 
+  it("normalizes imported timestamps with offsets to canonical UTC", () => {
+    const harness = createHarness();
+    const service = new ImportFindingService({
+      unitOfWork: harness.unitOfWork,
+      clock,
+      idGenerator: ids("finding-new", "import-new"),
+    });
+
+    const result = service.importFinding({
+      organizationId: ORG,
+      companyId: COMPANY_ID,
+      findingKey: "SEC-UTC-1",
+      title: "Offset timestamps",
+      description: "Normalize imported timestamps before persistence.",
+      source: "Manual",
+      severity: "High",
+      owner: "L. Chen",
+      assetName: "Patient Portal API",
+      detectedAt: "2026-08-20T23:30:00-02:00",
+      slaDueAt: "2026-08-22T01:00:00+14:00",
+      actor,
+    });
+
+    expect(result.finding.detectedAt).toBe("2026-08-21T01:30:00.000Z");
+    expect(result.finding.slaDueAt).toBe("2026-08-21T11:00:00.000Z");
+    expect(harness.state.findings[0]).toMatchObject({
+      detectedAt: "2026-08-21T01:30:00.000Z",
+      slaDueAt: "2026-08-21T11:00:00.000Z",
+    });
+  });
   it("normalizes the key, begins Needs remediation, and appends an audit event", () => {
     const harness = createHarness();
     const service = new ImportFindingService({
@@ -807,6 +837,48 @@ describe("VerificationService", () => {
     expect(harness.state.auditEvents.at(-1)?.action).toBe(
       "verification.started",
     );
+  });
+
+  it("rejects a second running verification for the same finding", () => {
+    const { base, harness } = eligibleHarness();
+    const service = new VerificationService({
+      unitOfWork: harness.unitOfWork,
+      clock,
+      idGenerator: ids(
+        "verification-2",
+        "check-1",
+        "verification-3",
+        "check-2",
+      ),
+      hashEvidence,
+    });
+
+    service.startVerification({
+      organizationId: ORG,
+      findingId: base.id,
+      remediationId: "remediation-2",
+      method: "Independent manual retest",
+      workerName: "Operator",
+      scope: "Patient Portal API",
+      checks: ["Primary query path"],
+      actor,
+    });
+
+    expectDomainError(
+      () =>
+        service.startVerification({
+          organizationId: ORG,
+          findingId: base.id,
+          remediationId: "remediation-2",
+          method: "Second independent retest",
+          workerName: "Another operator",
+          scope: "Patient Portal API",
+          checks: ["Secondary query path"],
+          actor,
+        }),
+      "VERIFICATION_ALREADY_RUNNING",
+    );
+    expect(harness.state.verifications).toHaveLength(1);
   });
 
   it("rejects duplicate expected check names before creating the run", () => {

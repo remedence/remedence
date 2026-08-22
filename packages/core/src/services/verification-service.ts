@@ -133,6 +133,18 @@ export class VerificationService {
         );
       }
 
+      const runningVerification = repositories.verifications
+        .listByFinding(finding.id)
+        .find((run) => run.status === "Running");
+      if (runningVerification) {
+        throw new DomainError(
+          "VERIFICATION_ALREADY_RUNNING",
+          409,
+          "Only one verification can run for a finding at a time.",
+          { verificationId: runningVerification.id },
+        );
+      }
+
       const remediation = repositories.remediations.getById(
         input.remediationId,
       );

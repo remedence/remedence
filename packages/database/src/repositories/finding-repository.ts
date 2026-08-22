@@ -118,7 +118,7 @@ const SORT_SQL = {
 } as const;
 
 export interface FindingRepositoryOptions {
-  referenceTime: string;
+  referenceTime: string | (() => string);
 }
 
 function requirePositiveInteger(
@@ -139,6 +139,15 @@ function requireCanonicalTimestamp(value: string, name: string): void {
   if (Number.isNaN(parsed.valueOf()) || parsed.toISOString() !== value) {
     throw new TypeError(`${name} must be a canonical UTC ISO 8601 timestamp.`);
   }
+}
+
+function resolveReferenceTime(options: FindingRepositoryOptions): string {
+  const referenceTime =
+    typeof options.referenceTime === "function"
+      ? options.referenceTime()
+      : options.referenceTime;
+  requireCanonicalTimestamp(referenceTime, "referenceTime");
+  return referenceTime;
 }
 
 function readTotal(row: unknown): number {
@@ -163,7 +172,9 @@ export function createFindingRepository(
   database: RemedenceDatabase,
   options: FindingRepositoryOptions,
 ): FindingRepository {
-  requireCanonicalTimestamp(options.referenceTime, "referenceTime");
+  if (typeof options.referenceTime === "string") {
+    requireCanonicalTimestamp(options.referenceTime, "referenceTime");
+  }
   const connection = getDatabaseConnection(database);
 
   const getByIdStatement = connection.prepare(
@@ -317,6 +328,7 @@ export function createFindingRepository(
           )
           .get(...parameters),
       );
+      const referenceTime = resolveReferenceTime(options);
       const offset = (query.page - 1) * query.pageSize;
       const items = connection
         .prepare(
@@ -344,8 +356,8 @@ export function createFindingRepository(
            LIMIT ? OFFSET ?`,
         )
         .all(
-          options.referenceTime,
-          options.referenceTime,
+          referenceTime,
+          referenceTime,
           ...parameters,
           query.pageSize,
           offset,
