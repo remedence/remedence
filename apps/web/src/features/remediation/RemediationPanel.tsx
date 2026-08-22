@@ -146,6 +146,8 @@ export function RemediationPanel({
   }
 
   const completed = displayedRemediation?.status === "Completed";
+  const closeBlocked =
+    startMutation.status === "pending" || completeMutation.status === "pending";
 
   return (
     <DialogLayer
@@ -155,6 +157,7 @@ export function RemediationPanel({
       initialFocusRef={closeRef}
       restoreFocusRef={restoreFocusRef}
       onClose={onClose}
+      closeDisabled={closeBlocked}
     >
       <div className="drawer-header">
         <div>
@@ -166,6 +169,7 @@ export function RemediationPanel({
           type="button"
           className="icon-button"
           aria-label="Close remediation"
+          disabled={closeBlocked}
           onClick={onClose}
         >
           <X aria-hidden="true" />
@@ -199,6 +203,7 @@ export function RemediationPanel({
                 <span>Remediation owner</span>
                 <input
                   aria-label="Remediation owner"
+                  name="remediationOwner"
                   required
                   value={owner}
                   onChange={(event) => {
@@ -211,6 +216,7 @@ export function RemediationPanel({
                 <span>Remediation summary</span>
                 <textarea
                   aria-label="Remediation summary"
+                  name="remediationSummary"
                   required
                   rows={3}
                   value={summary}
@@ -224,6 +230,7 @@ export function RemediationPanel({
                 <span>Remediation reference</span>
                 <input
                   aria-label="Remediation reference"
+                  name="remediationReference"
                   required
                   placeholder="Commit, PR/MR, ticket, or change reference"
                   value={reference}
@@ -295,6 +302,7 @@ export function RemediationPanel({
                 <span>Completion summary</span>
                 <textarea
                   aria-label="Completion summary"
+                  name="completionSummary"
                   required
                   rows={3}
                   value={completionSummary}
@@ -309,6 +317,7 @@ export function RemediationPanel({
                 <span>Completion reference</span>
                 <input
                   aria-label="Completion reference"
+                  name="completionReference"
                   required
                   value={completionReference}
                   onChange={(event) => {

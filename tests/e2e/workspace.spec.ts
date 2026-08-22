@@ -352,6 +352,130 @@ test.describe("Task 15 persistent mutation workflows", () => {
     expect(await oldAfterResponse.json()).toEqual(oldBefore);
   });
 
+  test("pending import cannot be dismissed after the server has committed it", async ({
+    page,
+  }) => {
+    test.setTimeout(45_000);
+    const suffix = Date.now().toString(36).toUpperCase();
+    const findingKey = `SEC-PENDING-${suffix}`;
+    let markCommitted!: () => void;
+    let releaseResponse!: () => void;
+    const committed = new Promise<void>((resolve) => {
+      markCommitted = resolve;
+    });
+    const responseGate = new Promise<void>((resolve) => {
+      releaseResponse = resolve;
+    });
+
+    await page.route("**/api/v1/imports", async (route) => {
+      const response = await route.fetch();
+      markCommitted();
+      await responseGate;
+      await route.fulfill({ response });
+    });
+
+    await page.goto("/");
+    await page.getByRole("button", { name: "Import finding" }).click();
+    const dialog = page.getByRole("dialog", { name: "Import finding" });
+    await fillImport(page, findingKey, `Pending import ${suffix}`);
+    await dialog
+      .getByRole("button", { name: "Import finding", exact: true })
+      .click();
+    await committed;
+    await expect(dialog.getByText("Importing finding…")).toBeVisible();
+
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeVisible();
+
+    releaseResponse();
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByText(`Imported ${findingKey}.`)).toBeVisible();
+    await expect(findingRow(page, findingKey)).toContainText(
+      "Needs remediation",
+    );
+  });
+
+  test("duplicate verification-check submit cannot re-enable dismissal while the committed request is pending", async ({
+    page,
+  }) => {
+    test.setTimeout(45_000);
+    const suffix = Date.now().toString(36).toUpperCase();
+    const checkName = `Task 18 pending check ${suffix}`;
+    let markCommitted!: () => void;
+    let releaseResponse!: () => void;
+    const committed = new Promise<void>((resolve) => {
+      markCommitted = resolve;
+    });
+    const responseGate = new Promise<void>((resolve) => {
+      releaseResponse = resolve;
+    });
+
+    await page.goto("/?search=SEC-1067");
+    await page
+      .getByRole("button", { name: "Review verification" })
+      .first()
+      .click();
+    const verification = page.getByRole("dialog", { name: "Verification" });
+    await verification
+      .getByLabel("Verification method")
+      .fill("Task 18 duplicate-submit regression");
+    await verification.getByLabel("Verifier").fill("Independent verifier");
+    await verification
+      .getByLabel("Verification scope")
+      .fill("Pending mutation dismissal boundary");
+    await verification.getByLabel("Expected checks").fill(checkName);
+    await verification
+      .getByRole("button", { name: "Create verification" })
+      .click();
+
+    await page.route("**/api/v1/verifications/*/checks", async (route) => {
+      const response = await route.fetch();
+      markCommitted();
+      await responseGate;
+      await route.fulfill({ response });
+    });
+
+    const checkForm = verification.locator(".verification-check-form");
+    await checkForm
+      .getByLabel(`Result for ${checkName}`)
+      .selectOption("Passed");
+    await checkForm.getByLabel(`Message for ${checkName}`).fill("Passed");
+
+    try {
+      await checkForm.evaluate((form) => {
+        form.dispatchEvent(
+          new Event("submit", { bubbles: true, cancelable: true }),
+        );
+        form.dispatchEvent(
+          new Event("submit", { bubbles: true, cancelable: true }),
+        );
+      });
+      await committed;
+      const closeVerification = verification.getByRole("button", {
+        name: "Close verification",
+      });
+      await expect(closeVerification).toBeDisabled();
+
+      await page.keyboard.press("Escape");
+      await expect(verification).toBeVisible();
+      await expect(closeVerification).toBeDisabled();
+    } finally {
+      releaseResponse();
+    }
+
+    await expect(
+      verification.getByText("Recording verification check."),
+    ).toHaveCount(0);
+    await expect(
+      verification.getByRole("button", { name: `Record ${checkName}` }),
+    ).toHaveCount(0);
+    await expect(
+      verification.getByRole("button", { name: "Close verification" }),
+    ).toBeEnabled();
+    await page.keyboard.press("Escape");
+    await expect(verification).toHaveCount(0);
+  });
+
   test("duplicate import preserves values, keeps URL filters, restores focus, and fits a narrow viewport", async ({
     page,
   }) => {

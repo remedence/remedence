@@ -49,6 +49,8 @@ export function ReportDialog({
     if (mutation.status === "error") errorRef.current?.focus();
   }, [mutation.status]);
 
+  const closeBlocked = mutation.status === "pending";
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const result = await mutation.mutate({
@@ -68,6 +70,7 @@ export function ReportDialog({
       initialFocusRef={companyRef}
       restoreFocusRef={restoreFocusRef}
       onClose={onClose}
+      closeDisabled={closeBlocked}
     >
       <div className="modal-header">
         <div>
@@ -78,6 +81,7 @@ export function ReportDialog({
           type="button"
           className="icon-button"
           aria-label="Close generate report"
+          disabled={closeBlocked}
           onClick={onClose}
         >
           <X aria-hidden="true" />
@@ -89,6 +93,7 @@ export function ReportDialog({
           <select
             ref={companyRef}
             aria-label="Company"
+            name="companyId"
             required
             value={companyId}
             onChange={(event) => {
@@ -107,6 +112,7 @@ export function ReportDialog({
           <span>Period label</span>
           <input
             aria-label="Period label"
+            name="periodLabel"
             required
             value={periodLabel}
             onChange={(event) => {
@@ -141,7 +147,12 @@ export function ReportDialog({
           {mutation.status === "pending" ? "Generating report…" : ""}
         </p>
         <div className="modal-actions">
-          <button type="button" className="button secondary" onClick={onClose}>
+          <button
+            type="button"
+            className="button secondary"
+            disabled={closeBlocked}
+            onClick={onClose}
+          >
             Cancel
           </button>
           <button

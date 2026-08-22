@@ -11,6 +11,7 @@ interface DialogLayerProps {
   restoreFocusRef?: RefObject<HTMLElement | null>;
   element?: "aside" | "section";
   closeOnBackdrop?: boolean;
+  closeDisabled?: boolean;
 }
 
 export function DialogLayer({
@@ -23,15 +24,19 @@ export function DialogLayer({
   restoreFocusRef,
   element = "section",
   closeOnBackdrop = true,
+  closeDisabled = false,
 }: DialogLayerProps) {
   const layerRef = useRef<HTMLDivElement>(null);
+  const requestClose = () => {
+    if (!closeDisabled) onClose();
+  };
 
   useDialogFocus({
     open: true,
     layerRef,
     initialFocusRef,
     restoreFocusRef,
-    onClose,
+    onClose: requestClose,
   });
 
   const dialogProps = {
@@ -48,7 +53,7 @@ export function DialogLayer({
       role="presentation"
       onMouseDown={(event) => {
         if (closeOnBackdrop && event.target === event.currentTarget) {
-          onClose();
+          requestClose();
         }
       }}
     >

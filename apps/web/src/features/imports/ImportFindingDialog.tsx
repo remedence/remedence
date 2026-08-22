@@ -72,6 +72,8 @@ export function ImportFindingDialog({
     if (mutation.status === "error") errorRef.current?.focus();
   }, [mutation.status]);
 
+  const closeBlocked = mutation.status === "pending";
+
   function update<K extends keyof ImportForm>(key: K, value: ImportForm[K]) {
     setForm((current) => ({ ...current, [key]: value }));
     if (mutation.status === "error") mutation.reset();
@@ -105,6 +107,7 @@ export function ImportFindingDialog({
       initialFocusRef={firstFieldRef}
       restoreFocusRef={restoreFocusRef}
       onClose={onClose}
+      closeDisabled={closeBlocked}
     >
       <div className="modal-header">
         <div>
@@ -115,6 +118,7 @@ export function ImportFindingDialog({
           type="button"
           className="icon-button"
           aria-label="Close import finding"
+          disabled={closeBlocked}
           onClick={onClose}
         >
           <X aria-hidden="true" />
@@ -126,6 +130,7 @@ export function ImportFindingDialog({
           <select
             ref={firstFieldRef}
             aria-label="Company"
+            name="companyId"
             required
             value={form.companyId}
             onChange={(event) => update("companyId", event.target.value)}
@@ -141,6 +146,7 @@ export function ImportFindingDialog({
           <span>Severity</span>
           <select
             aria-label="Severity"
+            name="severity"
             value={form.severity}
             onChange={(event) =>
               update("severity", event.target.value as Severity)
@@ -159,6 +165,7 @@ export function ImportFindingDialog({
           <span>Source</span>
           <input
             aria-label="Source"
+            name="source"
             required
             value={form.source}
             onChange={(event) => update("source", event.target.value)}
@@ -168,6 +175,7 @@ export function ImportFindingDialog({
           <span>Finding key</span>
           <input
             aria-label="Finding key"
+            name="findingKey"
             required
             value={form.findingKey}
             onChange={(event) => update("findingKey", event.target.value)}
@@ -177,6 +185,7 @@ export function ImportFindingDialog({
           <span>Title</span>
           <input
             aria-label="Title"
+            name="title"
             required
             value={form.title}
             onChange={(event) => update("title", event.target.value)}
@@ -186,6 +195,7 @@ export function ImportFindingDialog({
           <span>Description</span>
           <textarea
             aria-label="Description"
+            name="description"
             required
             rows={3}
             value={form.description}
@@ -196,6 +206,7 @@ export function ImportFindingDialog({
           <span>Owner</span>
           <input
             aria-label="Owner"
+            name="owner"
             required
             value={form.owner}
             onChange={(event) => update("owner", event.target.value)}
@@ -205,6 +216,7 @@ export function ImportFindingDialog({
           <span>Asset</span>
           <input
             aria-label="Asset"
+            name="assetName"
             required
             value={form.assetName}
             onChange={(event) => update("assetName", event.target.value)}
@@ -214,6 +226,7 @@ export function ImportFindingDialog({
           <span>Detected at</span>
           <input
             aria-label="Detected at"
+            name="detectedAt"
             type="datetime-local"
             required
             value={form.detectedAt}
@@ -224,6 +237,7 @@ export function ImportFindingDialog({
           <span>SLA due at</span>
           <input
             aria-label="SLA due at"
+            name="slaDueAt"
             type="datetime-local"
             required
             value={form.slaDueAt}
@@ -255,7 +269,12 @@ export function ImportFindingDialog({
           {mutation.status === "pending" ? "Importing finding…" : ""}
         </p>
         <div className="modal-actions">
-          <button type="button" className="button secondary" onClick={onClose}>
+          <button
+            type="button"
+            className="button secondary"
+            disabled={closeBlocked}
+            onClick={onClose}
+          >
             Cancel
           </button>
           <button

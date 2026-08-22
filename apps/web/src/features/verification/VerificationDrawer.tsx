@@ -111,6 +111,9 @@ export function VerificationDrawer({
   const [evidenceSourceReference, setEvidenceSourceReference] = useState("");
   const [evidenceMetadata, setEvidenceMetadata] = useState("{}");
   const [localProblem, setLocalProblem] = useState<ApiProblem | undefined>();
+  const [pendingCheckIds, setPendingCheckIds] = useState<Set<string>>(
+    () => new Set(),
+  );
 
   const detail = useApiQuery<FindingDetail>(
     (signal) => loadFindingDetail(finding.finding_key, signal),
@@ -255,6 +258,18 @@ export function VerificationDrawer({
     checks.length > 0 && checks.every((check) => check.status === "Passed");
   const currentState =
     completedResult?.finding.state ?? detail.data?.finding.state;
+  const closeBlocked =
+    createMutation.status === "pending" ||
+    completionMutation.status === "pending" ||
+    pendingCheckIds.size > 0;
+  function setCheckPending(checkId: string, pending: boolean) {
+    setPendingCheckIds((current) => {
+      const next = new Set(current);
+      if (pending) next.add(checkId);
+      else next.delete(checkId);
+      return next;
+    });
+  }
 
   return (
     <DialogLayer
@@ -264,6 +279,7 @@ export function VerificationDrawer({
       initialFocusRef={closeRef}
       restoreFocusRef={restoreFocusRef}
       onClose={onClose}
+      closeDisabled={closeBlocked}
     >
       <div className="drawer-header">
         <div>
@@ -275,6 +291,7 @@ export function VerificationDrawer({
           type="button"
           className="icon-button"
           aria-label="Close verification"
+          disabled={closeBlocked}
           onClick={onClose}
         >
           <X aria-hidden="true" />
@@ -343,6 +360,7 @@ export function VerificationDrawer({
                 <span>Verification method</span>
                 <input
                   aria-label="Verification method"
+                  name="verificationMethod"
                   required
                   value={method}
                   onChange={(event) => {
@@ -356,6 +374,7 @@ export function VerificationDrawer({
                 <span>Verifier</span>
                 <input
                   aria-label="Verifier"
+                  name="verifier"
                   required
                   value={verifier}
                   onChange={(event) => {
@@ -369,6 +388,7 @@ export function VerificationDrawer({
                 <span>Verification scope</span>
                 <textarea
                   aria-label="Verification scope"
+                  name="verificationScope"
                   required
                   rows={2}
                   value={scope}
@@ -383,6 +403,7 @@ export function VerificationDrawer({
                 <span>Expected checks</span>
                 <textarea
                   aria-label="Expected checks"
+                  name="expectedChecks"
                   required
                   rows={4}
                   placeholder="One required check per line"
@@ -448,6 +469,9 @@ export function VerificationDrawer({
                   check={check}
                   verificationId={running.verification.id}
                   onRecorded={() => detail.reload()}
+                  onPendingChange={(pending) =>
+                    setCheckPending(check.id, pending)
+                  }
                 />
               ))}
             </div>
@@ -466,6 +490,7 @@ export function VerificationDrawer({
                 <span>Verification result summary</span>
                 <textarea
                   aria-label="Verification result summary"
+                  name="verificationResultSummary"
                   required
                   rows={3}
                   value={resultSummary}
@@ -515,6 +540,7 @@ export function VerificationDrawer({
                 <span>Verification result summary</span>
                 <textarea
                   aria-label="Verification result summary"
+                  name="verificationResultSummary"
                   required
                   rows={3}
                   value={resultSummary}
@@ -531,6 +557,7 @@ export function VerificationDrawer({
                 <span>Evidence kind</span>
                 <input
                   aria-label="Evidence kind"
+                  name="evidenceKind"
                   required
                   value={evidenceKind}
                   onChange={(event) => setEvidenceKind(event.target.value)}
@@ -540,6 +567,7 @@ export function VerificationDrawer({
                 <span>Evidence label</span>
                 <input
                   aria-label="Evidence label"
+                  name="evidenceLabel"
                   required
                   value={evidenceLabel}
                   onChange={(event) => setEvidenceLabel(event.target.value)}
@@ -549,6 +577,7 @@ export function VerificationDrawer({
                 <span>Evidence source reference</span>
                 <input
                   aria-label="Evidence source reference"
+                  name="evidenceSourceReference"
                   required
                   value={evidenceSourceReference}
                   onChange={(event) =>
@@ -561,6 +590,7 @@ export function VerificationDrawer({
                 <textarea
                   className="mono"
                   aria-label="Evidence metadata"
+                  name="evidenceMetadata"
                   required
                   rows={4}
                   value={evidenceMetadata}
@@ -643,12 +673,15 @@ function VerificationCheckForm({
   verificationId,
   check,
   onRecorded,
+  onPendingChange,
 }: {
   verificationId: string;
   check: VerificationCheck;
   onRecorded: () => void;
+  onPendingChange: (pending: boolean) => void;
 }) {
   const errorRef = useRef<HTMLDivElement | null>(null);
+  const submittingRef = useRef(false);
   const [status, setStatus] = useState<"Passed" | "Failed" | "Skipped">(
     "Passed",
   );
@@ -675,14 +708,22 @@ function VerificationCheckForm({
 
   async function record(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const result = await mutation.mutate({
-      sequence: check.sequence,
-      name: check.name,
-      status,
-      message: message.trim(),
-    });
-    if (!result) return;
-    onRecorded();
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    onPendingChange(true);
+    try {
+      const result = await mutation.mutate({
+        sequence: check.sequence,
+        name: check.name,
+        status,
+        message: message.trim(),
+      });
+      if (!result) return;
+      onRecorded();
+    } finally {
+      submittingRef.current = false;
+      onPendingChange(false);
+    }
   }
 
   if (check.status !== "Pending") {
@@ -704,6 +745,7 @@ function VerificationCheckForm({
         <span>Result</span>
         <select
           aria-label={`Result for ${check.name}`}
+          name={`check-${check.id}-result`}
           value={status}
           onChange={(event) => {
             setStatus(event.target.value as "Passed" | "Failed" | "Skipped");
@@ -719,6 +761,7 @@ function VerificationCheckForm({
         <span>Message</span>
         <input
           aria-label={`Message for ${check.name}`}
+          name={`check-${check.id}-message`}
           required={status === "Failed"}
           value={message}
           onChange={(event) => {
