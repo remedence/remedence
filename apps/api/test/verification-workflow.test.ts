@@ -156,6 +156,39 @@ afterEach(() => {
 });
 
 describe("Task 12 remediation, verification, and evidence workflow", () => {
+  it("rejects the persisted remediation owner as verifier without partial state", async () => {
+    const imported = await request(fixture.app)
+      .post("/api/v1/imports")
+      .send(importBody())
+      .expect(201);
+    const findingId = imported.body.finding.id as string;
+    const remediation = await request(fixture.app)
+      .post("/api/v1/remediations")
+      .send(remediationBody(findingId, 1))
+      .expect(201);
+    const remediationId = remediation.body.id as string;
+    await request(fixture.app)
+      .post(`/api/v1/remediations/${remediationId}/complete`)
+      .send({ summary: "Ready for review.", reference: "change://complete" })
+      .expect(200);
+
+    const rejected = await request(fixture.app)
+      .post("/api/v1/verifications")
+      .send({
+        ...verificationBody(findingId, remediationId, 1),
+        worker_name: " s. PATEL ",
+      })
+      .expect(409);
+
+    expect(rejected.body).toMatchObject({
+      status: 409,
+      code: "VERIFIER_NOT_INDEPENDENT",
+    });
+    expect(fixture.repositories.verifications.listByFinding(findingId)).toEqual(
+      [],
+    );
+  });
+
   it("persists a failed verification before a later evidence-backed verified fix", async () => {
     const imported = await request(fixture.app)
       .post("/api/v1/imports")

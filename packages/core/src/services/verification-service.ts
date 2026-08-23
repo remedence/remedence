@@ -70,6 +70,10 @@ function requireText(value: string, code: string, message: string): string {
   return trimmed;
 }
 
+function normalizedIdentityLabel(value: string): string {
+  return value.trim().normalize("NFKC").toLocaleLowerCase("en-US");
+}
+
 function cloneJsonValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map((item) => cloneJsonValue(item));
   if (value === null || typeof value !== "object") return value;
@@ -164,6 +168,23 @@ export class VerificationService {
         );
       }
 
+      const workerName = requireText(
+        input.workerName,
+        "VERIFICATION_WORKER_REQUIRED",
+        "Verification worker name is required.",
+      );
+      if (
+        normalizedIdentityLabel(workerName) ===
+        normalizedIdentityLabel(remediation.owner)
+      ) {
+        throw new DomainError(
+          "VERIFIER_NOT_INDEPENDENT",
+          409,
+          "The asserted verifier must differ from the persisted remediation owner.",
+          { remediationId: remediation.id },
+        );
+      }
+
       const checkNames = input.checks.map((name) =>
         requireText(
           name,
@@ -203,11 +224,7 @@ export class VerificationService {
           "VERIFICATION_METHOD_REQUIRED",
           "Verification method is required.",
         ),
-        workerName: requireText(
-          input.workerName,
-          "VERIFICATION_WORKER_REQUIRED",
-          "Verification worker name is required.",
-        ),
+        workerName,
         scope: requireText(
           input.scope,
           "VERIFICATION_SCOPE_REQUIRED",
@@ -241,6 +258,9 @@ export class VerificationService {
           finding_id: finding.id,
           remediation_id: remediation.id,
           required_checks: checkNames.length,
+          independence_policy: "different_asserted_identity_label",
+          remediation_owner: remediation.owner,
+          verifier_label: workerName,
         },
         occurredAt: now,
       });

@@ -246,6 +246,9 @@ Outside systems can evolve independently. A scanner can produce a finding; a cod
 - Verification runs have `worker_name`, `method`, `scope`, remediation linkage, result summary, and checks.
 - Evidence records have verification linkage, source reference, content hash, metadata, and lock time.
 - Audit records have generic actor type/id and entity/action provenance.
+- Starting a verification rejects an asserted `worker_name` that equals the persisted remediation `owner` after whitespace, Unicode, and case normalization. The accepted different-label policy and both labels are appended to the `verification.started` audit details.
+
+The last rule is a local fail-closed guard against obvious self-verification. Because local beta has no authenticated principals, both labels remain caller assertions and are not trusted identities or credentials.
 
 ### Planned
 
@@ -257,6 +260,8 @@ The current schema does not yet contain first-class fields for:
 - structured patch/commit/PR identity,
 - signed verification artifact bundles,
 - cross-tool attestation/orchestration policy.
+
+Production verifier independence therefore remains blocked on the authentication principal model, an authoritative remediator/verifier credential source, structured patch provenance, and a policy that compares durable principal identifiers rather than labels.
 
 Those belong to a later milestone. Documentation and UI must not claim they exist until the persistent schema and contracts actually support them.
 

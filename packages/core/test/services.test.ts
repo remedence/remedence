@@ -839,6 +839,33 @@ describe("VerificationService", () => {
     );
   });
 
+  it("rejects the persisted remediation owner as the asserted verifier", () => {
+    const { base, harness } = eligibleHarness();
+    const service = new VerificationService({
+      unitOfWork: harness.unitOfWork,
+      clock,
+      idGenerator: ids("unused-verification"),
+      hashEvidence,
+    });
+
+    expectDomainError(
+      () =>
+        service.startVerification({
+          organizationId: ORG,
+          findingId: base.id,
+          remediationId: "remediation-2",
+          method: "Independent manual retest",
+          workerName: "  l. CHEN  ",
+          scope: "Patient Portal API",
+          checks: ["Primary query path"],
+          actor,
+        }),
+      "VERIFIER_NOT_INDEPENDENT",
+    );
+    expect(harness.state.verifications).toHaveLength(0);
+    expect(harness.state.checks).toHaveLength(0);
+  });
+
   it("rejects a second running verification for the same finding", () => {
     const { base, harness } = eligibleHarness();
     const service = new VerificationService({
