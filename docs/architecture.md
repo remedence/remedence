@@ -77,7 +77,7 @@ generated TypeScript API types/client
     Core services
 ```
 
-The browser never opens SQLite directly. UI reads and mutations go through the typed HTTP API. Generated API drift is checked by `npm run check:generated-api` and by the repository-wide `npm run check` workflow.
+The browser never opens SQLite directly. UI reads and mutations go through the typed HTTP API. Generated API drift is checked by `bun run check:generated-api` and by the repository-wide `bun run check` workflow.
 
 ## Persistence ownership
 
@@ -204,7 +204,7 @@ Generating a newer report leaves older snapshots readable and unchanged.
 
 ## Backup boundary
 
-`npm run db:backup -- --output <file>` opens the live database read-only and uses the database backup implementation to create a separate snapshot file. It refuses to use the live database as the destination and refuses to overwrite an existing destination.
+`bun run db:backup --output <file>` opens the live database read-only and uses the database backup implementation to create a separate snapshot file. It refuses to use the live database as the destination and refuses to overwrite an existing destination.
 
 Backup is a local operational foundation, not a hosted backup/restore service.
 

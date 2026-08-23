@@ -15,8 +15,8 @@ Remedence welcomes focused issues and pull requests that preserve its remediatio
 Use a supported Node release and the committed lockfile:
 
 ```text
-npm ci
-npm run check
+bun ci
+bun run check
 ```
 
 Changes should include focused tests through the production interface, documentation for changed behavior or ownership, and generated API updates when `api/openapi.yaml` changes. Do not weaken validation or replace durable read-back with unconditional success.

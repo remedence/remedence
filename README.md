@@ -54,7 +54,7 @@ The supported release model is defined in [`docs/release-model.md`](docs/release
 - Database backup foundation.
 - Typed generated web API client.
 - Production local mode where one loopback Node process serves both the built React application and `/api/v1`.
-- Process-safe `npm run dev` supervision for the API and Vite child process trees.
+- Process-safe `bun run dev` supervision for the API and Vite child process trees.
 - Repository-wide checks and GitHub Actions CI on supported Node releases.
 
 ## Planned, not implemented
@@ -74,12 +74,14 @@ Local HTTP defense-in-depth and the still-blocked public-edge requirements are d
 ## Requirements
 
 - Node.js `>=24.15.0 <27`
-- npm with the repository lockfile
+- Bun `>=1.4.0 <2` with the repository lockfile
+
+Bun owns dependency installation, the workspace lockfile, and task orchestration. Node remains the API runtime because local persistence uses `node:sqlite`, which Bun 1.4 does not implement.
 
 ## Install
 
 ```text
-npm ci
+bun ci
 ```
 
 ## Development
@@ -87,7 +89,7 @@ npm ci
 Start the API and Vite development server together:
 
 ```text
-npm run dev
+bun run dev
 ```
 
 The supervisor owns only the two process trees it creates. API output is prefixed with `[api]` and web output with `[web]`. `SIGINT`/`SIGTERM`, startup failure, or an unexpected child exit trigger cleanup of the owned sibling process tree without globally enumerating or killing unrelated Node processes.
@@ -99,22 +101,22 @@ The API remains loopback-only on port `43180` by default. Vite proxies `/api` an
 Build everything required by the local product:
 
 ```text
-npm run build
+bun run build
 ```
 
 Then start the single production-local Node process:
 
 ```text
-npm run start
+bun run start
 ```
 
-`npm run start` serves the built React application and the persistent API from one `127.0.0.1` origin. API paths stay inside the API namespace and never fall through to `index.html`; normal client-side GET routes use the SPA fallback. Built hashed assets receive long-lived immutable caching while HTML is `no-cache`.
+`bun run start` serves the built React application and the persistent API from one `127.0.0.1` origin. API paths stay inside the API namespace and never fall through to `index.html`; normal client-side GET routes use the SPA fallback. Built hashed assets receive long-lived immutable caching while HTML is `no-cache`.
 
 Environment controls:
 
 - `REMEDENCE_API_PORT` overrides the loopback port with an integer from 1024 through 65535.
 - `REMEDENCE_DATA_DIR` overrides the data directory. The default is `./data` relative to the process working directory.
-- `NODE_ENV=production` also enables production web serving when the compiled server is started directly instead of through `npm run start`.
+- `NODE_ENV=production` also enables production web serving when the compiled server is started directly instead of through `bun run start`.
 
 Operational probes are `GET /livez` for process liveness and `GET /readyz` for database/schema readiness. `GET /healthz` remains a compatibility alias for readiness. Probe responses are non-cacheable and do not expose local paths.
 
@@ -125,10 +127,10 @@ The API opens `${REMEDENCE_DATA_DIR}/remedence.db`, applies repository migration
 Explicit maintenance commands:
 
 ```text
-npm run db:migrate
-npm run db:seed
-npm run db:backup -- --output <file>
-npm run db:restore -- --input <backup-file> --output <new-database-file>
+bun run db:migrate
+bun run db:seed
+bun run db:backup --output <file>
+bun run db:restore --input <backup-file> --output <new-database-file>
 ```
 
 `db:backup` reads the live database and refuses to overwrite an existing destination or use the live database path as the destination.
@@ -152,12 +154,12 @@ The response is a Markdown attachment rendered from that persisted snapshot.
 Run the supported repository check workflow:
 
 ```text
-npm run check
+bun run check
 ```
 
 It runs formatting, linting, TypeScript checks, OpenAPI contract tests, workspace tests, the production build, generated-API drift validation, and Playwright end-to-end coverage.
 
-GitHub Actions runs the same `npm run check` workflow on `ubuntu-latest` for Node 24.x and 26.x on pull requests and pushes to `main`, with an isolated runtime data directory and Playwright Chromium installed in CI.
+GitHub Actions runs the same `bun run check` workflow on `ubuntu-latest` for Node 24.x and 26.x on pull requests and pushes to `main`, with Bun 1.4.0, an isolated runtime data directory, and Playwright Chromium installed in CI.
 
 ## Architecture
 

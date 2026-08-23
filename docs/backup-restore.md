@@ -7,7 +7,7 @@ Remedence local beta provides validated SQLite backup and restore primitives. It
 Create backups on storage separate from the live data directory:
 
 ```text
-npm run db:backup -- --output <absent-backup-file>
+bun run db:backup --output <absent-backup-file>
 ```
 
 The command uses SQLite's online backup operation, refuses the live database path, creates parent directories, and refuses to overwrite an existing file.
@@ -17,7 +17,7 @@ The command uses SQLite's online backup operation, refuses the live database pat
 Stop the Remedence process before a recovery drill. Restore into an absent staging destination, never directly over the live database:
 
 ```text
-npm run db:restore -- --input <backup-file> --output <absent-staging-database-file>
+bun run db:restore --input <backup-file> --output <absent-staging-database-file>
 ```
 
 Before copying, restore verifies that the source is a regular SQLite file, has the SQLite file header, passes `PRAGMA integrity_check`, and contains migration history compatible with the repository's current migrations. The destination is created with exclusive-create semantics and is integrity-checked again. An existing destination is never overwritten.

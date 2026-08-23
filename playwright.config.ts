@@ -17,7 +17,7 @@ const e2eApiBaseUrl = `http://${e2eHost}:${E2E_API_PORT}`;
 const e2eDataDirectory = process.env.REMEDENCE_E2E_DATA_DIR?.trim();
 if (!e2eDataDirectory) {
   throw new Error(
-    "Run Playwright through npm run e2e so test data is isolated.",
+    "Run Playwright through bun run e2e so test data is isolated.",
   );
 }
 
@@ -37,7 +37,7 @@ export default defineConfig({
   webServer: [
     {
       name: "api",
-      command: "npm run dev --workspace=@remedence/api",
+      command: "bun run --filter @remedence/api dev",
       url: `${e2eApiBaseUrl}/healthz`,
       env: {
         NODE_ENV: "development",
@@ -50,7 +50,7 @@ export default defineConfig({
     },
     {
       name: "web",
-      command: `npm run dev --workspace=@remedence/web -- --host ${e2eHost} --port ${e2ePort} --strictPort`,
+      command: `bun run --filter @remedence/web dev --host ${e2eHost} --port ${e2ePort} --strictPort`,
       url: e2eBaseUrl,
       reuseExistingServer: false,
       timeout: 30_000,

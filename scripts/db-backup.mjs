@@ -11,7 +11,7 @@ function resolveDataDirectory(value) {
 
 function parseOutputArgument(args) {
   if (args.length !== 2 || args[0] !== "--output" || !args[1]?.trim()) {
-    throw new Error("Usage: npm run db:backup -- --output <file>");
+    throw new Error("Usage: bun run db:backup --output <file>");
   }
   return resolve(args[1]);
 }
@@ -20,7 +20,7 @@ function safeOperationalMessage(error) {
   if (!(error instanceof Error)) return "Database backup failed.";
   const allowed = new Set([
     "REMEDENCE_DATA_DIR must not be empty.",
-    "Usage: npm run db:backup -- --output <file>",
+    "Usage: bun run db:backup --output <file>",
     "Live Remedence database does not exist.",
     "Backup destination must differ from the live database path.",
     "Backup destination already exists.",

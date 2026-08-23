@@ -13,6 +13,7 @@ All notable changes will be documented here. Remedence follows Semantic Versioni
 
 ### Changed
 
+- Repository installs, workspace scripts, CI, and dependency locking now use Bun 1.4; Node remains the application runtime for `node:sqlite`.
 - Verification now rejects an asserted verifier label matching the persisted remediation owner.
 - Formatter scope excludes generated `.wrangler/` state.
 

@@ -124,7 +124,7 @@ describe("Task 17 production abuse boundaries", () => {
       "/data/remedence.db",
       "/remedence.db",
       "/.env",
-      "/package-lock.json",
+      "/bun.lock",
       "/apps/api/src/server.ts",
     ];
 

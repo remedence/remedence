@@ -18,7 +18,7 @@ describe("local API configuration", () => {
     expect(resolveApiPort("5500")).toBe(5500);
   });
 
-  it("enables built web serving for explicit production mode or npm start", () => {
+  it("enables built web serving for explicit production mode or a package-manager start", () => {
     expect(isProductionMode("production", undefined)).toBe(true);
     expect(isProductionMode(undefined, "start")).toBe(true);
     expect(isProductionMode("development", "start")).toBe(true);

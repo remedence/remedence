@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it } from "vitest";
 const repositoryRoot = fileURLToPath(new URL("../../..", import.meta.url));
 const apiDirectory = join(repositoryRoot, "apps", "api");
 const webDirectory = join(repositoryRoot, "apps", "web");
-const npmCli = process.env.npm_execpath;
+const bunCli = process.env.npm_execpath;
 const temporaryDirectories: string[] = [];
 const childProcesses: ChildProcess[] = [];
 
@@ -32,12 +32,10 @@ async function reserveEphemeralPort(): Promise<number> {
 }
 
 function buildWorkspace(workspace: string): void {
-  if (!npmCli) {
-    throw new Error(
-      "npm_execpath is required to run the production smoke test.",
-    );
+  if (!bunCli) {
+    throw new Error("Bun is required to run the production smoke test.");
   }
-  execFileSync(process.execPath, [npmCli, "run", "build", "-w", workspace], {
+  execFileSync(bunCli, ["run", "--filter", workspace, "build"], {
     cwd: repositoryRoot,
     stdio: "pipe",
   });

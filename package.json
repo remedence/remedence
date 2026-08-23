@@ -1,6 +1,7 @@
 {
   "name": "remedence",
   "version": "0.1.0",
+  "packageManager": "bun@1.4.0",
   "description": "Open-source remediation verification, evidence, and reporting infrastructure.",
   "private": true,
   "homepage": "https://github.com/remedence/remedence#readme",
@@ -18,24 +19,25 @@
   ],
   "scripts": {
     "dev": "node scripts/dev.mjs",
-    "build": "tsc -b && npm run build -w @remedence/web",
+    "build": "tsc -b && bun run --filter @remedence/web build",
     "start": "node --enable-source-maps apps/api/dist/server.js",
-    "test": "npm run test --workspaces --if-present",
+    "test": "bun run --workspaces --if-present test",
     "test:contract": "vitest run tests/contract",
-    "typecheck": "tsc -b --pretty false && npm run typecheck -w @remedence/web",
+    "typecheck": "tsc -b --pretty false && bun run --filter @remedence/web typecheck",
     "lint": "oxlint apps packages scripts tests playwright.config.ts --deny-warnings",
     "format": "prettier --write . --ignore-unknown",
     "format:check": "prettier --check . --ignore-unknown",
     "e2e": "node scripts/e2e.mjs",
-    "generate:api": "npm run generate -w @remedence/openapi-codegen",
+    "generate:api": "bun run --filter @remedence/openapi-codegen generate",
     "check:generated-api": "node scripts/check-generated-api.mjs",
     "db:migrate": "node scripts/db-migrate.mjs",
     "db:seed": "node scripts/db-seed.mjs",
     "db:backup": "node scripts/db-backup.mjs",
     "db:restore": "node scripts/db-restore.mjs",
-    "check": "npm run format:check && npm run lint && npm run typecheck && npm run test:contract && npm test && npm run build && npm run check:generated-api && npm run e2e"
+    "check": "bun run format:check && bun run lint && bun run typecheck && bun run test:contract && bun run test && bun run build && bun run check:generated-api && bun run e2e"
   },
   "engines": {
+    "bun": ">=1.4.0 <2",
     "node": ">=24.15.0 <27"
   },
   "devDependencies": {

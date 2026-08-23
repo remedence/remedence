@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { existsSync, writeFileSync } from "node:fs";
 
-const workspaceIndex = process.argv.indexOf("-w");
+const workspaceIndex = process.argv.indexOf("--filter");
 const workspace = workspaceIndex >= 0 ? process.argv[workspaceIndex + 1] : "";
 const role = workspace === "@remedence/api" ? "api" : "web";
 const mode = process.env.REMEDENCE_DEV_FIXTURE_MODE ?? "signal";

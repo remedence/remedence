@@ -19,23 +19,14 @@ const temporaryDirectory = await mkdtemp(join(tmpdir(), "remedence-openapi-"));
 const generatedPath = join(temporaryDirectory, "schema.d.ts");
 
 try {
-  const npmCli = process.env.npm_execpath;
-  if (!npmCli) {
-    throw new Error("npm_execpath is required to verify generated API types.");
+  const bunCli = process.env.npm_execpath;
+  if (!bunCli) {
+    throw new Error("Bun is required to verify generated API types.");
   }
 
   const result = spawnSync(
-    process.execPath,
-    [
-      npmCli,
-      "exec",
-      "--workspace=@remedence/openapi-codegen",
-      "--",
-      "openapi-typescript",
-      specPath,
-      "-o",
-      generatedPath,
-    ],
+    bunCli,
+    ["x", "openapi-typescript", specPath, "-o", generatedPath],
     {
       cwd: root,
       encoding: "utf8",
@@ -56,7 +47,7 @@ try {
 
     if (!committed.equals(generated)) {
       console.error(
-        "Generated API types are out of date. Run npm run generate:api.",
+        "Generated API types are out of date. Run bun run generate:api.",
       );
       process.exitCode = 1;
     }

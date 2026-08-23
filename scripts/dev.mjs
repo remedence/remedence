@@ -58,18 +58,26 @@ async function terminateProcessTree(child) {
   }
 }
 
-function spawnService(service, npmCli, output, errorOutput) {
-  const child = spawn(
-    process.execPath,
-    [npmCli, "run", "dev", "-w", service.workspace],
-    {
-      cwd: repositoryRoot,
-      env: process.env,
-      detached: process.platform !== "win32",
-      stdio: ["ignore", "pipe", "pipe"],
-      windowsHide: true,
-    },
-  );
+function packageManagerCommand(bunCli, arguments_) {
+  return bunCli.toLowerCase().endsWith(".mjs")
+    ? { command: process.execPath, arguments: [bunCli, ...arguments_] }
+    : { command: bunCli, arguments: arguments_ };
+}
+
+function spawnService(service, bunCli, output, errorOutput) {
+  const invocation = packageManagerCommand(bunCli, [
+    "run",
+    "--filter",
+    service.workspace,
+    "dev",
+  ]);
+  const child = spawn(invocation.command, invocation.arguments, {
+    cwd: repositoryRoot,
+    env: process.env,
+    detached: process.platform !== "win32",
+    stdio: ["ignore", "pipe", "pipe"],
+    windowsHide: true,
+  });
 
   prefixLines(child.stdout, `[${service.name}]`, output);
   prefixLines(child.stderr, `[${service.name}]`, errorOutput);
@@ -96,16 +104,16 @@ export async function runDevelopment({
   output = process.stdout,
   errorOutput = process.stderr,
 } = {}) {
-  const npmCli = process.env.npm_execpath;
-  if (!npmCli) {
+  const bunCli = process.env.npm_execpath;
+  if (!bunCli) {
     errorOutput.write(
-      "[dev] npm_execpath is unavailable. Start the supervisor with npm run dev.\n",
+      "[dev] npm_execpath is unavailable. Start the supervisor with bun run dev.\n",
     );
     return 1;
   }
 
   const owned = services.map((service) =>
-    spawnService(service, npmCli, output, errorOutput),
+    spawnService(service, bunCli, output, errorOutput),
   );
   let shuttingDown = false;
   let requestedShutdown = false;

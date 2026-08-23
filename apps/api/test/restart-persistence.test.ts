@@ -8,22 +8,18 @@ import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
 const repositoryRoot = fileURLToPath(new URL("../../..", import.meta.url));
 const serverPath = join(repositoryRoot, "apps", "api", "dist", "server.js");
-const npmCli = process.env.npm_execpath;
+const bunCli = process.env.npm_execpath;
 const temporaryDirectories: string[] = [];
 const childProcesses: ChildProcess[] = [];
 
 beforeAll(() => {
-  if (!npmCli) {
-    throw new Error("npm_execpath is required for restart persistence tests.");
+  if (!bunCli) {
+    throw new Error("Bun is required for restart persistence tests.");
   }
-  execFileSync(
-    process.execPath,
-    [npmCli, "run", "build", "-w", "@remedence/api"],
-    {
-      cwd: repositoryRoot,
-      stdio: "pipe",
-    },
-  );
+  execFileSync(bunCli, ["run", "--filter", "@remedence/api", "build"], {
+    cwd: repositoryRoot,
+    stdio: "pipe",
+  });
 });
 
 async function reserveEphemeralPort(): Promise<number> {
