@@ -93,14 +93,23 @@ export function createApp(
     }),
   );
 
-  app.get("/healthz", (_request, response) => {
+  app.get("/livez", (_request, response) => {
+    response.json({ status: "ok" });
+  });
+
+  const readinessHandler = (
+    _request: express.Request,
+    response: express.Response,
+  ) => {
     const health = dependencies.health();
     response.json({
       status: "ok",
       database: health.database,
       schema_version: health.schemaVersion,
     });
-  });
+  };
+  app.get("/readyz", readinessHandler);
+  app.get("/healthz", readinessHandler);
 
   app.use(
     OpenApiValidator.middleware({

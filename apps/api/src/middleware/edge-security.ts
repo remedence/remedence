@@ -38,7 +38,12 @@ export function setSecurityHeaders(
   response.setHeader("X-Content-Type-Options", "nosniff");
   response.setHeader("X-Frame-Options", "DENY");
 
-  if (request.path === "/healthz" || request.path.startsWith("/api/")) {
+  if (
+    request.path === "/healthz" ||
+    request.path === "/livez" ||
+    request.path === "/readyz" ||
+    request.path.startsWith("/api/")
+  ) {
     response.setHeader("Cache-Control", "no-store");
   }
   next();

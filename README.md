@@ -116,6 +116,8 @@ Environment controls:
 - `REMEDENCE_DATA_DIR` overrides the data directory. The default is `./data` relative to the process working directory.
 - `NODE_ENV=production` also enables production web serving when the compiled server is started directly instead of through `npm run start`.
 
+Operational probes are `GET /livez` for process liveness and `GET /readyz` for database/schema readiness. `GET /healthz` remains a compatibility alias for readiness. Probe responses are non-cacheable and do not expose local paths.
+
 ## Database lifecycle
 
 The API opens `${REMEDENCE_DATA_DIR}/remedence.db`, applies repository migrations, and applies the Harborline demo seed only when the local organization data is absent. Existing organization data is not overwritten by a later seed attempt.

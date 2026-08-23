@@ -45,6 +45,30 @@ describe("GET /healthz", () => {
     expect(response.headers["x-request-id"]).toMatch(/^[A-Za-z0-9._-]{1,80}$/);
     expect(JSON.stringify(response.body)).not.toMatch(/[A-Z]:\\|\/home\//);
   });
+
+  it("separates process liveness from database readiness", async () => {
+    const temporaryDirectory = mkdtempSync(join(tmpdir(), "remedence-probes-"));
+    temporaryDirectories.push(temporaryDirectory);
+    const dependencies = createDependencies({
+      databasePath: join(temporaryDirectory, "remedence.db"),
+      referenceTime: "2026-08-20T12:00:00.000Z",
+      log: () => undefined,
+    });
+    dependencySets.push(dependencies);
+    const app = createApp(dependencies);
+
+    const live = await request(app).get("/livez").expect(200);
+    expect(live.body).toEqual({ status: "ok" });
+    expect(live.headers["cache-control"]).toBe("no-store");
+
+    const ready = await request(app).get("/readyz").expect(200);
+    expect(ready.body).toEqual({
+      status: "ok",
+      database: "ready",
+      schema_version: 1,
+    });
+    expect(ready.headers["cache-control"]).toBe("no-store");
+  });
 });
 
 describe("live SLA evaluation", () => {
