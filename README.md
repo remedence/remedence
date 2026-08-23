@@ -69,6 +69,8 @@ Other planned work includes MSP multi-tenancy with authorization, hosted verific
 
 The local server does not default to `0.0.0.0`. Put authentication and an appropriate trusted boundary in front of Remedence before any future network exposure.
 
+Local HTTP defense-in-depth and the still-blocked public-edge requirements are documented in [`docs/http-edge-security.md`](docs/http-edge-security.md).
+
 ## Requirements
 
 - Node.js `>=24.15.0 <27`

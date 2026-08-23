@@ -4,6 +4,7 @@ import { requestIdFrom } from "./request-context.js";
 
 interface ErrorWithStatus {
   status?: unknown;
+  code?: unknown;
   type?: unknown;
   message?: unknown;
   path?: unknown;
@@ -19,12 +20,16 @@ function titleFor(status: number): string {
   switch (status) {
     case 400:
       return "Bad Request";
+    case 403:
+      return "Forbidden";
     case 404:
       return "Not Found";
     case 409:
       return "Conflict";
     case 413:
       return "Payload Too Large";
+    case 429:
+      return "Too Many Requests";
     default:
       return "Internal Server Error";
   }
@@ -95,6 +100,28 @@ export function problemHandler(
       404,
       "NOT_FOUND",
       "The requested resource was not found.",
+    );
+    return;
+  }
+
+  if (candidate?.status === 403) {
+    sendProblem(
+      response,
+      request,
+      403,
+      typeof candidate.code === "string" ? candidate.code : "FORBIDDEN",
+      "The request origin is not permitted.",
+    );
+    return;
+  }
+
+  if (candidate?.status === 429) {
+    sendProblem(
+      response,
+      request,
+      429,
+      "RATE_LIMIT_EXCEEDED",
+      "Too many requests were received. Retry after the indicated interval.",
     );
     return;
   }

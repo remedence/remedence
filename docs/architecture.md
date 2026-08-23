@@ -53,6 +53,8 @@ Development is deliberately different: Vite serves the React application and pro
 
 Local v1 assumes the machine/user session is the trust boundary. It does not implement hosted authentication, production multi-user authorization, or MSP RBAC. The server host is fixed to loopback rather than accepting an environment-controlled bind address.
 
+The local HTTP process also applies same-origin mutation checks, browser security headers, no-store API caching, bounded JSON payloads, a process-local request-rate budget, safe Problem responses, and server connection/request timeouts. These are local defense-in-depth controls, not a claim of public-edge readiness. See [`http-edge-security.md`](http-edge-security.md).
+
 ## Canonical API boundary
 
 `api/openapi.yaml` is the canonical REST contract. `/api/v1` is the canonical application namespace.

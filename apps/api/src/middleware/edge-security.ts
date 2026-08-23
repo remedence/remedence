@@ -1,0 +1,132 @@
+import type { NextFunction, Request, Response } from "express";
+
+const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+
+export interface RateLimitOptions {
+  maxRequests: number;
+  windowMs: number;
+  now?: () => number;
+}
+
+interface RateWindow {
+  count: number;
+  resetAt: number;
+}
+
+function requestOrigin(request: Request): string {
+  const host = request.get("host");
+  if (!host) return "";
+  return `${request.protocol}://${host}`;
+}
+
+export function setSecurityHeaders(
+  request: Request,
+  response: Response,
+  next: NextFunction,
+): void {
+  response.setHeader(
+    "Content-Security-Policy",
+    "default-src 'self'; base-uri 'none'; connect-src 'self'; font-src 'self'; form-action 'self'; frame-ancestors 'none'; img-src 'self' data:; object-src 'none'; script-src 'self'; style-src 'self'",
+  );
+  response.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+  response.setHeader("Cross-Origin-Resource-Policy", "same-origin");
+  response.setHeader(
+    "Permissions-Policy",
+    "camera=(), geolocation=(), microphone=()",
+  );
+  response.setHeader("Referrer-Policy", "no-referrer");
+  response.setHeader("X-Content-Type-Options", "nosniff");
+  response.setHeader("X-Frame-Options", "DENY");
+
+  if (request.path === "/healthz" || request.path.startsWith("/api/")) {
+    response.setHeader("Cache-Control", "no-store");
+  }
+  next();
+}
+
+export function requireSameOrigin(
+  request: Request,
+  _response: Response,
+  next: NextFunction,
+): void {
+  if (
+    !request.path.startsWith("/api/") ||
+    !MUTATING_METHODS.has(request.method)
+  ) {
+    next();
+    return;
+  }
+
+  const origin = request.get("origin");
+  const fetchSite = request.get("sec-fetch-site")?.toLowerCase();
+  if (
+    (origin !== undefined && origin !== requestOrigin(request)) ||
+    fetchSite === "cross-site"
+  ) {
+    next(
+      Object.assign(new Error("Cross-origin mutation rejected."), {
+        status: 403,
+        code: "CROSS_ORIGIN_REQUEST_REJECTED",
+      }),
+    );
+    return;
+  }
+
+  next();
+}
+
+export function createRateLimit(options: RateLimitOptions) {
+  if (!Number.isInteger(options.maxRequests) || options.maxRequests < 1) {
+    throw new Error("Rate limit maxRequests must be a positive integer.");
+  }
+  if (!Number.isInteger(options.windowMs) || options.windowMs < 1) {
+    throw new Error("Rate limit windowMs must be a positive integer.");
+  }
+
+  const windows = new Map<string, RateWindow>();
+  const now = options.now ?? Date.now;
+
+  return function rateLimit(
+    request: Request,
+    response: Response,
+    next: NextFunction,
+  ): void {
+    if (!request.path.startsWith("/api/")) {
+      next();
+      return;
+    }
+
+    const currentTime = now();
+    const key = request.socket.remoteAddress ?? "unknown";
+    let window = windows.get(key);
+    if (!window || currentTime >= window.resetAt) {
+      window = { count: 0, resetAt: currentTime + options.windowMs };
+      windows.set(key, window);
+    }
+
+    window.count += 1;
+    const remaining = Math.max(0, options.maxRequests - window.count);
+    response.setHeader("RateLimit-Limit", String(options.maxRequests));
+    response.setHeader("RateLimit-Remaining", String(remaining));
+    response.setHeader(
+      "RateLimit-Reset",
+      String(Math.ceil(window.resetAt / 1000)),
+    );
+
+    if (window.count > options.maxRequests) {
+      response.setHeader(
+        "Retry-After",
+        String(Math.max(1, Math.ceil((window.resetAt - currentTime) / 1000))),
+      );
+      next(
+        Object.assign(new Error("Request rate limit exceeded."), {
+          status: 429,
+          code: "RATE_LIMIT_EXCEEDED",
+        }),
+      );
+      return;
+    }
+
+    next();
+  };
+}

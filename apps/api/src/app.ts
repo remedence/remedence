@@ -3,6 +3,12 @@ import { fileURLToPath } from "node:url";
 import express, { type Express } from "express";
 import * as OpenApiValidator from "express-openapi-validator";
 import type { ApiDependencies } from "./dependencies.js";
+import {
+  createRateLimit,
+  requireSameOrigin,
+  setSecurityHeaders,
+  type RateLimitOptions,
+} from "./middleware/edge-security.js";
 import { problemHandler } from "./middleware/problem-handler.js";
 import { createRequestContext } from "./middleware/request-context.js";
 import { createAuditEventsRouter } from "./routes/audit-events.js";
@@ -21,7 +27,13 @@ const openApiPath = fileURLToPath(
 
 export interface AppOptions {
   webDirectory?: string;
+  rateLimit?: RateLimitOptions;
 }
+
+const DEFAULT_RATE_LIMIT: RateLimitOptions = {
+  maxRequests: 600,
+  windowMs: 60_000,
+};
 
 function configureProductionWeb(app: Express, webDirectory: string): void {
   const assetsDirectory = join(webDirectory, "assets");
@@ -68,8 +80,12 @@ export function createApp(
 ): Express {
   const app = express();
   app.disable("x-powered-by");
+  app.set("trust proxy", false);
 
   app.use(createRequestContext(dependencies.log));
+  app.use(setSecurityHeaders);
+  app.use(requireSameOrigin);
+  app.use(createRateLimit(options.rateLimit ?? DEFAULT_RATE_LIMIT));
   app.use(
     express.json({
       limit: "256kb",

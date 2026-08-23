@@ -13,6 +13,11 @@ const server = app.listen(config.port, config.host, () => {
     `Remedence ${config.serveWeb ? "local app" : "API"} listening on http://${config.host}:${config.port}`,
   );
 });
+server.headersTimeout = 10_000;
+server.requestTimeout = 15_000;
+server.keepAliveTimeout = 5_000;
+server.maxRequestsPerSocket = 1_000;
+server.setTimeout(30_000);
 
 let closing = false;
 function shutdown(): void {
