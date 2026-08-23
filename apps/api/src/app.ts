@@ -5,7 +5,7 @@ import * as OpenApiValidator from "express-openapi-validator";
 import type { ApiDependencies } from "./dependencies.js";
 import {
   createRateLimit,
-  requireSameOrigin,
+  createSameOriginGuard,
   setSecurityHeaders,
   type RateLimitOptions,
 } from "./middleware/edge-security.js";
@@ -28,6 +28,7 @@ const openApiPath = fileURLToPath(
 export interface AppOptions {
   webDirectory?: string;
   rateLimit?: RateLimitOptions;
+  allowedMutationOrigins?: readonly string[];
 }
 
 const DEFAULT_RATE_LIMIT: RateLimitOptions = {
@@ -84,7 +85,7 @@ export function createApp(
 
   app.use(createRequestContext(dependencies.log));
   app.use(setSecurityHeaders);
-  app.use(requireSameOrigin);
+  app.use(createSameOriginGuard(options.allowedMutationOrigins));
   app.use(createRateLimit(options.rateLimit ?? DEFAULT_RATE_LIMIT));
   app.use(
     express.json({

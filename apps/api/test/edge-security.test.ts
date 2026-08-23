@@ -98,6 +98,36 @@ describe("local HTTP edge security", () => {
       .expect(201);
   });
 
+  it("allows only an explicitly configured loopback development proxy origin", async () => {
+    const body = {
+      company_id: "company-juniper-ridge-dental",
+      finding_key: "SEC-DEV-PROXY",
+      title: "Development proxy mutation",
+      description: "Explicit local proxy origin regression fixture.",
+      source: "edge test",
+      severity: "Low",
+      owner: "Operator",
+      asset_name: "Local host",
+      detected_at: "2026-08-20T10:00:00.000Z",
+      sla_due_at: "2026-08-21T10:00:00.000Z",
+    };
+    const app = createApp(fixture(), {
+      allowedMutationOrigins: ["http://127.0.0.1:5173"],
+    });
+
+    await request(app)
+      .post("/api/v1/imports")
+      .set("Origin", "http://127.0.0.1:5173")
+      .set("Sec-Fetch-Site", "same-origin")
+      .send(body)
+      .expect(201);
+    await request(app)
+      .post("/api/v1/imports")
+      .set("Origin", "http://127.0.0.1:5174")
+      .send({ ...body, finding_key: "SEC-DEV-PROXY-REJECT" })
+      .expect(403);
+  });
+
   it("returns a safe retryable problem after the configured request budget", async () => {
     let now = 1_000;
     const app = createApp(fixture(), {

@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 export const API_HOST = "127.0.0.1";
 export const DEFAULT_API_PORT = 43_180;
 export const DEFAULT_DATA_DIRECTORY = "data";
+export const DEFAULT_DEV_ORIGIN = "http://127.0.0.1:5173";
 export const DEFAULT_WEB_DIRECTORY = fileURLToPath(
   new URL("../../web/dist", import.meta.url),
 );
@@ -15,11 +16,39 @@ export interface ApiConfig {
   databasePath: string;
   serveWeb: boolean;
   webDirectory: string;
+  allowedMutationOrigins: readonly string[];
 }
 
 const PORT_ERROR =
   "REMEDENCE_API_PORT must be an integer from 1024 through 65535.";
 const DATA_DIRECTORY_ERROR = "REMEDENCE_DATA_DIR must not be empty.";
+const DEV_ORIGIN_ERROR =
+  "REMEDENCE_DEV_ORIGIN must be an http://127.0.0.1 origin with a port.";
+
+export function resolveDevelopmentOrigin(
+  value = process.env.REMEDENCE_DEV_ORIGIN,
+): string {
+  const candidate = value ?? DEFAULT_DEV_ORIGIN;
+  let parsed: URL;
+  try {
+    parsed = new URL(candidate);
+  } catch {
+    throw new Error(DEV_ORIGIN_ERROR);
+  }
+  if (
+    parsed.protocol !== "http:" ||
+    parsed.hostname !== "127.0.0.1" ||
+    parsed.port === "" ||
+    parsed.username !== "" ||
+    parsed.password !== "" ||
+    parsed.pathname !== "/" ||
+    parsed.search !== "" ||
+    parsed.hash !== ""
+  ) {
+    throw new Error(DEV_ORIGIN_ERROR);
+  }
+  return parsed.origin;
+}
 
 export function isProductionMode(
   value: string | undefined,
@@ -52,15 +81,17 @@ export function resolveDataDirectory(
 
 export function getApiConfig(): ApiConfig {
   const dataDirectory = resolveDataDirectory();
+  const serveWeb = isProductionMode(
+    process.env.NODE_ENV,
+    process.env.npm_lifecycle_event,
+  );
   return {
     host: API_HOST,
     port: resolveApiPort(),
     dataDirectory,
     databasePath: join(dataDirectory, "remedence.db"),
-    serveWeb: isProductionMode(
-      process.env.NODE_ENV,
-      process.env.npm_lifecycle_event,
-    ),
+    serveWeb,
     webDirectory: DEFAULT_WEB_DIRECTORY,
+    allowedMutationOrigins: serveWeb ? [] : [resolveDevelopmentOrigin()],
   };
 }

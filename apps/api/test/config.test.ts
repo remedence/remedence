@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   API_HOST,
   DEFAULT_API_PORT,
+  DEFAULT_DEV_ORIGIN,
   isProductionMode,
   resolveApiPort,
+  resolveDevelopmentOrigin,
 } from "../src/config.js";
 
 describe("local API configuration", () => {
@@ -23,6 +25,24 @@ describe("local API configuration", () => {
     expect(isProductionMode("production", "dev")).toBe(false);
     expect(isProductionMode(undefined, "dev")).toBe(false);
     expect(isProductionMode(undefined, undefined)).toBe(false);
+  });
+
+  it("allows only an explicit loopback HTTP development origin", () => {
+    expect(resolveDevelopmentOrigin(undefined)).toBe(DEFAULT_DEV_ORIGIN);
+    expect(resolveDevelopmentOrigin("http://127.0.0.1:43993")).toBe(
+      "http://127.0.0.1:43993",
+    );
+    for (const value of [
+      "https://127.0.0.1:43993",
+      "http://localhost:43993",
+      "http://0.0.0.0:43993",
+      "http://127.0.0.1",
+      "http://127.0.0.1:43993/path",
+    ]) {
+      expect(() => resolveDevelopmentOrigin(value)).toThrow(
+        "REMEDENCE_DEV_ORIGIN must be an http://127.0.0.1 origin with a port.",
+      );
+    }
   });
 
   it.each(["80", "65536", "43180.5", "abc", ""])(

@@ -4,10 +4,10 @@ import { closeDependencies, createDependencies } from "./dependencies.js";
 
 const config = getApiConfig();
 const dependencies = createDependencies(config);
-const app = createApp(
-  dependencies,
-  config.serveWeb ? { webDirectory: config.webDirectory } : {},
-);
+const app = createApp(dependencies, {
+  ...(config.serveWeb ? { webDirectory: config.webDirectory } : {}),
+  allowedMutationOrigins: config.allowedMutationOrigins,
+});
 const server = app.listen(config.port, config.host, () => {
   console.log(
     `Remedence ${config.serveWeb ? "local app" : "API"} listening on http://${config.host}:${config.port}`,

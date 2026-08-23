@@ -43,6 +43,7 @@ export default defineConfig({
         NODE_ENV: "development",
         REMEDENCE_API_PORT: String(E2E_API_PORT),
         REMEDENCE_DATA_DIR: e2eDataDirectory,
+        REMEDENCE_DEV_ORIGIN: e2eBaseUrl,
       },
       reuseExistingServer: false,
       timeout: 30_000,

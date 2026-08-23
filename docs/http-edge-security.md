@@ -11,6 +11,7 @@ The application owns these controls directly:
 - API responses and health responses use `Cache-Control: no-store`;
 - responses set a restrictive same-origin Content Security Policy, `frame-ancestors 'none'`, `X-Frame-Options: DENY`, MIME sniffing protection, a no-referrer policy, browser feature restrictions, and same-origin opener/resource policies;
 - mutating `/api/*` requests with a foreign `Origin` or `Sec-Fetch-Site: cross-site` are rejected with a structured 403 Problem response before route code runs;
+- development mode accepts one explicit `http://127.0.0.1:<port>` Vite origin (`REMEDENCE_DEV_ORIGIN`, default port 5173) so the browser proxy can reach the loopback API; production-local mode has no additional allowed origin;
 - no CORS allow-list or wildcard response is emitted; local non-browser clients may omit browser origin headers;
 - `/api/*` is limited to 600 requests per rolling local-process window of 60 seconds and returns `RateLimit-*` plus `Retry-After` headers with a structured 429 Problem response;
 - the Node server bounds header receipt to 10 seconds, request receipt to 15 seconds, idle keep-alive to 5 seconds, active socket lifetime without activity to 30 seconds, and 1,000 requests per socket;

@@ -49,35 +49,42 @@ export function setSecurityHeaders(
   next();
 }
 
-export function requireSameOrigin(
-  request: Request,
-  _response: Response,
-  next: NextFunction,
-): void {
-  if (
-    !request.path.startsWith("/api/") ||
-    !MUTATING_METHODS.has(request.method)
-  ) {
+export function createSameOriginGuard(allowedOrigins: readonly string[] = []) {
+  const allowed = new Set(allowedOrigins);
+  return function requireSameOrigin(
+    request: Request,
+    _response: Response,
+    next: NextFunction,
+  ): void {
+    if (
+      !request.path.startsWith("/api/") ||
+      !MUTATING_METHODS.has(request.method)
+    ) {
+      next();
+      return;
+    }
+
+    const origin = request.get("origin");
+    const fetchSite = request.get("sec-fetch-site")?.toLowerCase();
+    const permittedOrigin =
+      origin === undefined ||
+      origin === requestOrigin(request) ||
+      allowed.has(origin);
+    if (
+      !permittedOrigin ||
+      (fetchSite === "cross-site" && !allowed.has(origin ?? ""))
+    ) {
+      next(
+        Object.assign(new Error("Cross-origin mutation rejected."), {
+          status: 403,
+          code: "CROSS_ORIGIN_REQUEST_REJECTED",
+        }),
+      );
+      return;
+    }
+
     next();
-    return;
-  }
-
-  const origin = request.get("origin");
-  const fetchSite = request.get("sec-fetch-site")?.toLowerCase();
-  if (
-    (origin !== undefined && origin !== requestOrigin(request)) ||
-    fetchSite === "cross-site"
-  ) {
-    next(
-      Object.assign(new Error("Cross-origin mutation rejected."), {
-        status: 403,
-        code: "CROSS_ORIGIN_REQUEST_REJECTED",
-      }),
-    );
-    return;
-  }
-
-  next();
+  };
 }
 
 export function createRateLimit(options: RateLimitOptions) {
