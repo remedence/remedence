@@ -32,6 +32,7 @@
     "db:migrate": "node scripts/db-migrate.mjs",
     "db:seed": "node scripts/db-seed.mjs",
     "db:backup": "node scripts/db-backup.mjs",
+    "db:restore": "node scripts/db-restore.mjs",
     "check": "npm run format:check && npm run lint && npm run typecheck && npm run test:contract && npm test && npm run build && npm run check:generated-api && npm run e2e"
   },
   "engines": {

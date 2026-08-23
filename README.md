@@ -126,9 +126,12 @@ Explicit maintenance commands:
 npm run db:migrate
 npm run db:seed
 npm run db:backup -- --output <file>
+npm run db:restore -- --input <backup-file> --output <new-database-file>
 ```
 
 `db:backup` reads the live database and refuses to overwrite an existing destination or use the live database path as the destination.
+
+`db:restore` validates the SQLite header, full database integrity, and migration compatibility before copying to an absent destination. It never overwrites the live database. Stop the API and follow [`docs/backup-restore.md`](docs/backup-restore.md) for a local recovery drill.
 
 ## Reports
 
