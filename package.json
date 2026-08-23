@@ -1,7 +1,16 @@
 {
   "name": "remedence",
   "version": "0.1.0",
+  "description": "Open-source remediation verification, evidence, and reporting infrastructure.",
   "private": true,
+  "homepage": "https://github.com/remedence/remedence#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/remedence/remedence.git"
+  },
+  "bugs": {
+    "url": "https://github.com/remedence/remedence/issues"
+  },
   "workspaces": [
     "apps/*",
     "packages/*",

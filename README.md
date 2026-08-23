@@ -38,6 +38,8 @@ Remedence is not intended to replace every scanner, code-remediation agent, RMM,
 
 Remedence local v1 does **not** provide autonomous patch generation, hosted SaaS authentication, production multi-user RBAC, managed vendor integrations, or a hosted verification worker fleet.
 
+The supported release model is defined in [`docs/release-model.md`](docs/release-model.md). The current `0.x` product is local beta only; supported self-hosted and hosted multi-tenant modes remain gated future targets.
+
 ## Implemented in local v1
 
 - Canonical `/api/v1` OpenAPI 3.1 API.
