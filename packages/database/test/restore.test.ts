@@ -2,6 +2,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -65,6 +66,11 @@ describe("SQLite restore", () => {
     } finally {
       restored.close();
     }
+    expect(
+      readdirSync(temporaryDirectory).filter((entry) =>
+        entry.includes(".restore-"),
+      ),
+    ).toEqual([]);
   });
 
   it("rejects a corrupt backup without creating a destination", () => {
@@ -86,5 +92,10 @@ describe("SQLite restore", () => {
       restoreDatabaseBackup(backupPath, destination, migrationsDirectory),
     ).toThrow("Restore destination already exists.");
     expect(readFileSync(destination, "utf8")).toBe("preserve");
+    expect(
+      readdirSync(temporaryDirectory).filter((entry) =>
+        entry.includes(".restore-"),
+      ),
+    ).toEqual([]);
   });
 });

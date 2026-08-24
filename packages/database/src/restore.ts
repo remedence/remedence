@@ -3,10 +3,13 @@ import {
   constants,
   copyFileSync,
   existsSync,
+  linkSync,
   openSync,
   readSync,
+  rmSync,
   statSync,
 } from "node:fs";
+import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import { getDatabaseConnection, openRemedenceDatabase } from "./database.js";
 import { applyMigrations } from "./migrations.js";
@@ -72,6 +75,17 @@ export function restoreDatabaseBackup(
     backup.close();
   }
 
-  copyFileSync(source, destination, constants.COPYFILE_EXCL);
-  requireIntegrityCheck(destination);
+  const validatedCopy = `${destination}.restore-${randomUUID()}.tmp`;
+  try {
+    copyFileSync(source, validatedCopy, constants.COPYFILE_EXCL);
+    requireIntegrityCheck(validatedCopy);
+
+    // Publish the already-validated inode without a race that could overwrite a
+    // destination created after the initial existence check.
+    linkSync(validatedCopy, destination);
+  } finally {
+    rmSync(validatedCopy, { force: true });
+    rmSync(`${validatedCopy}-wal`, { force: true });
+    rmSync(`${validatedCopy}-shm`, { force: true });
+  }
 }
