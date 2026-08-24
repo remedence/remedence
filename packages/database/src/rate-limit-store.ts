@@ -6,12 +6,14 @@ export interface RateLimitConsumption {
   resetAt: number;
 }
 
+export type RateLimitResult<T> = T | Promise<T>;
+
 export interface RateLimitStore {
   consume(
     key: string,
     currentTime: number,
     windowMs: number,
-  ): RateLimitConsumption;
+  ): RateLimitResult<RateLimitConsumption>;
 }
 
 interface BucketRow {

@@ -25,6 +25,36 @@ export interface DeletionReceipt {
   completedAt: string | null;
 }
 
+export type PrivacyStoreResult<T> = T | Promise<T>;
+
+export interface PrivacyStore {
+  listPendingDeletionReceipts(): PrivacyStoreResult<DeletionReceipt[]>;
+  exportSnapshot(
+    organizationId: string,
+    exportedAt: string,
+  ): PrivacyStoreResult<PrivacyExportSnapshot>;
+  setArtifactLegalHold(
+    organizationId: string,
+    artifactId: string,
+    legalHold: boolean,
+  ): PrivacyStoreResult<boolean>;
+  purgeExpiredUnadoptedArtifacts(input: {
+    receiptId: string;
+    now: string;
+  }): PrivacyStoreResult<DeletionReceipt | undefined>;
+  deleteTenant(input: {
+    organizationId: string;
+    receiptId: string;
+    requestedBy: string;
+    now: string;
+  }): PrivacyStoreResult<DeletionReceipt>;
+  completeDeletionReceipt(
+    id: string,
+    now: string,
+    error?: string,
+  ): PrivacyStoreResult<void>;
+}
+
 interface DeletionReceiptRow {
   id: string;
   organization_digest: string;
@@ -65,7 +95,7 @@ function safeRows(rows: unknown[]): Array<Record<string, unknown>> {
   return rows.map((row) => ({ ...(row as Record<string, unknown>) }));
 }
 
-export function createPrivacyStore(database: RemedenceDatabase) {
+export function createPrivacyStore(database: RemedenceDatabase): PrivacyStore {
   const db = getDatabaseConnection(database);
   return {
     listPendingDeletionReceipts(): DeletionReceipt[] {
@@ -242,6 +272,14 @@ export function createPrivacyStore(database: RemedenceDatabase) {
             object_key: string;
           }>
         ).map((row) => row.object_key);
+        const memberUserIds = (
+          db
+            .prepare(
+              `SELECT user_id FROM organization_memberships
+               WHERE organization_id = ? ORDER BY user_id`,
+            )
+            .all(input.organizationId) as unknown as Array<{ user_id: string }>
+        ).map((row) => row.user_id);
         db.prepare(
           `INSERT INTO privacy_deletion_receipts
            (id, organization_digest, requested_by, object_keys_json, status,
@@ -269,6 +307,7 @@ export function createPrivacyStore(database: RemedenceDatabase) {
           "integration_inbound_events",
           "integration_deliveries",
           "integration_connections",
+          "idempotency_records",
           "organization_memberships",
           "organization_privacy_settings",
         ] as const;
@@ -283,6 +322,14 @@ export function createPrivacyStore(database: RemedenceDatabase) {
         db.prepare(`DELETE FROM "ssoProvider" WHERE "organizationId" = ?`).run(
           input.organizationId,
         );
+        const removeOrphanUser = db.prepare(
+          `DELETE FROM "user" WHERE id = ? AND NOT EXISTS (
+             SELECT 1 FROM organization_memberships WHERE user_id = ?
+           )`,
+        );
+        for (const userId of memberUserIds) {
+          removeOrphanUser.run(userId, userId);
+        }
         const deleted = db
           .prepare("DELETE FROM organizations WHERE id = ?")
           .run(input.organizationId).changes;
@@ -315,5 +362,3 @@ export function createPrivacyStore(database: RemedenceDatabase) {
     },
   };
 }
-
-export type PrivacyStore = ReturnType<typeof createPrivacyStore>;

@@ -12,6 +12,12 @@
   },
   "dependencies": {
     "@remedence/core": "0.1.0",
-    "@remedence/verification": "0.1.0"
+    "@remedence/verification": "0.1.0",
+    "pg": "^8.23.0"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.7",
+    "@electric-sql/pglite-socket": "^0.2.10",
+    "@types/pg": "^8.23.1"
   }
 }

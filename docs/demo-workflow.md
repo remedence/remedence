@@ -77,7 +77,7 @@ Verification #2 should not replace Verification #1. The finding detail should re
 
 ### Evidence
 
-Open **Evidence** after the successful verification. The proof card should expose the persisted evidence label, Evidence ID, Verification ID, source reference, content hash, creation time, and lock time. Local v1 stores evidence metadata and its hash; this demo should not claim a signed artifact bundle or external verifier credential that the schema does not yet model.
+Open **Evidence** after the successful verification. The proof card should expose the persisted evidence label, Evidence ID, Verification ID, source reference, content hash, creation time, and lock time. Artifact-backed workflows additionally show the protected upload and signed-manifest provenance; the metadata-only demo fixture does not fabricate an external verifier credential or uploaded artifact.
 
 ### Reports
 

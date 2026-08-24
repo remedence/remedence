@@ -8,4 +8,4 @@ A passed verification must adopt a clean, previously unadopted artifact. Adoptio
 
 Local mode uses the filesystem object-store adapter and an EICAR boundary scanner. Hosted HTTPS mode refuses startup without a 32-character `REMEDENCE_EVIDENCE_SIGNING_KEY` and a reachable ClamAV configuration (`REMEDENCE_MALWARE_SCANNER=clamav`, `REMEDENCE_CLAMAV_HOST`, and optional `REMEDENCE_CLAMAV_PORT`). The local scanner is deliberately not accepted for hosted mode.
 
-Object deletion is not exposed through the product API. Retention expiry and legal holds are durable policy state for the privacy lifecycle; a later controlled retention job is the only permitted deletion owner.
+Object deletion is not exposed as an unrestricted product mutation. The controlled privacy worker applies retention expiry and tenant-offboarding cleanup only after durable policy selection, honors legal holds, and records cleanup receipts for each object operation.

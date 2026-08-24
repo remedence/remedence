@@ -30,7 +30,10 @@ export function createPrivacyRouter(dependencies: ApiDependencies): Router {
       const principal = requireRole(response, ["Owner", "Administrator"]);
       const organizationId = organizationIdFrom(response);
       const now = dependencies.evidenceProtection.clock.now();
-      const snapshot = dependencies.privacy.exportSnapshot(organizationId, now);
+      const snapshot = await dependencies.privacy.exportSnapshot(
+        organizationId,
+        now,
+      );
       const artifacts = [];
       for (const artifact of snapshot.artifacts) {
         const bytes = await dependencies.evidenceProtection.objectStore.get(
@@ -51,7 +54,7 @@ export function createPrivacyRouter(dependencies: ApiDependencies): Router {
           bytes_base64: Buffer.from(bytes).toString("base64"),
         });
       }
-      dependencies.repositories.auditEvents.append({
+      await dependencies.repositories.auditEvents.append({
         organizationId,
         actorType: "user",
         actorId: principal.userId,
@@ -92,11 +95,11 @@ export function createPrivacyRouter(dependencies: ApiDependencies): Router {
         const now = dependencies.evidenceProtection.clock.now();
         const apply = async () => {
           if (
-            !dependencies.privacy.setArtifactLegalHold(
+            !(await dependencies.privacy.setArtifactLegalHold(
               organizationId,
               artifactId,
               legalHold,
-            )
+            ))
           ) {
             throw new DomainError(
               "EVIDENCE_ARTIFACT_NOT_FOUND",
@@ -147,7 +150,7 @@ export function createPrivacyRouter(dependencies: ApiDependencies): Router {
       const now = dependencies.evidenceProtection.clock.now();
       let receipt;
       try {
-        receipt = dependencies.privacy.deleteTenant({
+        receipt = await dependencies.privacy.deleteTenant({
           organizationId,
           receiptId: dependencies.evidenceProtection.idGenerator.next(),
           requestedBy: principal.userId,
@@ -173,7 +176,7 @@ export function createPrivacyRouter(dependencies: ApiDependencies): Router {
           break;
         }
       }
-      dependencies.privacy.completeDeletionReceipt(
+      await dependencies.privacy.completeDeletionReceipt(
         receipt.id,
         dependencies.evidenceProtection.clock.now(),
         cleanupError,

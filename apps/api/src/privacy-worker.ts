@@ -1,8 +1,11 @@
 import { setTimeout as delay } from "node:timers/promises";
 import { getApiConfig } from "./config.js";
-import { closeDependencies, createDependencies } from "./dependencies.js";
+import {
+  closeDependencies,
+  createRuntimeDependencies,
+} from "./dependencies.js";
 
-const dependencies = createDependencies(getApiConfig());
+const dependencies = await createRuntimeDependencies(getApiConfig());
 let stopping = false;
 process.once("SIGINT", () => {
   stopping = true;
@@ -25,7 +28,7 @@ async function cleanupReceipt(receipt: {
       break;
     }
   }
-  dependencies.privacy.completeDeletionReceipt(
+  await dependencies.privacy.completeDeletionReceipt(
     receipt.id,
     dependencies.evidenceProtection.clock.now(),
     failure,
@@ -34,15 +37,17 @@ async function cleanupReceipt(receipt: {
 
 try {
   while (!stopping) {
-    const pending = dependencies.privacy.listPendingDeletionReceipts();
+    const pending = await dependencies.privacy.listPendingDeletionReceipts();
     for (const receipt of pending) await cleanupReceipt(receipt);
-    const retention = dependencies.privacy.purgeExpiredUnadoptedArtifacts({
-      receiptId: dependencies.evidenceProtection.idGenerator.next(),
-      now: dependencies.evidenceProtection.clock.now(),
-    });
+    const retention = await dependencies.privacy.purgeExpiredUnadoptedArtifacts(
+      {
+        receiptId: dependencies.evidenceProtection.idGenerator.next(),
+        now: dependencies.evidenceProtection.clock.now(),
+      },
+    );
     if (retention) await cleanupReceipt(retention);
     await delay(60_000);
   }
 } finally {
-  closeDependencies(dependencies);
+  await closeDependencies(dependencies);
 }

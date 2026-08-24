@@ -1,13 +1,16 @@
 import { hostname } from "node:os";
 import { setTimeout as delay } from "node:timers/promises";
 import { getApiConfig } from "./config.js";
-import { closeDependencies, createDependencies } from "./dependencies.js";
+import {
+  closeDependencies,
+  createRuntimeDependencies,
+} from "./dependencies.js";
 import {
   IntegrationDeliveryWorker,
   IntegrationDispatcher,
 } from "./integration-runtime.js";
 
-const dependencies = createDependencies(getApiConfig());
+const dependencies = await createRuntimeDependencies(getApiConfig());
 const worker = new IntegrationDeliveryWorker(
   dependencies.integrations.store,
   new IntegrationDispatcher(dependencies.integrations.credentials),
@@ -26,5 +29,5 @@ try {
     if (!(await worker.runOnce())) await delay(1_000);
   }
 } finally {
-  closeDependencies(dependencies);
+  await closeDependencies(dependencies);
 }

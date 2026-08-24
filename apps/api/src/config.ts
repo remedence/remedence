@@ -38,6 +38,7 @@ export interface ApiConfig {
   port: number;
   dataDirectory: string;
   databasePath: string;
+  databaseUrl?: string;
   serveWeb: boolean;
   webDirectory: string;
   allowedMutationOrigins: readonly string[];
@@ -73,6 +74,35 @@ const VERIFICATION_PROFILES_ERROR =
   "Hosted mode requires a valid REMEDENCE_VERIFICATION_PROFILES_PATH with digest-pinned, network-isolated profiles.";
 const INTEGRATION_KEYS_ERROR =
   "Hosted mode requires REMEDENCE_INTEGRATION_ENCRYPTION_KEYS with versioned 32-byte base64 keys.";
+const DATABASE_URL_ERROR =
+  "Hosted mode requires a valid postgresql:// REMEDENCE_DATABASE_URL.";
+
+export function resolveDatabaseUrl(
+  authentication: AuthenticationConfig,
+  value = process.env.REMEDENCE_DATABASE_URL,
+): string | undefined {
+  const hosted =
+    authentication.mode === "required" &&
+    authentication.baseURL.startsWith("https://");
+  if (!value?.trim()) {
+    if (hosted) throw new Error(DATABASE_URL_ERROR);
+    return undefined;
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(DATABASE_URL_ERROR);
+  }
+  if (
+    !["postgres:", "postgresql:"].includes(parsed.protocol) ||
+    !parsed.hostname ||
+    !parsed.pathname.slice(1)
+  ) {
+    throw new Error(DATABASE_URL_ERROR);
+  }
+  return parsed.href;
+}
 
 export function resolveIntegrationKeyring(
   authentication: AuthenticationConfig,
@@ -412,11 +442,13 @@ export function getApiConfig(): ApiConfig {
     authentication,
     process.env.REMEDENCE_INTEGRATION_ENCRYPTION_KEYS,
   );
+  const databaseUrl = resolveDatabaseUrl(authentication);
   return {
     host: resolveApiHost(authentication),
     port: resolveApiPort(),
     dataDirectory,
     databasePath: join(dataDirectory, "remedence.db"),
+    ...(databaseUrl ? { databaseUrl } : {}),
     serveWeb,
     webDirectory: DEFAULT_WEB_DIRECTORY,
     allowedMutationOrigins: serveWeb ? [] : [resolveDevelopmentOrigin()],

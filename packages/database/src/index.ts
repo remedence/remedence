@@ -8,6 +8,22 @@ export {
 } from "./database.js";
 export { applyMigrations } from "./migrations.js";
 export {
+  openPostgresDatabase,
+  PostgresDatabase,
+  type OpenPostgresOptions,
+} from "./postgres-database.js";
+export {
+  createPostgresRepositorySet,
+  createPostgresUnitOfWork,
+} from "./postgres-repositories.js";
+export {
+  createPostgresIdempotencyStore,
+  createPostgresIntegrationStore,
+  createPostgresPrivacyStore,
+  createPostgresRateLimitStore,
+  createPostgresVerificationJobQueue,
+} from "./postgres-operational-stores.js";
+export {
   createIdempotencyStore,
   type IdempotencyReplay,
   type IdempotencyReservation,

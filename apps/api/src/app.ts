@@ -176,7 +176,7 @@ export function createApp(
         const bodyBytes = Buffer.isBuffer(request.body)
           ? request.body
           : Buffer.alloc(0);
-        const connection = dependencies.integrations.store.getConnection(
+        const connection = await dependencies.integrations.store.getConnection(
           organizationId,
           connectionId,
         );
@@ -236,7 +236,7 @@ export function createApp(
           | undefined;
         const operation = async () => {
           const reservation =
-            dependencies.integrations.store.reserveInboundEvent({
+            await dependencies.integrations.store.reserveInboundEvent({
               organizationId,
               connectionId,
               eventKey,
@@ -303,11 +303,11 @@ export function createApp(
     response.json({ status: "ok" });
   });
 
-  const readinessHandler = (
+  const readinessHandler = async (
     _request: express.Request,
     response: express.Response,
   ) => {
-    const health = dependencies.health();
+    const health = await dependencies.health();
     response.status(health.database === "ready" ? 200 : 503).json({
       status: health.database === "ready" ? "ok" : "degraded",
       database: health.database,
@@ -326,10 +326,7 @@ export function createApp(
     app.use(
       "/api/v1",
       establishLocalPrincipal(
-        () =>
-          dependencies.workspace?.status().organization?.id ??
-          dependencies.localOrganizationId ??
-          DEFAULT_LOCAL_ORGANIZATION_ID,
+        dependencies.localOrganizationId ?? DEFAULT_LOCAL_ORGANIZATION_ID,
       ),
     );
   }

@@ -1,13 +1,13 @@
 # Release and deployment model
 
-Remedence currently ships one product mode: **local beta**. Supported self-hosted and hosted multi-tenant modes are planned release targets, not aliases for the local process and not current production claims.
+Remedence ships a local beta and a controlled single-host container beta. Broader supported self-hosted and hosted multi-tenant modes remain release targets, not aliases for either beta topology.
 
 ## Mode matrix
 
 | Mode                       | Status                             | Network boundary                                                       | Identity and tenancy                                                                                     | Persistence                                                                                   | Support claim                             |
 | -------------------------- | ---------------------------------- | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ----------------------------------------- |
 | Local beta                 | Implemented                        | API fixed to `127.0.0.1`; optional separate local worker process       | Explicit local-workspace trust or required accounts, sessions, MFA, federation config, and tenant roles  | Local SQLite plus protected artifact directory and durable job queue                          | Evaluation and local workflow use only    |
-| Single-host container beta | Implemented                        | Caddy TLS edge; authenticated API network binding                      | Required accounts, MFA policy, federation configuration, and tenant roles                                | Single-host SQLite volume, protected artifact directory, ClamAV, and durable workers          | Evaluation and controlled single-host use |
+| Single-host container beta | Implemented                        | Caddy TLS edge; authenticated API network binding                      | Required accounts, MFA policy, federation configuration, and tenant roles                                | Pooled PostgreSQL, protected artifact directory, ClamAV, and durable workers                  | Evaluation and controlled single-host use |
 | Supported self-hosted      | Planned and blocked by gates below | TLS-terminating trusted proxy plus an authenticated application origin | Authenticated principals, secure sessions, recovery, MFA, tenant-scoped RBAC                             | Supported production database adapter and object storage                                      | None until every self-hosted gate passes  |
 | Hosted multi-tenant SaaS   | Planned and blocked by gates below | Managed public edge and isolated internal worker/data planes           | Managed identity lifecycle, tenant isolation, administration boundaries, enterprise federation direction | Managed production database, encrypted object storage, queues, backups, and disaster recovery | None until every SaaS gate passes         |
 
@@ -26,7 +26,7 @@ A release cannot be called supported self-hosted until current evidence demonstr
 - durable evidence artifacts, isolated verification workers, observable queues, and operational receipts;
 - supported-version policy, vulnerability handling, monitoring, SLOs, and support channels.
 
-Putting a reverse proxy in front of the current local process does not satisfy these gates.
+The supplied container beta provides the PostgreSQL adapter, controlled migration job, tenant-safe schema, durable queues, TLS edge, and rollback procedure. Operators must still produce environment-specific backup/restore-drill, monitoring, secret-rotation, and support evidence before representing a deployment as supported self-hosted.
 
 ## Hosted SaaS release gates
 

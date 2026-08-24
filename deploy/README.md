@@ -1,6 +1,6 @@
 # Container deployment
 
-This deployment is a reproducible, single-host product for the current SQLite-backed release. It does not convert the release into hosted multi-tenant SaaS or remove the production-database gate in `docs/release-model.md`.
+This deployment is the supported pooled PostgreSQL production topology. SQLite remains available only for single-process local workspaces and tests. PostgreSQL transactions use one checked-out client, queues use `FOR UPDATE SKIP LOCKED`, and every domain or operational record carries tenant identity in its primary key.
 
 ## Image
 
@@ -15,7 +15,7 @@ docker push registry.example/remedence:<version>
 docker buildx imagetools inspect registry.example/remedence:<version>
 ```
 
-Run the build from this `deploy` directory. Resolve the two base references from the official Bun and Node registries and record their digests with the source commit, application image digest, SBOM/vulnerability-scan result, and `bun run check` evidence. Set `REMEDENCE_IMAGE`, `REMEDENCE_CLAMAV_IMAGE`, and `REMEDENCE_CADDY_IMAGE` to immutable `name@sha256:digest` values; the Dockerfile and Compose file reject missing references.
+Run the build from this `deploy` directory. Resolve the two base references from the official Bun and Node registries and record their digests with the source commit, application image digest, SBOM/vulnerability-scan result, and `bun run check` evidence. Set `REMEDENCE_IMAGE`, `REMEDENCE_CLAMAV_IMAGE`, `REMEDENCE_CADDY_IMAGE`, and `REMEDENCE_POSTGRES_IMAGE` to immutable `name@sha256:digest` values; the Dockerfile and Compose file reject missing references.
 
 ## Host preparation
 
@@ -34,18 +34,22 @@ docker compose --env-file .env.production config --quiet
 docker compose --env-file .env.production run --rm preflight
 ```
 
-Take and verify a backup before every schema change:
+Take and verify a PostgreSQL custom-format backup before every schema change:
 
 ```text
-docker compose --env-file .env.production run --rm \
-  --entrypoint node migrate scripts/db-backup.mjs --output /var/lib/remedence/backups/pre-migrate.db
+docker compose --env-file .env.production exec -T postgres \
+  pg_dump -U remedence -d remedence --format=custom \
+  > pre-migrate.dump
+docker compose --env-file .env.production exec -T postgres \
+  pg_restore -U remedence -d postgres --list \
+  < pre-migrate.dump > pre-migrate.contents
 ```
 
 Promote in staging first:
 
 ```text
 docker compose --env-file .env.production run --rm migrate
-docker compose --env-file .env.production up -d clamav api integration-worker privacy-worker edge
+docker compose --env-file .env.production up -d postgres clamav api integration-worker privacy-worker edge
 docker compose --env-file .env.production ps
 ```
 
@@ -59,9 +63,9 @@ Schema rollback is restore-based because migrations are forward-only:
 
 1. stop API and workers;
 2. retain the failed database as incident evidence;
-3. restore the verified pre-migration backup into an absent staging path with `db-restore.mjs`;
+3. create an empty staging PostgreSQL database and restore the verified dump with `pg_restore --clean --if-exists --exit-on-error`;
 4. run the prior image preflight and `/readyz` against that staged database;
-5. promote the staged file through an operator-controlled recoverable move;
-6. start the prior image digest and verify local/remote state plus representative tenant records.
+5. switch the application database URL to the validated restored database through controlled environment configuration;
+6. start the prior image digest and verify schema version, authentication, tenant isolation, queue leases, and representative tenant records.
 
 Never point an old image at a schema it does not support, reverse a migration with ad hoc SQL, or overwrite the only live database copy.

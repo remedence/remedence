@@ -202,13 +202,13 @@ export class IntegrationDeliveryWorker {
 
   async runOnce(): Promise<boolean> {
     const now = this.now();
-    const delivery = this.store.claim(
+    const delivery = await this.store.claim(
       this.workerId,
       now,
       new Date(new Date(now).getTime() + 30_000).toISOString(),
     );
     if (!delivery) return false;
-    const connection = this.store.getConnection(
+    const connection = await this.store.getConnection(
       delivery.organizationId,
       delivery.connectionId,
     );
@@ -233,7 +233,7 @@ export class IntegrationDeliveryWorker {
       900,
       2 ** Math.max(0, delivery.attempt - 1) * 10,
     );
-    this.store.settle({
+    await this.store.settle({
       organizationId: delivery.organizationId,
       id: delivery.id,
       workerId: this.workerId,

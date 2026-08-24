@@ -104,40 +104,42 @@ export function createRateLimit(
     request: Request,
     response: Response,
     next: NextFunction,
-  ): void {
+  ): Promise<void> {
     if (!request.path.startsWith("/api/")) {
       next();
-      return;
+      return Promise.resolve();
     }
 
     const currentTime = now();
-    const window = store.consume(
-      keyFor(request, response),
-      currentTime,
-      options.windowMs,
-    );
-    const remaining = Math.max(0, options.maxRequests - window.count);
-    response.setHeader("RateLimit-Limit", String(options.maxRequests));
-    response.setHeader("RateLimit-Remaining", String(remaining));
-    response.setHeader(
-      "RateLimit-Reset",
-      String(Math.ceil(window.resetAt / 1000)),
-    );
-
-    if (window.count > options.maxRequests) {
+    return (async () => {
+      const window = await store.consume(
+        keyFor(request, response),
+        currentTime,
+        options.windowMs,
+      );
+      const remaining = Math.max(0, options.maxRequests - window.count);
+      response.setHeader("RateLimit-Limit", String(options.maxRequests));
+      response.setHeader("RateLimit-Remaining", String(remaining));
       response.setHeader(
-        "Retry-After",
-        String(Math.max(1, Math.ceil((window.resetAt - currentTime) / 1000))),
+        "RateLimit-Reset",
+        String(Math.ceil(window.resetAt / 1000)),
       );
-      next(
-        Object.assign(new Error("Request rate limit exceeded."), {
-          status: 429,
-          code: "RATE_LIMIT_EXCEEDED",
-        }),
-      );
-      return;
-    }
 
-    next();
+      if (window.count > options.maxRequests) {
+        response.setHeader(
+          "Retry-After",
+          String(Math.max(1, Math.ceil((window.resetAt - currentTime) / 1000))),
+        );
+        next(
+          Object.assign(new Error("Request rate limit exceeded."), {
+            status: 429,
+            code: "RATE_LIMIT_EXCEEDED",
+          }),
+        );
+        return;
+      }
+
+      next();
+    })().catch(next);
   };
 }

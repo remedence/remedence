@@ -11,6 +11,7 @@ import {
   resolveApiHost,
   resolveAuthenticationConfig,
   resolveDevelopmentOrigin,
+  resolveDatabaseUrl,
   resolveEvidenceSecurityConfig,
   resolveIntegrationKeyring,
   resolveVerificationProfiles,
@@ -51,6 +52,26 @@ describe("local API configuration", () => {
     expect(() => resolveIntegrationKeyring(hosted, "1:not-base64")).toThrow(
       "Hosted mode requires REMEDENCE_INTEGRATION_ENCRYPTION_KEYS",
     );
+  });
+
+  it("requires pooled PostgreSQL for hosted mode", () => {
+    const hosted = {
+      mode: "required" as const,
+      baseURL: "https://remedence.example",
+    };
+    expect(() => resolveDatabaseUrl(hosted, undefined)).toThrow(
+      "Hosted mode requires a valid postgresql:// REMEDENCE_DATABASE_URL",
+    );
+    expect(resolveDatabaseUrl({ mode: "local" }, undefined)).toBeUndefined();
+    expect(
+      resolveDatabaseUrl(
+        hosted,
+        "postgresql://remedence:secret@postgres:5432/remedence",
+      ),
+    ).toBe("postgresql://remedence:secret@postgres:5432/remedence");
+    expect(() =>
+      resolveDatabaseUrl(hosted, "sqlite:///var/lib/remedence/remedence.db"),
+    ).toThrow("Hosted mode requires a valid postgresql://");
   });
 
   it("requires safe digest-pinned verification profiles in hosted mode", () => {

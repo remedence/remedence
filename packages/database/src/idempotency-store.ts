@@ -21,20 +21,22 @@ export type IdempotencyReservation =
   | { outcome: "key-reused" }
   | { outcome: "in-progress" };
 
+export type IdempotencyResult<T> = T | Promise<T>;
+
 export interface IdempotencyStore {
   begin(
     scope: IdempotencyScope,
     createdAt: string,
     expiresAt: string,
-  ): IdempotencyReservation;
+  ): IdempotencyResult<IdempotencyReservation>;
   complete(
     scope: IdempotencyScope,
     statusCode: number,
     headers: Record<string, string>,
     body: unknown,
     completedAt: string,
-  ): void;
-  release(scope: IdempotencyScope): void;
+  ): IdempotencyResult<void>;
+  release(scope: IdempotencyScope): IdempotencyResult<void>;
 }
 
 interface IdempotencyRow {

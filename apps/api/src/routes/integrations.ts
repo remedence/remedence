@@ -152,11 +152,10 @@ export function createIntegrationsRouter(
   dependencies: ApiDependencies,
 ): Router {
   const router = Router();
-  router.get("/webhooks", (_request, response) => {
+  router.get("/webhooks", async (_request, response) => {
     const organizationId = organizationIdFrom(response);
     response.json(
-      dependencies.integrations.store
-        .listConnections(organizationId)
+      (await dependencies.integrations.store.listConnections(organizationId))
         .filter((connection) => connection.provider === "scanner-webhook")
         .map((connection) => ({
           id: connection.id,
@@ -165,14 +164,16 @@ export function createIntegrationsRouter(
         })),
     );
   });
-  router.get("/integrations", (_request, response) => {
+  router.get("/integrations", async (_request, response) => {
     response.json(
-      dependencies.integrations.store
-        .listConnections(organizationIdFrom(response))
-        .map(publicConnection),
+      (
+        await dependencies.integrations.store.listConnections(
+          organizationIdFrom(response),
+        )
+      ).map(publicConnection),
     );
   });
-  router.post("/integrations", (request, response, next) => {
+  router.post("/integrations", async (request, response, next) => {
     try {
       requireAdministrator(response);
       const body = request.body as CreateConnectionBody;
@@ -192,7 +193,7 @@ export function createIntegrationsRouter(
         createdAt: now,
         updatedAt: now,
       };
-      dependencies.integrations.store.insertConnection(connection);
+      await dependencies.integrations.store.insertConnection(connection);
       setEntityTag(response, "integration", connection.id, connection.version);
       response.status(201).json(publicConnection(connection));
     } catch (error) {
@@ -201,19 +202,19 @@ export function createIntegrationsRouter(
   });
   router.post(
     "/integrations/:connectionId/disable",
-    (request, response, next) => {
+    async (request, response, next) => {
       try {
         requireAdministrator(response);
         const organizationId = organizationIdFrom(response);
         const id = request.params.connectionId ?? "";
         const version = requireIfMatch(request, "integration", id);
         if (
-          !dependencies.integrations.store.disableConnection(
+          !(await dependencies.integrations.store.disableConnection(
             organizationId,
             id,
             version,
             dependencies.evidenceProtection.clock.now(),
-          )
+          ))
         ) {
           throw new DomainError(
             "CONCURRENT_STATE_CHANGE",
@@ -221,10 +222,10 @@ export function createIntegrationsRouter(
             "Integration changed or was not found.",
           );
         }
-        const connection = dependencies.integrations.store.getConnection(
+        const connection = (await dependencies.integrations.store.getConnection(
           organizationId,
           id,
-        )!;
+        ))!;
         setEntityTag(response, "integration", id, connection.version);
         response.json(publicConnection(connection));
       } catch (error) {
@@ -234,12 +235,12 @@ export function createIntegrationsRouter(
   );
   router.post(
     "/integrations/:connectionId/deliveries",
-    (request, response, next) => {
+    async (request, response, next) => {
       try {
         requireAdministrator(response);
         const organizationId = organizationIdFrom(response);
         const connectionId = request.params.connectionId ?? "";
-        const connection = dependencies.integrations.store.getConnection(
+        const connection = await dependencies.integrations.store.getConnection(
           organizationId,
           connectionId,
         );
@@ -283,7 +284,7 @@ export function createIntegrationsRouter(
           completedAt: null,
         };
         const delivery =
-          dependencies.integrations.store.enqueue(requestedDelivery);
+          await dependencies.integrations.store.enqueue(requestedDelivery);
         if (
           delivery.id !== requestedDelivery.id &&
           (delivery.eventType !== requestedDelivery.eventType ||
@@ -302,29 +303,32 @@ export function createIntegrationsRouter(
       }
     },
   );
-  router.get("/integrations/:connectionId/deliveries", (request, response) => {
-    response.json(
-      dependencies.integrations.store
-        .listDeliveries(
-          organizationIdFrom(response),
-          request.params.connectionId ?? "",
-        )
-        .map(publicDelivery),
-    );
-  });
+  router.get(
+    "/integrations/:connectionId/deliveries",
+    async (request, response) => {
+      response.json(
+        (
+          await dependencies.integrations.store.listDeliveries(
+            organizationIdFrom(response),
+            request.params.connectionId ?? "",
+          )
+        ).map(publicDelivery),
+      );
+    },
+  );
   router.post(
     "/integration-deliveries/:deliveryId/retry",
-    (request, response, next) => {
+    async (request, response, next) => {
       try {
         requireAdministrator(response);
         const organizationId = organizationIdFrom(response);
         const id = request.params.deliveryId ?? "";
         if (
-          !dependencies.integrations.store.retryDeadLetter(
+          !(await dependencies.integrations.store.retryDeadLetter(
             organizationId,
             id,
             dependencies.evidenceProtection.clock.now(),
-          )
+          ))
         ) {
           throw new DomainError(
             "INTEGRATION_DELIVERY_NOT_RETRYABLE",
@@ -334,7 +338,10 @@ export function createIntegrationsRouter(
         }
         response.json(
           publicDelivery(
-            dependencies.integrations.store.getDelivery(organizationId, id)!,
+            (await dependencies.integrations.store.getDelivery(
+              organizationId,
+              id,
+            ))!,
           ),
         );
       } catch (error) {

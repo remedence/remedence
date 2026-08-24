@@ -12,11 +12,11 @@ interface InitializeWorkspaceBody {
 export function createOnboardingRouter(dependencies: ApiDependencies): Router {
   const router = Router();
 
-  router.get("/onboarding", (_request, response) => {
-    response.json(dependencies.workspace.status());
+  router.get("/onboarding", async (_request, response) => {
+    response.json(await dependencies.workspace.status());
   });
 
-  router.post("/onboarding", (request, response, next) => {
+  router.post("/onboarding", async (request, response, next) => {
     try {
       const principal = authenticatedPrincipalFrom(response);
       if (!principal || principal.role !== "Owner") {
@@ -26,7 +26,7 @@ export function createOnboardingRouter(dependencies: ApiDependencies): Router {
           "Only an owner can initialize a workspace.",
         );
       }
-      if (dependencies.workspace.status().initialized) {
+      if ((await dependencies.workspace.status()).initialized) {
         throw new DomainError(
           "WORKSPACE_ALREADY_INITIALIZED",
           409,
@@ -49,7 +49,7 @@ export function createOnboardingRouter(dependencies: ApiDependencies): Router {
         );
       }
 
-      const organization = dependencies.workspace.initialize({
+      const organization = await dependencies.workspace.initialize({
         mode: body.mode,
         ...(body.organization_name !== undefined
           ? { organizationName: body.organization_name }

@@ -13,7 +13,7 @@ The application owns these controls directly:
 - mutating `/api/*` requests with a foreign `Origin` or `Sec-Fetch-Site: cross-site` are rejected with a structured 403 Problem response before route code runs;
 - development mode accepts one explicit `http://127.0.0.1:<port>` Vite origin (`REMEDENCE_DEV_ORIGIN`, default port 5173) so the browser proxy can reach the loopback API; production-local mode has no additional allowed origin;
 - no CORS allow-list or wildcard response is emitted; local non-browser clients may omit browser origin headers;
-- `/api/*` is limited to 600 requests per 60-second fixed window and returns `RateLimit-*` plus `Retry-After` headers with a structured 429 Problem response. Buckets are persisted in SQLite, atomically coordinated across API processes, scoped once by client and again by authenticated tenant, and inactive keys are evicted;
+- `/api/*` is limited to 600 requests per 60-second fixed window and returns `RateLimit-*` plus `Retry-After` headers with a structured 429 Problem response. Buckets are persisted atomically in the active database, coordinated across pooled production API processes, scoped once by client and again by authenticated tenant, and inactive keys are evicted;
 - the Node server bounds header receipt to 10 seconds, request receipt to 15 seconds, idle keep-alive to 5 seconds, active socket lifetime without activity to 30 seconds, and 1,000 requests per socket;
 - unexpected implementation errors return a generic Problem response with a request ID and do not expose stack traces, SQL, or local paths.
 

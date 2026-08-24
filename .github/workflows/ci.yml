@@ -12,6 +12,20 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18.1-bookworm
+        env:
+          POSTGRES_DB: remedence_test
+          POSTGRES_USER: remedence
+          POSTGRES_PASSWORD: remedence-ci-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U remedence -d remedence_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
     strategy:
       fail-fast: false
       matrix:
@@ -42,4 +56,5 @@ jobs:
       - name: Run repository checks
         env:
           REMEDENCE_DATA_DIR: ${{ runner.temp }}/remedence-data
+          REMEDENCE_TEST_POSTGRES_URL: postgresql://remedence:remedence-ci-only@127.0.0.1:5432/remedence_test
         run: bun run check

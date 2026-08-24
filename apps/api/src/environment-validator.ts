@@ -19,7 +19,7 @@ accessSync(config.dataDirectory, constants.R_OK | constants.W_OK);
 console.log(
   JSON.stringify({
     status: "ok",
-    database_path: config.databasePath,
+    database_backend: config.databaseUrl ? "postgresql" : "sqlite",
     application_origin: config.authentication.baseURL,
     verification_profiles: config.verificationProfiles.length,
     integration_key_version: config.integrationKeyring?.activeVersion,

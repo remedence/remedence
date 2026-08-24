@@ -26,6 +26,7 @@ describe("single-host deployment contract", () => {
       "REMEDENCE_IMAGE",
       "REMEDENCE_CLAMAV_IMAGE",
       "REMEDENCE_CADDY_IMAGE",
+      "REMEDENCE_POSTGRES_IMAGE",
     ]) {
       expect(composeSource).toContain(
         `\${${variable}:?Set ${variable} to an immutable image digest}`,
@@ -42,16 +43,19 @@ describe("single-host deployment contract", () => {
         "integration-worker",
         "privacy-worker",
         "verification-worker",
+        "postgres",
         "clamav",
         "edge",
       ]),
     );
     expect(compose.services.migrate.depends_on).toEqual({
       preflight: { condition: "service_completed_successfully" },
+      postgres: { condition: "service_healthy" },
     });
     expect(compose.services.api.depends_on).toEqual({
       migrate: { condition: "service_completed_successfully" },
       clamav: { condition: "service_healthy" },
+      postgres: { condition: "service_healthy" },
     });
     expect(compose.services.edge.depends_on).toEqual({
       api: { condition: "service_healthy" },

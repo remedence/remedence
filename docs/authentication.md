@@ -2,7 +2,7 @@
 
 ## Implemented boundary
 
-Remedence has one authentication module backed by Better Auth 1.7.1 and the existing Remedence SQLite connection. Migration `0002_better_auth.sql` owns the user, session, account, verification, and two-factor tables. The repository migration runner applies that schema transactionally before authentication is created.
+Remedence has one authentication module backed by Better Auth. Local mode uses the hardened SQLite connection; production passes the shared PostgreSQL pool directly to Better Auth. The controlled migration schemas own user, session, account, verification, two-factor, SSO-provider, and tenant-membership tables before authentication starts.
 
 The default `REMEDENCE_AUTH_MODE=local` behavior preserves the current loopback-only local beta. In this mode no authentication handler is mounted and the operating-system user session remains the trust boundary.
 

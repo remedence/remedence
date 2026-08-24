@@ -51,16 +51,16 @@ export function createIdempotency(
     request: Request,
     response: Response,
     next: NextFunction,
-  ): void {
+  ): Promise<void> {
     if (!["POST", "PUT", "PATCH", "DELETE"].includes(request.method)) {
       next();
-      return;
+      return Promise.resolve();
     }
 
     const key = request.get("idempotency-key");
     if (key === undefined) {
       next();
-      return;
+      return Promise.resolve();
     }
     if (!KEY_PATTERN.test(key)) {
       next(
@@ -70,13 +70,13 @@ export function createIdempotency(
           "Idempotency-Key must be 8 to 200 safe ASCII characters.",
         ),
       );
-      return;
+      return Promise.resolve();
     }
 
     const principal = authenticatedPrincipalFrom(response);
     if (!principal) {
       next(new Error("Request principal was not established."));
-      return;
+      return Promise.resolve();
     }
     const scope: IdempotencyScope = {
       organizationId:
@@ -92,64 +92,69 @@ export function createIdempotency(
     const expiresAt = new Date(
       new Date(createdAt).getTime() + RETENTION_MS,
     ).toISOString();
-    const reservation = store.begin(scope, createdAt, expiresAt);
+    return (async () => {
+      const reservation = await store.begin(scope, createdAt, expiresAt);
 
-    if (reservation.outcome === "key-reused") {
-      next(
-        new DomainError(
-          "IDEMPOTENCY_KEY_REUSED",
-          409,
-          "This idempotency key was already used for a different request.",
-        ),
-      );
-      return;
-    }
-    if (reservation.outcome === "in-progress") {
-      next(
-        new DomainError(
-          "IDEMPOTENCY_REQUEST_IN_PROGRESS",
-          409,
-          "A request with this idempotency key is still in progress.",
-        ),
-      );
-      return;
-    }
-    if (reservation.outcome === "replay") {
-      for (const [name, value] of Object.entries(
-        reservation.response.headers,
-      )) {
-        response.setHeader(name, value);
+      if (reservation.outcome === "key-reused") {
+        next(
+          new DomainError(
+            "IDEMPOTENCY_KEY_REUSED",
+            409,
+            "This idempotency key was already used for a different request.",
+          ),
+        );
+        return;
       }
-      response.setHeader("Idempotency-Replayed", "true");
-      response
-        .status(reservation.response.statusCode)
-        .json(reservation.response.body);
-      return;
-    }
-
-    let settled = false;
-    const originalJson = response.json.bind(response);
-    response.json = ((body: unknown) => {
-      if (!settled) {
-        settled = true;
-        if (response.statusCode >= 200 && response.statusCode < 300) {
-          store.complete(
-            scope,
-            response.statusCode,
-            replayHeaders(response),
-            body,
-            now(),
-          );
-          response.setHeader("Idempotency-Replayed", "false");
-        } else {
-          store.release(scope);
+      if (reservation.outcome === "in-progress") {
+        next(
+          new DomainError(
+            "IDEMPOTENCY_REQUEST_IN_PROGRESS",
+            409,
+            "A request with this idempotency key is still in progress.",
+          ),
+        );
+        return;
+      }
+      if (reservation.outcome === "replay") {
+        for (const [name, value] of Object.entries(
+          reservation.response.headers,
+        )) {
+          response.setHeader(name, value);
         }
+        response.setHeader("Idempotency-Replayed", "true");
+        response
+          .status(reservation.response.statusCode)
+          .json(reservation.response.body);
+        return;
       }
-      return originalJson(body);
-    }) as Response["json"];
-    response.once("close", () => {
-      if (!settled) store.release(scope);
-    });
-    next();
+
+      let settled = false;
+      const originalJson = response.json.bind(response);
+      response.json = ((body: unknown) => {
+        if (!settled) {
+          settled = true;
+          if (response.statusCode >= 200 && response.statusCode < 300) {
+            void Promise.resolve(
+              store.complete(
+                scope,
+                response.statusCode,
+                replayHeaders(response),
+                body,
+                now(),
+              ),
+            ).then(() => originalJson(body), next);
+            response.setHeader("Idempotency-Replayed", "false");
+            return response;
+          } else {
+            void Promise.resolve(store.release(scope)).catch(next);
+          }
+        }
+        return originalJson(body);
+      }) as Response["json"];
+      response.once("close", () => {
+        if (!settled) void Promise.resolve(store.release(scope)).catch(next);
+      });
+      next();
+    })().catch(next);
   };
 }

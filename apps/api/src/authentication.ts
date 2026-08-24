@@ -12,6 +12,7 @@ import type {
 } from "express";
 import {
   getDatabaseConnection,
+  type PostgresDatabase,
   type RemedenceDatabase,
 } from "@remedence/database";
 import type { AuthenticationConfig } from "./config.js";
@@ -217,7 +218,7 @@ export function requirePrincipalRole(
 }
 
 export function createAuthenticationOptions(
-  database: DatabaseSync,
+  database: DatabaseSync | PostgresDatabase["pool"],
   config: Extract<AuthenticationConfig, { mode: "required" }>,
   options: AuthenticationOptions = {},
 ): BetterAuthOptions {
@@ -301,6 +302,53 @@ export function createAuthenticationOptions(
         },
       }),
     ],
+  };
+}
+
+export function createPostgresAuthentication(
+  database: PostgresDatabase,
+  config: AuthenticationConfig,
+  options: AuthenticationOptions = {},
+): RemedenceAuthentication | null {
+  if (config.mode === "local") return null;
+  const authentication = betterAuth(
+    createAuthenticationOptions(database.pool, config, options),
+  );
+  return {
+    handler: authentication.handler,
+    getSession: (headers) => authentication.api.getSession({ headers }),
+    requireMfa: config.requireMfa ?? false,
+    passwordResetEnabled: Boolean(config.passwordResetDelivery),
+    federationProtocols: ["oidc", "saml"],
+    getPrincipal: async (headers) => {
+      const session = await authentication.api.getSession({ headers });
+      if (!session) return null;
+      const result = await database.query<{
+        organization_id: string;
+        role: AuthenticatedPrincipal["role"];
+      }>(
+        `SELECT organization_id, role FROM organization_memberships
+         WHERE user_id = $1 AND status = 'Active' ORDER BY organization_id`,
+        [session.user.id],
+      );
+      const requestedOrganization = headers.get("x-remedence-organization");
+      const membership = requestedOrganization
+        ? result.rows.find(
+            (item) => item.organization_id === requestedOrganization,
+          )
+        : result.rows.length === 1
+          ? result.rows[0]
+          : undefined;
+      if (!membership) return null;
+      return {
+        userId: session.user.id,
+        sessionId: session.session.id,
+        name: session.user.name,
+        email: session.user.email,
+        organizationId: membership.organization_id,
+        role: membership.role,
+      };
+    },
   };
 }
 

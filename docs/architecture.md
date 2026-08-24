@@ -6,7 +6,7 @@ Remedence is an API-first verification and evidence system of record for securit
 
 The system keeps finding state, remediation state, verification results, locked evidence, audit history, and client report snapshots separate so a patch or remediation record cannot certify itself.
 
-## Production-local topology
+## Runtime topologies
 
 ```text
 Browser
@@ -27,6 +27,8 @@ Browser
 ```
 
 Production serves the built web application and API from one loopback origin. The API owns the `/api/*` namespace before static or SPA fallback handling, so an unknown API path remains a structured Problem response instead of receiving `index.html`.
+
+The container-beta composition uses Caddy as the only published edge, PostgreSQL as the pooled production database, a controlled one-shot migration job, separate verification/integration/privacy workers, protected evidence storage, and ClamAV scanning. The API and workers share PostgreSQL for domain state, leases, idempotency, rate-limit coordination, integration delivery, and privacy receipts. SQLite remains the local-beta and test adapter; hosted mode refuses to start with SQLite.
 
 Static production serving follows this order:
 
@@ -77,13 +79,13 @@ generated TypeScript API types/client
     Core services
 ```
 
-The browser never opens SQLite directly. UI reads and mutations go through the typed HTTP API. Generated API drift is checked by `bun run check:generated-api` and by the repository-wide `bun run check` workflow.
+The browser never opens a database directly. UI reads and mutations go through the typed HTTP API. Generated API drift is checked by `bun run check:generated-api` and by the repository-wide `bun run check` workflow.
 
 The web client attaches a UUID `Idempotency-Key` to every mutation. The API fingerprints the operation and canonical request body, scopes the key to the authenticated organization and principal, and coordinates reservations in `idempotency_records`. A completed identical request replays its original response; changed key reuse and overlapping execution fail closed. Entity-changing remediation and verification routes additionally require current `If-Match` ETags to reject stale updates.
 
 ## Persistence ownership
 
-`packages/database` owns SQLite access, migrations, repository adapters, seed behavior, and backup mechanics. `apps/api` creates the database dependencies and is the application process that owns the live database connection.
+`packages/database` owns the SQLite local adapter, pooled PostgreSQL production adapter, migrations, repository adapters, seed behavior, queues, and backup mechanics. `apps/api` selects the adapter and composes the live dependencies. API and worker processes each own a bounded PostgreSQL pool; transactions pin one checked-out client and nested units of work use savepoints.
 
 The default runtime location is `./data/remedence.db`; `REMEDENCE_DATA_DIR` can redirect the whole local data directory. Runtime databases, WAL/SHM files, SQLite variants, and backup output directories are ignored by Git.
 
@@ -109,6 +111,8 @@ create repositories + core services
 ```
 
 The seed is idempotent with respect to existing local organization data; it does not overwrite an already-populated organization.
+
+In PostgreSQL mode, startup validates that the externally run migration job has installed the exact supported schema version. It never migrates or inserts demo data implicitly. Domain entities use composite tenant keys, tenant-safe joins and unique indexes; operational claims use row locks with `SKIP LOCKED`. Finding, evidence, and audit lists use bounded keyset cursors rather than offsets.
 
 ## Organization and customer separation
 
@@ -180,13 +184,13 @@ A successful verification can create evidence items linked to both the finding a
 - creation timestamp,
 - lock timestamp.
 
-Evidence created by the passed verification path is locked as part of the closure transaction. The evidence hash represents the persisted evidence metadata contract used by local v1; the current schema should not be interpreted as a full signed artifact bundle format.
+Evidence created by the passed verification path is locked as part of the closure transaction. Artifact-backed evidence records a malware-scan receipt, tenant-separated content-addressed object reference, retention floor, legal-hold state, uploader, and a signed canonical manifest. Downloads re-hash the bytes before release; verification adoption is transactional and an artifact cannot be adopted twice. Metadata-only local fixtures remain distinguishable from uploaded artifacts and do not acquire fabricated byte provenance.
 
 ## Audit history
 
 Audit events are append-only records with organization identity, actor type/id, action, entity type/id, details, and occurrence time. Domain workflows append new events rather than rewriting prior event history.
 
-The generic audit actor fields are useful provenance, but they are not yet first-class remediator-versus-verifier identity semantics.
+Audit actor fields are supplemented by durable remediation and verification principal fields, credential class, execution source, source revision, patch digest, and signed execution receipts. The verification policy rejects the remediation principal and requires subsequent check and completion calls to match the principal bound to the run.
 
 ## Immutable report snapshots
 
@@ -266,7 +270,7 @@ Managed worker fleet scheduling, regional capacity, and cross-tool attestation p
 - `apps/web` owns the operator-facing React application.
 - `apps/api` owns the loopback HTTP process, API composition, and production static serving.
 - `packages/core` owns shared domain entities, state rules, and application services.
-- `packages/database` owns SQLite persistence, migrations, seeding, and backup adapters.
+- `packages/database` owns local SQLite and production PostgreSQL persistence, migrations, seeding, durable coordination stores, and backup adapters.
 - `packages/evidence` owns evidence hashing/provenance logic.
 - `packages/verification` owns verification queue, worker, sandbox, and signed-receipt contracts.
 - `api/openapi.yaml` is the canonical REST contract.

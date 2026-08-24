@@ -47,7 +47,7 @@ Export, retention, legal-hold, and offboarding behavior is documented in [`docs/
 ## Implemented in local v1
 
 - Canonical `/api/v1` OpenAPI 3.1 API.
-- Persistent SQLite database with migrations and idempotent Harborline demo seeding.
+- Persistent SQLite local mode and pooled PostgreSQL production mode with controlled migrations.
 - Normalized findings and company/customer read models.
 - Persistent remediation records and state transitions.
 - Persistent verification runs and checks, including retained failed verification history.
@@ -55,10 +55,10 @@ Export, retention, legal-hold, and offboarding behavior is documented in [`docs/
 - Encrypted tenant integration credentials, signed scanner intake, generic HTTPS and GitHub Issues providers, durable deduplicated delivery queues, bounded retries, and dead-letter recovery.
 - Tenant export, legal holds, retention enforcement, confirmed offboarding, and durable deletion cleanup receipts.
 - **Verified fixed** only after a persisted verification passes.
-- Locked evidence metadata with source reference, SHA-256 content hash, timestamps, and verification linkage.
+- Protected evidence artifacts with malware scanning, content-addressed storage, signed manifests, retention/legal-hold policy, and verification linkage.
 - Append-only audit events.
 - Immutable persisted report snapshots with Markdown download.
-- Database backup foundation.
+- Validated local SQLite backup/restore and documented PostgreSQL dump/restore rollback operations.
 - Typed generated web API client.
 - Production local mode where one loopback Node process serves both the built React application and `/api/v1`.
 - Process-safe `bun run dev` supervision for the API and Vite child process trees.
@@ -67,7 +67,7 @@ Export, retention, legal-hold, and offboarding behavior is documented in [`docs/
 
 ## Planned, not implemented
 
-Remaining release work includes a supported production database adapter and hosted control-plane operations. See [`docs/release-model.md`](docs/release-model.md) for the authoritative gates.
+The supported container topology uses PostgreSQL, ClamAV, isolated workers, and a Caddy TLS edge. Managed hosted control-plane operations remain a separate release gate. See [`docs/release-model.md`](docs/release-model.md).
 
 ## Security and trust boundary
 
@@ -204,7 +204,7 @@ Repository boundaries:
 - `apps/web` operator-facing React application consuming the typed API client.
 - `apps/api` loopback HTTP service and production static application host.
 - `packages/core` domain rules, state transitions, and services.
-- `packages/database` SQLite repositories, migrations, seed, and backup boundary.
+- `packages/database` local SQLite and pooled PostgreSQL repositories, migrations, queues, and lifecycle stores.
 - `packages/evidence` evidence hashing and provenance boundary.
 - `packages/verification` verification contracts.
 - `api/openapi.yaml` canonical REST contract used for generated TypeScript types.

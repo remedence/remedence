@@ -47,6 +47,67 @@ export interface IntegrationDelivery {
   completedAt: string | null;
 }
 
+export type IntegrationStoreResult<T> = T | Promise<T>;
+
+export interface IntegrationStore {
+  listConnections(
+    organizationId: string,
+  ): IntegrationStoreResult<IntegrationConnection[]>;
+  getConnection(
+    organizationId: string,
+    id: string,
+  ): IntegrationStoreResult<IntegrationConnection | undefined>;
+  insertConnection(
+    connection: IntegrationConnection,
+  ): IntegrationStoreResult<void>;
+  disableConnection(
+    organizationId: string,
+    id: string,
+    expectedVersion: number,
+    now: string,
+  ): IntegrationStoreResult<boolean>;
+  enqueue(
+    delivery: IntegrationDelivery,
+  ): IntegrationStoreResult<IntegrationDelivery>;
+  getDelivery(
+    organizationId: string,
+    id: string,
+  ): IntegrationStoreResult<IntegrationDelivery | undefined>;
+  listDeliveries(
+    organizationId: string,
+    connectionId: string,
+    limit?: number,
+  ): IntegrationStoreResult<IntegrationDelivery[]>;
+  claim(
+    workerId: string,
+    now: string,
+    leaseExpiresAt: string,
+  ): IntegrationStoreResult<IntegrationDelivery | undefined>;
+  settle(input: {
+    organizationId: string;
+    id: string;
+    workerId: string;
+    succeeded: boolean;
+    responseStatus: number | null;
+    responseDigest: string | null;
+    error: string;
+    retryAt: string;
+    now: string;
+  }): IntegrationStoreResult<IntegrationDeliveryStatus>;
+  retryDeadLetter(
+    organizationId: string,
+    id: string,
+    now: string,
+  ): IntegrationStoreResult<boolean>;
+  reserveInboundEvent(input: {
+    organizationId: string;
+    connectionId: string;
+    eventKey: string;
+    payloadDigest: string;
+    receivedAt: string;
+  }): IntegrationStoreResult<"accepted" | "duplicate" | "conflict">;
+}
+
 interface ConnectionRow {
   organization_id: string;
   id: string;
@@ -138,7 +199,9 @@ const DELIVERY_COLUMNS = `organization_id, id, connection_id, event_key,
   lease_owner, lease_expires_at, response_status, response_digest, last_error,
   created_at, updated_at, completed_at`;
 
-export function createIntegrationStore(database: RemedenceDatabase) {
+export function createIntegrationStore(
+  database: RemedenceDatabase,
+): IntegrationStore {
   const db = getDatabaseConnection(database);
   const getConnection = db.prepare(
     `SELECT ${CONNECTION_COLUMNS} FROM integration_connections
@@ -406,5 +469,3 @@ export function createIntegrationStore(database: RemedenceDatabase) {
     },
   };
 }
-
-export type IntegrationStore = ReturnType<typeof createIntegrationStore>;

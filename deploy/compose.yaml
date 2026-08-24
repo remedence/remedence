@@ -28,6 +28,8 @@ services:
     depends_on:
       preflight:
         condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
     command: ["node", "scripts/db-migrate.mjs"]
 
   api:
@@ -35,6 +37,8 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
       clamav:
         condition: service_healthy
     environment:
@@ -77,6 +81,23 @@ services:
     volumes:
       - clamav-data:/var/lib/clamav
 
+  postgres:
+    image: ${REMEDENCE_POSTGRES_IMAGE:?Set REMEDENCE_POSTGRES_IMAGE to an immutable image digest}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: remedence
+      POSTGRES_USER: remedence
+      POSTGRES_PASSWORD: ${REMEDENCE_POSTGRES_PASSWORD:?Set REMEDENCE_POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U remedence -d remedence"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    security_opt:
+      - no-new-privileges:true
+
   edge:
     image: ${REMEDENCE_CADDY_IMAGE:?Set REMEDENCE_CADDY_IMAGE to an immutable image digest}
     restart: unless-stopped
@@ -103,3 +124,4 @@ volumes:
   clamav-data:
   caddy-data:
   caddy-config:
+  postgres-data:

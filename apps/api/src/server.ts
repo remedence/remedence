@@ -1,9 +1,12 @@
 import { createApp } from "./app.js";
 import { getApiConfig } from "./config.js";
-import { closeDependencies, createDependencies } from "./dependencies.js";
+import {
+  closeDependencies,
+  createRuntimeDependencies,
+} from "./dependencies.js";
 
 const config = getApiConfig();
-const dependencies = createDependencies(config);
+const dependencies = await createRuntimeDependencies(config);
 const app = createApp(dependencies, {
   ...(config.serveWeb ? { webDirectory: config.webDirectory } : {}),
   allowedMutationOrigins: config.allowedMutationOrigins,
@@ -25,8 +28,8 @@ function shutdown(): void {
   if (closing) return;
   closing = true;
 
-  server.close((error) => {
-    closeDependencies(dependencies);
+  server.close(async (error) => {
+    await closeDependencies(dependencies);
     if (error) {
       console.error("Remedence API shutdown failed.", error);
       process.exitCode = 1;

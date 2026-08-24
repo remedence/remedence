@@ -1,5 +1,7 @@
 # Local backup and restore
 
+This procedure covers the local-beta SQLite adapter. The PostgreSQL container-beta backup, restore, migration, and rollback procedure is documented in [`../deploy/README.md`](../deploy/README.md).
+
 Remedence local beta provides validated SQLite backup and restore primitives. It does not yet provide scheduled backups, remote replication, retention automation, production disaster recovery, or a guaranteed recovery point objective (RPO) or recovery time objective (RTO).
 
 ## Backup
