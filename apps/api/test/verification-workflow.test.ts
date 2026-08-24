@@ -184,9 +184,12 @@ describe("Task 12 remediation, verification, and evidence workflow", () => {
       status: 409,
       code: "VERIFIER_NOT_INDEPENDENT",
     });
-    expect(fixture.repositories.verifications.listByFinding(findingId)).toEqual(
-      [],
-    );
+    expect(
+      fixture.repositories.verifications.listByFinding(
+        organizationId,
+        findingId,
+      ),
+    ).toEqual([]);
   });
 
   it("persists a failed verification before a later evidence-backed verified fix", async () => {
@@ -335,7 +338,7 @@ describe("Task 12 remediation, verification, and evidence workflow", () => {
     expect(failedCompletion.body.evidence).toEqual([]);
     expect(
       fixture.repositories.verifications
-        .listChecks(verification1Id)
+        .listChecks(organizationId, verification1Id)
         .map((check) => ({
           sequence: check.sequence,
           name: check.name,
@@ -534,7 +537,10 @@ describe("Task 12 remediation, verification, and evidence workflow", () => {
     );
     expect(second.body.code).toBe("VERIFICATION_ALREADY_RUNNING");
 
-    const runs = fixture.repositories.verifications.listByFinding(findingId);
+    const runs = fixture.repositories.verifications.listByFinding(
+      organizationId,
+      findingId,
+    );
     expect(runs).toHaveLength(1);
     expect(runs[0]).toMatchObject({
       id: first.body.verification.id,

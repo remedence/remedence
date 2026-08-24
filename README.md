@@ -67,7 +67,7 @@ Other planned work includes MSP multi-tenancy with authorization, hosted verific
 
 ## Security and trust boundary
 
-**Remedence local v1 has no user authentication. It binds to 127.0.0.1 and must not be exposed directly to an untrusted network.**
+Remedence local mode binds to `127.0.0.1` and uses the operating-system user session as its trust boundary. Required-authentication mode adds durable sessions and active organization membership isolation, but the product must not be exposed publicly until the remaining production gates in `docs/release-model.md` are complete.
 
 The local server does not default to `0.0.0.0`. Put authentication and an appropriate trusted boundary in front of Remedence before any future network exposure.
 

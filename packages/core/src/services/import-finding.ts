@@ -104,6 +104,7 @@ export class ImportFindingService {
         slaDueAt: canonicalizeTimestamp(input.slaDueAt),
         createdAt: now,
         updatedAt: now,
+        version: 1,
       };
       repositories.findings.insert(finding);
 

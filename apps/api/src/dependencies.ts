@@ -27,7 +27,7 @@ import {
 } from "./authentication.js";
 import type { AuthenticationConfig } from "./config.js";
 
-export const LOCAL_ORGANIZATION_ID = "org-harborline";
+export const DEFAULT_LOCAL_ORGANIZATION_ID = "org-harborline";
 
 const migrationsDirectory = fileURLToPath(
   new URL("../../../packages/database/migrations", import.meta.url),
@@ -43,6 +43,7 @@ export interface ApiDependencies {
     reports: ReportService;
   };
   repositories: RepositorySet;
+  localOrganizationId: string;
   health: () => {
     database: "ready";
     schemaVersion: number;
@@ -57,6 +58,7 @@ export interface ApiDependencyConfig {
   referenceTime?: string;
   log?: (entry: Record<string, unknown>) => void;
   authentication?: AuthenticationConfig;
+  localOrganizationId?: string;
 }
 
 const databases = new WeakMap<ApiDependencies, RemedenceDatabase>();
@@ -117,6 +119,8 @@ export function createDependencies(
         reports: new ReportService({ unitOfWork, clock, idGenerator }),
       },
       repositories,
+      localOrganizationId:
+        config.localOrganizationId ?? DEFAULT_LOCAL_ORGANIZATION_ID,
       health: () => ({
         database: "ready",
         schemaVersion: database.schemaVersion,

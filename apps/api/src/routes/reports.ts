@@ -4,11 +4,8 @@ import {
   type Report,
 } from "@remedence/core";
 import { Router } from "express";
-import {
-  LOCAL_ORGANIZATION_ID,
-  type ApiDependencies,
-} from "../dependencies.js";
-import { mutationActorFrom } from "../authentication.js";
+import { mutationActorFrom, organizationIdFrom } from "../authentication.js";
+import type { ApiDependencies } from "../dependencies.js";
 import { toReport } from "./http-shapes.js";
 
 interface CreateReportBody {
@@ -32,10 +29,11 @@ function reportDownloadFilename(report: Report): string {
 
 function requireReport(
   dependencies: ApiDependencies,
+  organizationId: string,
   reportId: string,
 ): Report {
   const report = dependencies.repositories.reports.getById(
-    LOCAL_ORGANIZATION_ID,
+    organizationId,
     reportId,
   );
   if (!report) {
@@ -51,7 +49,7 @@ export function createReportsRouter(dependencies: ApiDependencies): Router {
     try {
       const body = request.body as CreateReportBody;
       const report = dependencies.services.reports.createReport({
-        organizationId: LOCAL_ORGANIZATION_ID,
+        organizationId: organizationIdFrom(response),
         companyId: body.company_id,
         periodLabel: body.period_label,
         actor: mutationActorFrom(response),
@@ -66,7 +64,11 @@ export function createReportsRouter(dependencies: ApiDependencies): Router {
 
   router.get("/reports/:reportId", (request, response, next) => {
     try {
-      const report = requireReport(dependencies, request.params.reportId ?? "");
+      const report = requireReport(
+        dependencies,
+        organizationIdFrom(response),
+        request.params.reportId ?? "",
+      );
       response.json(toReport(report));
     } catch (error) {
       next(error);
@@ -75,7 +77,11 @@ export function createReportsRouter(dependencies: ApiDependencies): Router {
 
   router.get("/reports/:reportId/download", (request, response, next) => {
     try {
-      const report = requireReport(dependencies, request.params.reportId ?? "");
+      const report = requireReport(
+        dependencies,
+        organizationIdFrom(response),
+        request.params.reportId ?? "",
+      );
       const filename = reportDownloadFilename(report);
 
       response.set("Content-Disposition", `attachment; filename="${filename}"`);

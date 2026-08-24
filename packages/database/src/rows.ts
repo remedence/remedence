@@ -174,6 +174,7 @@ export function mapCompanyRow(value: unknown): Company {
     riskLevel: requireEnum(row, "risk_level", RISK_LEVELS) as RiskLevel,
     createdAt: requireString(row, "created_at"),
     updatedAt: requireString(row, "updated_at"),
+    version: requireInteger(row, "version"),
   };
 }
 
@@ -195,6 +196,7 @@ export function mapFindingRow(value: unknown): Finding {
     slaDueAt: requireString(row, "sla_due_at"),
     createdAt: requireString(row, "created_at"),
     updatedAt: requireString(row, "updated_at"),
+    version: requireInteger(row, "version"),
   };
 }
 
@@ -211,6 +213,7 @@ export function mapDashboardFindingRow(value: unknown): DashboardFinding {
 export function mapRemediationRow(value: unknown): Remediation {
   const row = requireRow(value);
   return {
+    organizationId: requireString(row, "organization_id"),
     id: requireString(row, "id"),
     findingId: requireString(row, "finding_id"),
     status: requireEnum(
@@ -225,12 +228,14 @@ export function mapRemediationRow(value: unknown): Remediation {
     completedAt: requireNullableString(row, "completed_at"),
     createdAt: requireString(row, "created_at"),
     updatedAt: requireString(row, "updated_at"),
+    version: requireInteger(row, "version"),
   };
 }
 
 export function mapVerificationRunRow(value: unknown): VerificationRun {
   const row = requireRow(value);
   return {
+    organizationId: requireString(row, "organization_id"),
     id: requireString(row, "id"),
     findingId: requireString(row, "finding_id"),
     remediationId: requireString(row, "remediation_id"),
@@ -246,12 +251,14 @@ export function mapVerificationRunRow(value: unknown): VerificationRun {
     startedAt: requireString(row, "started_at"),
     completedAt: requireNullableString(row, "completed_at"),
     createdAt: requireString(row, "created_at"),
+    version: requireInteger(row, "version"),
   };
 }
 
 export function mapVerificationCheckRow(value: unknown): VerificationCheck {
   const row = requireRow(value);
   return {
+    organizationId: requireString(row, "organization_id"),
     id: requireString(row, "id"),
     verificationId: requireString(row, "verification_id"),
     sequence: requireInteger(row, "sequence"),
@@ -269,6 +276,7 @@ export function mapVerificationCheckRow(value: unknown): VerificationCheck {
 export function mapEvidenceItemRow(value: unknown): EvidenceItem {
   const row = requireRow(value);
   return {
+    organizationId: requireString(row, "organization_id"),
     id: requireString(row, "id"),
     findingId: requireString(row, "finding_id"),
     verificationId: requireString(row, "verification_id"),
@@ -285,6 +293,7 @@ export function mapEvidenceItemRow(value: unknown): EvidenceItem {
 export function mapReportRow(value: unknown): Report {
   const row = requireRow(value);
   return {
+    organizationId: requireString(row, "organization_id"),
     id: requireString(row, "id"),
     companyId: requireString(row, "company_id"),
     title: requireString(row, "title"),

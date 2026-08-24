@@ -47,6 +47,7 @@ export interface AuthenticationSession {
 export interface RemedenceAuthentication {
   handler: (request: globalThis.Request) => Promise<globalThis.Response>;
   getSession: (headers: Headers) => Promise<AuthenticationSession | null>;
+  getPrincipal: (headers: Headers) => Promise<AuthenticatedPrincipal | null>;
 }
 
 export interface AuthenticatedPrincipal {
@@ -54,6 +55,8 @@ export interface AuthenticatedPrincipal {
   sessionId: string;
   name: string;
   email: string;
+  organizationId: string;
+  role: "Owner" | "Administrator" | "Member" | "Verifier";
 }
 
 export function authenticatedPrincipalFrom(
@@ -65,9 +68,34 @@ export function authenticatedPrincipalFrom(
 
 export function mutationActorFrom(response: ExpressResponse): MutationActor {
   const principal = authenticatedPrincipalFrom(response);
-  return principal
-    ? { actorType: "user", actorId: principal.userId }
-    : { actorType: "local_user", actorId: "local-workspace" };
+  if (!principal) throw new Error("Request principal was not established.");
+  return principal.userId === "local-workspace"
+    ? { actorType: "local_user", actorId: principal.userId }
+    : { actorType: "user", actorId: principal.userId };
+}
+
+export function organizationIdFrom(response: ExpressResponse): string {
+  const principal = authenticatedPrincipalFrom(response);
+  if (!principal) throw new Error("Request principal was not established.");
+  return principal.organizationId;
+}
+
+export function establishLocalPrincipal(organizationId: string) {
+  return function localPrincipal(
+    _request: ExpressRequest,
+    response: ExpressResponse,
+    next: NextFunction,
+  ): void {
+    response.locals.authenticatedPrincipal = {
+      userId: "local-workspace",
+      sessionId: "local-workspace",
+      name: "Local workspace",
+      email: "",
+      organizationId,
+      role: "Owner",
+    } satisfies AuthenticatedPrincipal;
+    next();
+  };
 }
 
 export function requireAuthenticatedPrincipal(
@@ -82,6 +110,9 @@ export function requireAuthenticatedPrincipal(
       const session = await authentication.getSession(
         fromNodeHeaders(request.headers),
       );
+      const principal = await authentication.getPrincipal(
+        fromNodeHeaders(request.headers),
+      );
       if (!session) {
         next(
           Object.assign(new Error("Authentication is required."), {
@@ -91,12 +122,19 @@ export function requireAuthenticatedPrincipal(
         );
         return;
       }
-      response.locals.authenticatedPrincipal = {
-        userId: session.user.id,
-        sessionId: session.session.id,
-        name: session.user.name,
-        email: session.user.email,
-      } satisfies AuthenticatedPrincipal;
+      if (!principal) {
+        next(
+          Object.assign(
+            new Error("An active organization membership is required."),
+            {
+              status: 403,
+              code: "ORGANIZATION_ACCESS_REQUIRED",
+            },
+          ),
+        );
+        return;
+      }
+      response.locals.authenticatedPrincipal = principal;
       next();
     } catch (error) {
       next(error);
@@ -150,6 +188,40 @@ export function createAuthentication(
   return {
     handler: authentication.handler,
     getSession: (headers) => authentication.api.getSession({ headers }),
+    getPrincipal: async (headers) => {
+      const session = await authentication.api.getSession({ headers });
+      if (!session) return null;
+
+      const memberships = getDatabaseConnection(database)
+        .prepare(
+          `SELECT organization_id, role
+           FROM organization_memberships
+           WHERE user_id = ? AND status = 'Active'
+           ORDER BY organization_id`,
+        )
+        .all(session.user.id) as unknown as Array<{
+        organization_id: string;
+        role: AuthenticatedPrincipal["role"];
+      }>;
+      const requestedOrganization = headers.get("x-remedence-organization");
+      const membership = requestedOrganization
+        ? memberships.find(
+            (item) => item.organization_id === requestedOrganization,
+          )
+        : memberships.length === 1
+          ? memberships[0]
+          : undefined;
+      if (!membership) return null;
+
+      return {
+        userId: session.user.id,
+        sessionId: session.session.id,
+        name: session.user.name,
+        email: session.user.email,
+        organizationId: membership.organization_id,
+        role: membership.role,
+      };
+    },
   };
 }
 
@@ -171,6 +243,15 @@ export async function provisionInitialOwner(
   if (!name || !email || input.password.length < 12) {
     throw new Error(
       "Initial owner requires a name, email, and password of at least 12 characters.",
+    );
+  }
+
+  const organizations = connection
+    .prepare("SELECT id FROM organizations ORDER BY id LIMIT 2")
+    .all() as unknown as Array<{ id: string }>;
+  if (organizations.length !== 1) {
+    throw new Error(
+      "Initial owner bootstrap requires exactly one initialized organization.",
     );
   }
 
@@ -196,6 +277,19 @@ export async function provisionInitialOwner(
     .get(email) as { id: string; email: string } | undefined;
   if (!user) throw new Error("Initial owner provisioning failed.");
 
-  connection.prepare('DELETE FROM "session" WHERE "userId" = ?').run(user.id);
+  try {
+    const now = new Date().toISOString();
+    connection
+      .prepare(
+        `INSERT INTO organization_memberships (
+           organization_id, user_id, role, status, created_at, updated_at
+         ) VALUES (?, ?, 'Owner', 'Active', ?, ?)`,
+      )
+      .run(organizations[0]!.id, user.id, now, now);
+    connection.prepare('DELETE FROM "session" WHERE "userId" = ?').run(user.id);
+  } catch (error) {
+    connection.prepare('DELETE FROM "user" WHERE id = ?').run(user.id);
+    throw error;
+  }
   return { userId: user.id, email: user.email };
 }

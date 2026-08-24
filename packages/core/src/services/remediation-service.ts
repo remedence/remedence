@@ -54,6 +54,7 @@ export class RemediationService {
 
       const now = this.dependencies.clock.now();
       const remediation: Remediation = {
+        organizationId: input.organizationId,
         id: this.dependencies.idGenerator.next(),
         findingId: finding.id,
         status: "In progress",
@@ -76,9 +77,11 @@ export class RemediationService {
         completedAt: null,
         createdAt: now,
         updatedAt: now,
+        version: 1,
       };
       repositories.remediations.insert(remediation);
       repositories.findings.updateState(
+        input.organizationId,
         finding.id,
         finding.state,
         "Remediating",
@@ -101,6 +104,7 @@ export class RemediationService {
   completeRemediation(input: CompleteRemediationInput): Remediation {
     return this.dependencies.unitOfWork.run((repositories) => {
       const remediation = repositories.remediations.getById(
+        input.organizationId,
         input.remediationId,
       );
       if (!remediation) {
@@ -142,6 +146,7 @@ export class RemediationService {
       );
       const now = this.dependencies.clock.now();
       repositories.remediations.complete(
+        input.organizationId,
         remediation.id,
         summary,
         reference,
@@ -149,6 +154,7 @@ export class RemediationService {
         now,
       );
       repositories.findings.updateState(
+        input.organizationId,
         finding.id,
         finding.state,
         "Awaiting verification",
@@ -165,7 +171,10 @@ export class RemediationService {
         occurredAt: now,
       });
 
-      const completed = repositories.remediations.getById(remediation.id);
+      const completed = repositories.remediations.getById(
+        input.organizationId,
+        remediation.id,
+      );
       if (!completed) {
         throw new DomainError(
           "CONCURRENT_STATE_CHANGE",

@@ -6,6 +6,7 @@ import {
   applyMigrations,
   getDatabaseConnection,
   openRemedenceDatabase,
+  seedHarborline,
   type RemedenceDatabase,
 } from "@remedence/database";
 import request from "supertest";
@@ -55,7 +56,7 @@ function openMigratedDatabase(): RemedenceDatabase {
     path: join(directory, "remedence.db"),
   });
   databases.push(database);
-  expect(applyMigrations(database, migrationsDirectory)).toBe(2);
+  expect(applyMigrations(database, migrationsDirectory)).toBe(3);
   return database;
 }
 
@@ -77,6 +78,9 @@ function signUpRequest(email: string): Request {
 describe("Better Auth persistence", () => {
   it("provisions exactly one owner without retaining a bootstrap session", async () => {
     const database = openMigratedDatabase();
+    seedHarborline(database, {
+      clock: { now: () => "2026-08-23T12:00:00.000Z" },
+    });
     const owner = await provisionInitialOwner(
       database,
       { mode: "required", baseURL },
@@ -95,6 +99,19 @@ describe("Better Auth persistence", () => {
     expect(
       connection.prepare('SELECT COUNT(*) AS count FROM "session"').get(),
     ).toMatchObject({ count: 0 });
+    expect(
+      connection
+        .prepare(
+          `SELECT organization_id, role, status
+           FROM organization_memberships
+           WHERE user_id = ?`,
+        )
+        .get(owner.userId),
+    ).toMatchObject({
+      organization_id: "org-harborline",
+      role: "Owner",
+      status: "Active",
+    });
     const account = connection
       .prepare('SELECT password FROM "account" WHERE "userId" = ?')
       .get(owner.userId) as { password: string };
@@ -157,7 +174,9 @@ describe("Better Auth persistence", () => {
       .get("set-cookie")
       ?.split(";", 1)[0];
     expect(cookie).toBeTruthy();
-
+    const enrolledUser = getDatabaseConnection(enrollmentDatabase)
+      .prepare('SELECT id FROM "user" WHERE email = ?')
+      .get("integrated-owner@example.com") as { id: string };
     expect(
       (
         await request(app)
@@ -173,6 +192,26 @@ describe("Better Auth persistence", () => {
         email: "integrated-owner@example.com",
       },
     });
+
+    const noMembership = await request(app)
+      .get("/api/v1/companies")
+      .set("Cookie", cookie!)
+      .expect(403);
+    expect(noMembership.body).toMatchObject({
+      code: "ORGANIZATION_ACCESS_REQUIRED",
+    });
+
+    getDatabaseConnection(enrollmentDatabase)
+      .prepare(
+        `INSERT INTO organization_memberships (
+           organization_id, user_id, role, status, created_at, updated_at
+         ) VALUES ('org-harborline', ?, 'Owner', 'Active', ?, ?)`,
+      )
+      .run(
+        enrolledUser.id,
+        "2026-08-23T12:00:00.000Z",
+        "2026-08-23T12:00:00.000Z",
+      );
 
     await request(app)
       .get("/api/v1/companies")

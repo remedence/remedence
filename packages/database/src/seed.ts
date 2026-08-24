@@ -429,32 +429,32 @@ export function seedHarborline(
     );
     const insertRemediation = connection.prepare(
       `INSERT INTO remediations (
-         id, finding_id, status, summary, reference, owner, started_at,
+         organization_id, id, finding_id, status, summary, reference, owner, started_at,
          completed_at, created_at, updated_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     const insertVerification = connection.prepare(
       `INSERT INTO verification_runs (
-         id, finding_id, remediation_id, status, method, worker_name, scope,
+         organization_id, id, finding_id, remediation_id, status, method, worker_name, scope,
          result_summary, started_at, completed_at, created_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     const insertCheck = connection.prepare(
       `INSERT INTO verification_checks (
-         id, verification_id, sequence, name, status, message, created_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+         organization_id, id, verification_id, sequence, name, status, message, created_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     const insertEvidence = connection.prepare(
       `INSERT INTO evidence_items (
-         id, finding_id, verification_id, kind, label, source_reference,
+         organization_id, id, finding_id, verification_id, kind, label, source_reference,
          content_hash, metadata_json, created_at, locked_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     const insertReport = connection.prepare(
       `INSERT INTO reports (
-         id, company_id, title, period_label, status, snapshot_json,
+         organization_id, id, company_id, title, period_label, status, snapshot_json,
          generated_at, created_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     const insertAuditEvent = connection.prepare(
       `INSERT INTO audit_events (
@@ -517,6 +517,7 @@ export function seedHarborline(
           ? timestamp(Date.parse(remediationStartedAt), 180)
           : null;
       insertRemediation.run(
+        ORGANIZATION_ID,
         remediationId,
         finding.id,
         remediationStatus,
@@ -563,6 +564,7 @@ export function seedHarborline(
       );
       const passed = finding.state === "Verified fixed";
       insertVerification.run(
+        ORGANIZATION_ID,
         verificationId,
         finding.id,
         remediationId,
@@ -578,6 +580,7 @@ export function seedHarborline(
         verificationStartedAt,
       );
       insertCheck.run(
+        ORGANIZATION_ID,
         `check-${finding.findingKey.toLowerCase()}-1`,
         verificationId,
         1,
@@ -603,6 +606,7 @@ export function seedHarborline(
         `${finding.findingKey}:${verificationId}:passed`,
       );
       insertEvidence.run(
+        ORGANIZATION_ID,
         evidenceId,
         finding.id,
         verificationId,
@@ -669,6 +673,7 @@ export function seedHarborline(
     if (!hero) throw new Error("SEC-1042 seed finding is missing.");
     const heroRemediationId = "remediation-sec-1042-1";
     insertRemediation.run(
+      ORGANIZATION_ID,
       heroRemediationId,
       hero.id,
       "Completed",
@@ -690,6 +695,7 @@ export function seedHarborline(
 
     const heroVerificationId = "verification-sec-1042-1";
     insertVerification.run(
+      ORGANIZATION_ID,
       heroVerificationId,
       hero.id,
       heroRemediationId,
@@ -703,6 +709,7 @@ export function seedHarborline(
       "2026-08-12T00:00:00.000Z",
     );
     insertCheck.run(
+      ORGANIZATION_ID,
       "check-sec-1042-primary",
       heroVerificationId,
       1,
@@ -712,6 +719,7 @@ export function seedHarborline(
       "2026-08-12T00:05:00.000Z",
     );
     insertCheck.run(
+      ORGANIZATION_ID,
       "check-sec-1042-secondary",
       heroVerificationId,
       2,
@@ -792,6 +800,7 @@ export function seedHarborline(
       ],
     };
     insertReport.run(
+      ORGANIZATION_ID,
       "report-juniper-august-2026-draft",
       "company-juniper-ridge-dental",
       "Juniper Ridge Dental — August Security Review",

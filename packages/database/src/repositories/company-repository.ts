@@ -9,7 +9,8 @@ const COMPANY_COLUMNS = `
   risk_score,
   risk_level,
   created_at,
-  updated_at
+  updated_at,
+  version
 `;
 
 export function createCompanyRepository(
@@ -29,8 +30,9 @@ export function createCompanyRepository(
   );
   const insertStatement = connection.prepare(
     `INSERT INTO companies (
-       id, organization_id, name, risk_score, risk_level, created_at, updated_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+       id, organization_id, name, risk_score, risk_level, created_at, updated_at,
+       version
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   );
 
   return {
@@ -52,6 +54,7 @@ export function createCompanyRepository(
         company.riskLevel,
         company.createdAt,
         company.updatedAt,
+        company.version,
       );
     },
   };

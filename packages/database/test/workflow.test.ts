@@ -304,12 +304,12 @@ describe("persistent remediation and verification workflow", () => {
     expect(reread?.evidence.every((item) => item.lockedAt !== null)).toBe(true);
     expect(
       createRemediationRepository(database)
-        .listByFinding(completion.finding.id)
+        .listByFinding(ORGANIZATION_ID, completion.finding.id)
         .map((item) => item.id),
     ).toEqual(["remediation-sec-1042-1", "remediation-sec-1042-2"]);
     expect(
       createVerificationRepository(database)
-        .listByFinding(completion.finding.id)
+        .listByFinding(ORGANIZATION_ID, completion.finding.id)
         .map((item) => item.status),
     ).toEqual(["Failed", "Passed"]);
 
@@ -503,7 +503,10 @@ describe("persistent remediation and verification workflow", () => {
       findingRepository().findByKey(ORGANIZATION_ID, "SEC-1042")?.state,
     ).toBe("Awaiting verification");
     expect(
-      createVerificationRepository(database).getById(verification.id)?.status,
+      createVerificationRepository(database).getById(
+        ORGANIZATION_ID,
+        verification.id,
+      )?.status,
     ).toBe("Running");
     expect(
       createEvidenceRepository(database).list({
@@ -652,6 +655,7 @@ describe("persistent remediation and verification workflow", () => {
     let caught: unknown;
     try {
       repository.insertCheck({
+        organizationId: ORGANIZATION_ID,
         id: "check-duplicate-sequence",
         verificationId: "verification-sec-1042-1",
         sequence: 1,
@@ -680,6 +684,7 @@ describe("persistent remediation and verification workflow", () => {
     for (const operation of [
       () =>
         findings.updateState(
+          ORGANIZATION_ID,
           sec1042.id,
           "Needs remediation",
           "Remediating",
@@ -687,6 +692,7 @@ describe("persistent remediation and verification workflow", () => {
         ),
       () =>
         remediations.complete(
+          ORGANIZATION_ID,
           "remediation-sec-1042-1",
           "Already complete",
           "CHG-SEC-1042-1",
@@ -695,6 +701,7 @@ describe("persistent remediation and verification workflow", () => {
         ),
       () =>
         verifications.complete(
+          ORGANIZATION_ID,
           "verification-sec-1042-1",
           "Passed",
           "Already complete",

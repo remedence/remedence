@@ -1,6 +1,5 @@
 import type { FindingQuery, FindingState, Severity } from "@remedence/core";
 import type { Request } from "express";
-import { LOCAL_ORGANIZATION_ID } from "../dependencies.js";
 
 function queryRecord(request: Request): Record<string, unknown> {
   return request.query as unknown as Record<string, unknown>;
@@ -24,7 +23,10 @@ function integerValue(
   return typeof value === "number" ? value : Number(value);
 }
 
-export function findingQueryFrom(request: Request): FindingQuery {
+export function findingQueryFrom(
+  request: Request,
+  organizationId: string,
+): FindingQuery {
   const query = queryRecord(request);
   const search = optionalString(query, "search");
   const companyId = optionalString(query, "company_id");
@@ -36,7 +38,7 @@ export function findingQueryFrom(request: Request): FindingQuery {
   const includeVerifiedValue = query.include_verified;
 
   return {
-    organizationId: LOCAL_ORGANIZATION_ID,
+    organizationId,
     sort,
     includeVerified:
       includeVerifiedValue === true || includeVerifiedValue === "true",

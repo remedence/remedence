@@ -65,14 +65,17 @@ function listCompanyFindings(
 
 function verificationHistory(
   repositories: RepositorySet,
+  organizationId: string,
   findingRows: DashboardFinding[],
 ): Array<VerificationRun & { checks: VerificationCheck[] }> {
   return findingRows
     .flatMap((finding) =>
-      repositories.verifications.listByFinding(finding.id).map((run) => ({
-        ...run,
-        checks: repositories.verifications.listChecks(run.id),
-      })),
+      repositories.verifications
+        .listByFinding(organizationId, finding.id)
+        .map((run) => ({
+          ...run,
+          checks: repositories.verifications.listChecks(organizationId, run.id),
+        })),
     )
     .sort(
       (left, right) =>
@@ -128,11 +131,16 @@ export class ReportService {
                 ((openRows.length - slaBreaches) / openRows.length) * 10_000,
               ) / 100,
         findings: rows.map(toFinding),
-        verificationHistory: verificationHistory(repositories, rows),
+        verificationHistory: verificationHistory(
+          repositories,
+          input.organizationId,
+          rows,
+        ),
       };
 
       const now = this.dependencies.clock.now();
       const report: Report = {
+        organizationId: input.organizationId,
         id: this.dependencies.idGenerator.next(),
         companyId: company.id,
         title: `${company.name} — ${periodLabel} Security Review`,

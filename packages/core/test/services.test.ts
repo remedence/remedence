@@ -34,6 +34,7 @@ const company: Company = {
   riskLevel: "High",
   createdAt: "2026-08-01T00:00:00.000Z",
   updatedAt: "2026-08-01T00:00:00.000Z",
+  version: 1,
 };
 
 function finding(
@@ -58,6 +59,7 @@ function finding(
     slaDueAt: "2026-08-25T00:00:00.000Z",
     createdAt: "2026-08-10T08:00:00.000Z",
     updatedAt: "2026-08-10T08:00:00.000Z",
+    version: 1,
     ...overrides,
   };
 }
@@ -69,6 +71,7 @@ interface Harness {
     };
     verifications: RepositorySet["verifications"] & {
       recordCheck(
+        organizationId: string,
         verificationId: string,
         sequence: number,
         name: string,
@@ -256,12 +259,15 @@ function createHarness(initialFindings: Finding[] = []): Harness {
         state.findings.push({ ...value });
       },
       updateState(
+        organizationId: string,
         id: string,
         expectedState: Finding["state"],
         nextState: Finding["state"],
         updatedAt: string,
       ) {
-        const index = state.findings.findIndex((item) => item.id === id);
+        const index = state.findings.findIndex(
+          (item) => item.organizationId === organizationId && item.id === id,
+        );
         if (index < 0 || state.findings[index]?.state !== expectedState) {
           throw new DomainError(
             "CONCURRENT_STATE_CHANGE",
@@ -273,29 +279,37 @@ function createHarness(initialFindings: Finding[] = []): Harness {
           ...state.findings[index]!,
           state: nextState,
           updatedAt,
+          version: state.findings[index]!.version + 1,
         };
       },
     },
     remediations: {
-      getById(id: string) {
-        return state.remediations.find((item) => item.id === id);
+      getById(organizationId: string, id: string) {
+        return state.remediations.find(
+          (item) => item.organizationId === organizationId && item.id === id,
+        );
       },
-      listByFinding(findingId: string) {
+      listByFinding(organizationId: string, findingId: string) {
         return state.remediations.filter(
-          (item) => item.findingId === findingId,
+          (item) =>
+            item.organizationId === organizationId &&
+            item.findingId === findingId,
         );
       },
       insert(value: Remediation) {
         state.remediations.push({ ...value });
       },
       complete(
+        organizationId: string,
         id: string,
         summary: string,
         reference: string,
         completedAt: string,
         updatedAt: string,
       ) {
-        const index = state.remediations.findIndex((item) => item.id === id);
+        const index = state.remediations.findIndex(
+          (item) => item.organizationId === organizationId && item.id === id,
+        );
         if (index < 0 || state.remediations[index]?.status !== "In progress") {
           throw new DomainError(
             "CONCURRENT_STATE_CHANGE",
@@ -310,16 +324,21 @@ function createHarness(initialFindings: Finding[] = []): Harness {
           reference,
           completedAt,
           updatedAt,
+          version: state.remediations[index]!.version + 1,
         };
       },
     },
     verifications: {
-      getById(id: string) {
-        return state.verifications.find((item) => item.id === id);
+      getById(organizationId: string, id: string) {
+        return state.verifications.find(
+          (item) => item.organizationId === organizationId && item.id === id,
+        );
       },
-      listByFinding(findingId: string) {
+      listByFinding(organizationId: string, findingId: string) {
         return state.verifications.filter(
-          (item) => item.findingId === findingId,
+          (item) =>
+            item.organizationId === organizationId &&
+            item.findingId === findingId,
         );
       },
       insert(value: VerificationRun) {
@@ -342,6 +361,7 @@ function createHarness(initialFindings: Finding[] = []): Harness {
         state.checks.push({ ...value });
       },
       recordCheck(
+        organizationId: string,
         verificationId: string,
         sequence: number,
         name: string,
@@ -350,6 +370,7 @@ function createHarness(initialFindings: Finding[] = []): Harness {
       ) {
         const index = state.checks.findIndex(
           (item) =>
+            item.organizationId === organizationId &&
             item.verificationId === verificationId &&
             item.sequence === sequence,
         );
@@ -370,21 +391,28 @@ function createHarness(initialFindings: Finding[] = []): Harness {
           message,
         };
       },
-      listChecks(verificationId: string) {
+      listChecks(organizationId: string, verificationId: string) {
         return state.checks
-          .filter((item) => item.verificationId === verificationId)
+          .filter(
+            (item) =>
+              item.organizationId === organizationId &&
+              item.verificationId === verificationId,
+          )
           .sort(
             (left, right) =>
               left.sequence - right.sequence || left.id.localeCompare(right.id),
           );
       },
       complete(
+        organizationId: string,
         id: string,
         status: "Passed" | "Failed",
         summary: string,
         completedAt: string,
       ) {
-        const index = state.verifications.findIndex((item) => item.id === id);
+        const index = state.verifications.findIndex(
+          (item) => item.organizationId === organizationId && item.id === id,
+        );
         if (index < 0 || state.verifications[index]?.status !== "Running") {
           throw new DomainError(
             "CONCURRENT_STATE_CHANGE",
@@ -397,6 +425,7 @@ function createHarness(initialFindings: Finding[] = []): Harness {
           status,
           resultSummary: summary,
           completedAt,
+          version: state.verifications[index]!.version + 1,
         };
       },
     },
@@ -729,6 +758,7 @@ describe("RemediationService", () => {
     const base = finding("finding-1042", "SEC-1042", "Remediating");
     const harness = createHarness([base]);
     harness.state.remediations.push({
+      organizationId: ORG,
       id: "remediation-2",
       findingId: base.id,
       status: "In progress",
@@ -739,6 +769,7 @@ describe("RemediationService", () => {
       completedAt: null,
       createdAt: "2026-08-20T11:00:00.000Z",
       updatedAt: "2026-08-20T11:00:00.000Z",
+      version: 1,
     });
     const service = new RemediationService({
       unitOfWork: harness.unitOfWork,
@@ -767,6 +798,7 @@ describe("VerificationService", () => {
     const base = finding("finding-1042", "SEC-1042", "Awaiting verification");
     const harness = createHarness([base]);
     harness.state.remediations.push({
+      organizationId: ORG,
       id: "remediation-2",
       findingId: base.id,
       status: "Completed",
@@ -777,6 +809,7 @@ describe("VerificationService", () => {
       completedAt: "2026-08-20T11:00:00.000Z",
       createdAt: "2026-08-20T10:00:00.000Z",
       updatedAt: "2026-08-20T11:00:00.000Z",
+      version: 1,
     });
     return { base, harness };
   }
@@ -1091,6 +1124,7 @@ describe("VerificationService", () => {
   it("passes only after every required check passes, creates locked evidence, and preserves earlier failure history", () => {
     const { base, harness } = eligibleHarness();
     harness.state.verifications.push({
+      organizationId: ORG,
       id: "verification-1",
       findingId: base.id,
       remediationId: "remediation-1",
@@ -1102,8 +1136,10 @@ describe("VerificationService", () => {
       startedAt: "2026-08-12T00:00:00.000Z",
       completedAt: "2026-08-12T00:10:00.000Z",
       createdAt: "2026-08-12T00:00:00.000Z",
+      version: 1,
     });
     harness.state.checks.push({
+      organizationId: ORG,
       id: "check-old",
       verificationId: "verification-1",
       sequence: 1,
@@ -1226,6 +1262,7 @@ describe("DashboardService", () => {
     ];
     const harness = createHarness(findings);
     harness.state.verifications.push({
+      organizationId: ORG,
       id: "verification-failed",
       findingId: "finding-failed",
       remediationId: "remediation-1",
@@ -1237,8 +1274,10 @@ describe("DashboardService", () => {
       startedAt: "2026-08-19T10:00:00.000Z",
       completedAt: "2026-08-19T10:10:00.000Z",
       createdAt: "2026-08-19T10:00:00.000Z",
+      version: 1,
     });
     harness.state.reports.push({
+      organizationId: ORG,
       id: "report-latest",
       companyId: COMPANY_ID,
       title: "Latest report",

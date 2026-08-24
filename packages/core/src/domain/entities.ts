@@ -29,6 +29,7 @@ export interface Company {
   riskLevel: RiskLevel;
   createdAt: string;
   updatedAt: string;
+  version: number;
 }
 
 export interface Finding {
@@ -47,9 +48,11 @@ export interface Finding {
   slaDueAt: string;
   createdAt: string;
   updatedAt: string;
+  version: number;
 }
 
 export interface Remediation {
+  organizationId: string;
   id: string;
   findingId: string;
   status: RemediationStatus;
@@ -60,9 +63,11 @@ export interface Remediation {
   completedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  version: number;
 }
 
 export interface VerificationRun {
+  organizationId: string;
   id: string;
   findingId: string;
   remediationId: string;
@@ -74,9 +79,11 @@ export interface VerificationRun {
   startedAt: string;
   completedAt: string | null;
   createdAt: string;
+  version: number;
 }
 
 export interface VerificationCheck {
+  organizationId: string;
   id: string;
   verificationId: string;
   sequence: number;
@@ -87,6 +94,7 @@ export interface VerificationCheck {
 }
 
 export interface EvidenceItem {
+  organizationId: string;
   id: string;
   findingId: string;
   verificationId: string;
@@ -155,6 +163,7 @@ export interface ReportSnapshot {
 }
 
 export interface Report {
+  organizationId: string;
   id: string;
   companyId: string;
   title: string;

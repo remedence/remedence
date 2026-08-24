@@ -1,9 +1,7 @@
 import { DomainError } from "@remedence/core";
 import { Router } from "express";
-import {
-  LOCAL_ORGANIZATION_ID,
-  type ApiDependencies,
-} from "../dependencies.js";
+import { organizationIdFrom } from "../authentication.js";
+import type { ApiDependencies } from "../dependencies.js";
 import { findingQueryFrom } from "./finding-query.js";
 import { toFindingDetail, toFindingPage } from "./http-shapes.js";
 
@@ -13,7 +11,7 @@ export function createFindingsRouter(dependencies: ApiDependencies): Router {
   router.get("/findings", (request, response, next) => {
     try {
       const page = dependencies.repositories.findings.list(
-        findingQueryFrom(request),
+        findingQueryFrom(request, organizationIdFrom(response)),
       );
       response.json(toFindingPage(page));
     } catch (error) {
@@ -24,7 +22,7 @@ export function createFindingsRouter(dependencies: ApiDependencies): Router {
   router.get("/findings/:findingId", (request, response, next) => {
     try {
       const detail = dependencies.repositories.findings.getDetail(
-        LOCAL_ORGANIZATION_ID,
+        organizationIdFrom(response),
         request.params.findingId ?? "",
       );
       if (!detail) {

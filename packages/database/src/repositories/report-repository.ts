@@ -3,6 +3,7 @@ import { getDatabaseConnection, type RemedenceDatabase } from "../database.js";
 import { mapReportRow } from "../rows.js";
 
 const REPORT_COLUMNS = `
+  r.organization_id,
   r.id,
   r.company_id,
   r.title,
@@ -20,21 +21,19 @@ export function createReportRepository(
   const getByIdStatement = connection.prepare(
     `SELECT ${REPORT_COLUMNS}
      FROM reports AS r
-     JOIN companies AS c ON c.id = r.company_id
-     WHERE c.organization_id = ? AND r.id = ?`,
+     WHERE r.organization_id = ? AND r.id = ?`,
   );
   const listByCompanyStatement = connection.prepare(
     `SELECT ${REPORT_COLUMNS}
      FROM reports AS r
-     JOIN companies AS c ON c.id = r.company_id
-     WHERE c.organization_id = ? AND r.company_id = ?
+     WHERE r.organization_id = ? AND r.company_id = ?
      ORDER BY r.generated_at DESC, r.id DESC`,
   );
   const insertStatement = connection.prepare(
     `INSERT INTO reports (
-       id, company_id, title, period_label, status, snapshot_json,
+       organization_id, id, company_id, title, period_label, status, snapshot_json,
        generated_at, created_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
 
   return {
@@ -51,6 +50,7 @@ export function createReportRepository(
 
     insert(report: Report): void {
       insertStatement.run(
+        report.organizationId,
         report.id,
         report.companyId,
         report.title,

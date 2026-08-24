@@ -258,11 +258,12 @@ beforeEach(() => {
 
   const insertRemediation = connection.prepare(
     `INSERT INTO remediations (
-       id, finding_id, status, summary, reference, owner, started_at,
+       organization_id, id, finding_id, status, summary, reference, owner, started_at,
        completed_at, created_at, updated_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   insertRemediation.run(
+    "org-harborline",
     "remediation-1",
     "finding-failed",
     "Completed",
@@ -277,11 +278,12 @@ beforeEach(() => {
   connection
     .prepare(
       `INSERT INTO verification_runs (
-         id, finding_id, remediation_id, status, method, worker_name, scope,
+         organization_id, id, finding_id, remediation_id, status, method, worker_name, scope,
          result_summary, started_at, completed_at, created_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
+      "org-harborline",
       "verification-1",
       "finding-failed",
       "remediation-1",
@@ -296,10 +298,11 @@ beforeEach(() => {
     );
   const insertCheck = connection.prepare(
     `INSERT INTO verification_checks (
-       id, verification_id, sequence, name, status, message, created_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+       organization_id, id, verification_id, sequence, name, status, message, created_at
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   insertCheck.run(
+    "org-harborline",
     "check-1",
     "verification-1",
     1,
@@ -309,6 +312,7 @@ beforeEach(() => {
     "2026-08-12T00:05:00.000Z",
   );
   insertCheck.run(
+    "org-harborline",
     "check-2",
     "verification-1",
     2,
@@ -489,11 +493,12 @@ describe("FindingRepository", () => {
     connection
       .prepare(
         `INSERT INTO remediations (
-           id, finding_id, status, summary, reference, owner, started_at,
+           organization_id, id, finding_id, status, summary, reference, owner, started_at,
            completed_at, created_at, updated_at
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
+        "org-harborline",
         "remediation-2",
         "finding-failed",
         "Completed",
@@ -508,11 +513,12 @@ describe("FindingRepository", () => {
     connection
       .prepare(
         `INSERT INTO verification_runs (
-           id, finding_id, remediation_id, status, method, worker_name, scope,
+           organization_id, id, finding_id, remediation_id, status, method, worker_name, scope,
            result_summary, started_at, completed_at, created_at
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
+        "org-harborline",
         "verification-2",
         "finding-failed",
         "remediation-2",
@@ -528,10 +534,11 @@ describe("FindingRepository", () => {
     connection
       .prepare(
         `INSERT INTO verification_checks (
-           id, verification_id, sequence, name, status, message, created_at
-         ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+           organization_id, id, verification_id, sequence, name, status, message, created_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
+        "org-harborline",
         "check-3",
         "verification-2",
         1,
@@ -543,11 +550,12 @@ describe("FindingRepository", () => {
     connection
       .prepare(
         `INSERT INTO evidence_items (
-           id, finding_id, verification_id, kind, label, source_reference,
+           organization_id, id, finding_id, verification_id, kind, label, source_reference,
            content_hash, metadata_json, created_at, locked_at
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
+        "org-harborline",
         "evidence-2",
         "finding-failed",
         "verification-2",
@@ -603,8 +611,10 @@ describe("FindingRepository", () => {
       slaDueAt: "2026-08-30T10:00:00.000Z",
       createdAt: "2026-08-20T10:00:00.000Z",
       updatedAt: "2026-08-20T10:00:00.000Z",
+      version: 1,
     });
     repository.updateState(
+      "org-harborline",
       "finding-inserted",
       "Needs remediation",
       "Remediating",

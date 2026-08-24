@@ -118,12 +118,16 @@ export function problemHandler(
   }
 
   if (candidate?.status === 403) {
+    const code =
+      typeof candidate.code === "string" ? candidate.code : "FORBIDDEN";
     sendProblem(
       response,
       request,
       403,
-      typeof candidate.code === "string" ? candidate.code : "FORBIDDEN",
-      "The request origin is not permitted.",
+      code,
+      code === "ORGANIZATION_ACCESS_REQUIRED"
+        ? "An active organization membership is required. Select an authorized organization when more than one membership is active."
+        : "The request origin is not permitted.",
     );
     return;
   }

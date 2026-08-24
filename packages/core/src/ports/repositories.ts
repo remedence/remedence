@@ -62,6 +62,7 @@ export interface FindingRepository {
   ): FindingDetail | undefined;
   insert(finding: Finding): void;
   updateState(
+    organizationId: string,
     id: string,
     expectedState: FindingState,
     state: FindingState,
@@ -70,10 +71,11 @@ export interface FindingRepository {
 }
 
 export interface RemediationRepository {
-  getById(id: string): Remediation | undefined;
-  listByFinding(findingId: string): Remediation[];
+  getById(organizationId: string, id: string): Remediation | undefined;
+  listByFinding(organizationId: string, findingId: string): Remediation[];
   insert(remediation: Remediation): void;
   complete(
+    organizationId: string,
     id: string,
     summary: string,
     reference: string,
@@ -83,19 +85,24 @@ export interface RemediationRepository {
 }
 
 export interface VerificationRepository {
-  getById(id: string): VerificationRun | undefined;
-  listByFinding(findingId: string): VerificationRun[];
+  getById(organizationId: string, id: string): VerificationRun | undefined;
+  listByFinding(organizationId: string, findingId: string): VerificationRun[];
   insert(run: VerificationRun): void;
   insertCheck(check: VerificationCheck): void;
   recordCheck(
+    organizationId: string,
     verificationId: string,
     sequence: number,
     name: string,
     status: Exclude<VerificationCheck["status"], "Pending">,
     message: string,
   ): void;
-  listChecks(verificationId: string): VerificationCheck[];
+  listChecks(
+    organizationId: string,
+    verificationId: string,
+  ): VerificationCheck[];
   complete(
+    organizationId: string,
     id: string,
     status: "Passed" | "Failed",
     summary: string,

@@ -3,8 +3,14 @@ import { fileURLToPath } from "node:url";
 import express, { type Express } from "express";
 import * as OpenApiValidator from "express-openapi-validator";
 import { fromNodeHeaders, toNodeHandler } from "better-auth/node";
-import type { ApiDependencies } from "./dependencies.js";
-import { requireAuthenticatedPrincipal } from "./authentication.js";
+import {
+  DEFAULT_LOCAL_ORGANIZATION_ID,
+  type ApiDependencies,
+} from "./dependencies.js";
+import {
+  establishLocalPrincipal,
+  requireAuthenticatedPrincipal,
+} from "./authentication.js";
 import {
   createRateLimit,
   createSameOriginGuard,
@@ -145,6 +151,13 @@ export function createApp(
     app.use(
       "/api/v1",
       requireAuthenticatedPrincipal(dependencies.authentication),
+    );
+  } else {
+    app.use(
+      "/api/v1",
+      establishLocalPrincipal(
+        dependencies.localOrganizationId ?? DEFAULT_LOCAL_ORGANIZATION_ID,
+      ),
     );
   }
 

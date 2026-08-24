@@ -7,6 +7,7 @@ import { getDatabaseConnection, type RemedenceDatabase } from "../database.js";
 import { mapRemediationRow } from "../rows.js";
 
 const REMEDIATION_COLUMNS = `
+  organization_id,
   id,
   finding_id,
   status,
@@ -16,7 +17,8 @@ const REMEDIATION_COLUMNS = `
   started_at,
   completed_at,
   created_at,
-  updated_at
+  updated_at,
+  version
 `;
 
 function requireOneChange(
@@ -39,19 +41,19 @@ export function createRemediationRepository(
   const getByIdStatement = connection.prepare(
     `SELECT ${REMEDIATION_COLUMNS}
      FROM remediations
-     WHERE id = ?`,
+     WHERE organization_id = ? AND id = ?`,
   );
   const listByFindingStatement = connection.prepare(
     `SELECT ${REMEDIATION_COLUMNS}
      FROM remediations
-     WHERE finding_id = ?
+     WHERE organization_id = ? AND finding_id = ?
      ORDER BY created_at ASC, id ASC`,
   );
   const insertStatement = connection.prepare(
     `INSERT INTO remediations (
-       id, finding_id, status, summary, reference, owner, started_at,
-       completed_at, created_at, updated_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       organization_id, id, finding_id, status, summary, reference, owner,
+       started_at, completed_at, created_at, updated_at, version
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   const completeStatement = connection.prepare(
     `UPDATE remediations
@@ -59,22 +61,26 @@ export function createRemediationRepository(
          summary = ?,
          reference = ?,
          completed_at = ?,
-         updated_at = ?
-     WHERE id = ? AND status = 'In progress'`,
+         updated_at = ?,
+         version = version + 1
+     WHERE organization_id = ? AND id = ? AND status = 'In progress'`,
   );
 
   return {
-    getById(id: string): Remediation | undefined {
-      const row = getByIdStatement.get(id);
+    getById(organizationId: string, id: string): Remediation | undefined {
+      const row = getByIdStatement.get(organizationId, id);
       return row ? mapRemediationRow(row) : undefined;
     },
 
-    listByFinding(findingId: string): Remediation[] {
-      return listByFindingStatement.all(findingId).map(mapRemediationRow);
+    listByFinding(organizationId: string, findingId: string): Remediation[] {
+      return listByFindingStatement
+        .all(organizationId, findingId)
+        .map(mapRemediationRow);
     },
 
     insert(remediation: Remediation): void {
       insertStatement.run(
+        remediation.organizationId,
         remediation.id,
         remediation.findingId,
         remediation.status,
@@ -85,15 +91,24 @@ export function createRemediationRepository(
         remediation.completedAt,
         remediation.createdAt,
         remediation.updatedAt,
+        remediation.version,
       );
     },
 
-    complete(id, summary, reference, completedAt, updatedAt): void {
+    complete(
+      organizationId,
+      id,
+      summary,
+      reference,
+      completedAt,
+      updatedAt,
+    ): void {
       const result = completeStatement.run(
         summary,
         reference,
         completedAt,
         updatedAt,
+        organizationId,
         id,
       );
       requireOneChange(result.changes, id);

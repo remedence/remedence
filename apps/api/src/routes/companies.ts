@@ -1,9 +1,7 @@
 import { DomainError } from "@remedence/core";
 import { Router } from "express";
-import {
-  LOCAL_ORGANIZATION_ID,
-  type ApiDependencies,
-} from "../dependencies.js";
+import { organizationIdFrom } from "../authentication.js";
+import type { ApiDependencies } from "../dependencies.js";
 import { toCompany } from "./http-shapes.js";
 
 export function createCompaniesRouter(dependencies: ApiDependencies): Router {
@@ -12,7 +10,7 @@ export function createCompaniesRouter(dependencies: ApiDependencies): Router {
   router.get("/companies", (_request, response, next) => {
     try {
       const companies = dependencies.repositories.companies.list(
-        LOCAL_ORGANIZATION_ID,
+        organizationIdFrom(response),
       );
       response.json(companies.map(toCompany));
     } catch (error) {
@@ -23,7 +21,7 @@ export function createCompaniesRouter(dependencies: ApiDependencies): Router {
   router.get("/companies/:companyId", (request, response, next) => {
     try {
       const company = dependencies.repositories.companies.getById(
-        LOCAL_ORGANIZATION_ID,
+        organizationIdFrom(response),
         request.params.companyId ?? "",
       );
       if (!company) {

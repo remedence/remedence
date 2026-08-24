@@ -1,9 +1,6 @@
 import { Router } from "express";
-import {
-  LOCAL_ORGANIZATION_ID,
-  type ApiDependencies,
-} from "../dependencies.js";
-import { mutationActorFrom } from "../authentication.js";
+import { mutationActorFrom, organizationIdFrom } from "../authentication.js";
+import type { ApiDependencies } from "../dependencies.js";
 import { toRemediation } from "./http-shapes.js";
 
 interface CreateRemediationBody {
@@ -27,7 +24,7 @@ export function createRemediationsRouter(
     try {
       const body = request.body as CreateRemediationBody;
       const remediation = dependencies.services.remediation.startRemediation({
-        organizationId: LOCAL_ORGANIZATION_ID,
+        organizationId: organizationIdFrom(response),
         findingId: body.finding_id,
         owner: body.owner,
         summary: body.summary,
@@ -51,7 +48,7 @@ export function createRemediationsRouter(
         const body = request.body as CompleteRemediationBody;
         const remediation =
           dependencies.services.remediation.completeRemediation({
-            organizationId: LOCAL_ORGANIZATION_ID,
+            organizationId: organizationIdFrom(response),
             remediationId: request.params.remediationId ?? "",
             summary: body.summary,
             reference: body.reference,

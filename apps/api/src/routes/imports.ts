@@ -1,10 +1,7 @@
 import type { Severity } from "@remedence/core";
 import { Router } from "express";
-import {
-  LOCAL_ORGANIZATION_ID,
-  type ApiDependencies,
-} from "../dependencies.js";
-import { mutationActorFrom } from "../authentication.js";
+import { mutationActorFrom, organizationIdFrom } from "../authentication.js";
+import type { ApiDependencies } from "../dependencies.js";
 import { toImportResult } from "./http-shapes.js";
 
 interface CreateImportBody {
@@ -27,7 +24,7 @@ export function createImportsRouter(dependencies: ApiDependencies): Router {
     try {
       const body = request.body as CreateImportBody;
       const result = dependencies.services.imports.importFinding({
-        organizationId: LOCAL_ORGANIZATION_ID,
+        organizationId: organizationIdFrom(response),
         companyId: body.company_id,
         findingKey: body.finding_key,
         title: body.title,

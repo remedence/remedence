@@ -8,6 +8,7 @@ import { getDatabaseConnection, type RemedenceDatabase } from "../database.js";
 import { mapVerificationCheckRow, mapVerificationRunRow } from "../rows.js";
 
 const VERIFICATION_COLUMNS = `
+  organization_id,
   id,
   finding_id,
   remediation_id,
@@ -18,10 +19,12 @@ const VERIFICATION_COLUMNS = `
   result_summary,
   started_at,
   completed_at,
-  created_at
+  created_at,
+  version
 `;
 
 const CHECK_COLUMNS = `
+  organization_id,
   id,
   verification_id,
   sequence,
@@ -47,7 +50,7 @@ function requireOneChange(
 function isDuplicateCheckSequence(error: unknown): boolean {
   return (
     error instanceof Error &&
-    /UNIQUE constraint failed:\s*verification_checks\.verification_id,\s*verification_checks\.sequence/i.test(
+    /UNIQUE constraint failed:\s*verification_checks\.organization_id,\s*verification_checks\.verification_id,\s*verification_checks\.sequence/i.test(
       error.message,
     )
   );
@@ -60,29 +63,32 @@ export function createVerificationRepository(
   const getByIdStatement = connection.prepare(
     `SELECT ${VERIFICATION_COLUMNS}
      FROM verification_runs
-     WHERE id = ?`,
+     WHERE organization_id = ? AND id = ?`,
   );
   const listByFindingStatement = connection.prepare(
     `SELECT ${VERIFICATION_COLUMNS}
      FROM verification_runs
-     WHERE finding_id = ?
+     WHERE organization_id = ? AND finding_id = ?
      ORDER BY created_at ASC, id ASC`,
   );
   const insertStatement = connection.prepare(
     `INSERT INTO verification_runs (
-       id, finding_id, remediation_id, status, method, worker_name, scope,
-       result_summary, started_at, completed_at, created_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       organization_id, id, finding_id, remediation_id, status, method,
+       worker_name, scope, result_summary, started_at, completed_at, created_at,
+       version
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   const insertCheckStatement = connection.prepare(
     `INSERT INTO verification_checks (
-       id, verification_id, sequence, name, status, message, created_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+       organization_id, id, verification_id, sequence, name, status, message,
+       created_at
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   const recordCheckStatement = connection.prepare(
     `UPDATE verification_checks
      SET status = ?, message = ?
-     WHERE verification_id = ?
+     WHERE organization_id = ?
+       AND verification_id = ?
        AND sequence = ?
        AND name = ?
        AND status = 'Pending'`,
@@ -90,27 +96,33 @@ export function createVerificationRepository(
   const listChecksStatement = connection.prepare(
     `SELECT ${CHECK_COLUMNS}
      FROM verification_checks
-     WHERE verification_id = ?
+     WHERE organization_id = ? AND verification_id = ?
      ORDER BY sequence ASC, id ASC`,
   );
   const completeStatement = connection.prepare(
     `UPDATE verification_runs
-     SET status = ?, result_summary = ?, completed_at = ?
-     WHERE id = ? AND status = 'Running'`,
+     SET status = ?, result_summary = ?, completed_at = ?, version = version + 1
+     WHERE organization_id = ? AND id = ? AND status = 'Running'`,
   );
 
   return {
-    getById(id: string): VerificationRun | undefined {
-      const row = getByIdStatement.get(id);
+    getById(organizationId: string, id: string): VerificationRun | undefined {
+      const row = getByIdStatement.get(organizationId, id);
       return row ? mapVerificationRunRow(row) : undefined;
     },
 
-    listByFinding(findingId: string): VerificationRun[] {
-      return listByFindingStatement.all(findingId).map(mapVerificationRunRow);
+    listByFinding(
+      organizationId: string,
+      findingId: string,
+    ): VerificationRun[] {
+      return listByFindingStatement
+        .all(organizationId, findingId)
+        .map(mapVerificationRunRow);
     },
 
     insert(run: VerificationRun): void {
       insertStatement.run(
+        run.organizationId,
         run.id,
         run.findingId,
         run.remediationId,
@@ -122,12 +134,14 @@ export function createVerificationRepository(
         run.startedAt,
         run.completedAt,
         run.createdAt,
+        run.version,
       );
     },
 
     insertCheck(check: VerificationCheck): void {
       try {
         insertCheckStatement.run(
+          check.organizationId,
           check.id,
           check.verificationId,
           check.sequence,
@@ -152,10 +166,18 @@ export function createVerificationRepository(
       }
     },
 
-    recordCheck(verificationId, sequence, name, status, message): void {
+    recordCheck(
+      organizationId,
+      verificationId,
+      sequence,
+      name,
+      status,
+      message,
+    ): void {
       const result = recordCheckStatement.run(
         status,
         message,
+        organizationId,
         verificationId,
         sequence,
         name,
@@ -163,14 +185,23 @@ export function createVerificationRepository(
       requireOneChange(result.changes, verificationId);
     },
 
-    listChecks(verificationId: string): VerificationCheck[] {
+    listChecks(
+      organizationId: string,
+      verificationId: string,
+    ): VerificationCheck[] {
       return listChecksStatement
-        .all(verificationId)
+        .all(organizationId, verificationId)
         .map(mapVerificationCheckRow);
     },
 
-    complete(id, status, summary, completedAt): void {
-      const result = completeStatement.run(status, summary, completedAt, id);
+    complete(organizationId, id, status, summary, completedAt): void {
+      const result = completeStatement.run(
+        status,
+        summary,
+        completedAt,
+        organizationId,
+        id,
+      );
       requireOneChange(result.changes, id);
     },
   };

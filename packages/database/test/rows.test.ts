@@ -27,6 +27,7 @@ const findingRow = {
   sla_due_at: "2026-08-11T12:00:00.000Z",
   created_at: "2026-08-10T12:00:00.000Z",
   updated_at: "2026-08-12T12:00:00.000Z",
+  version: 1,
 };
 
 describe("database row mappings", () => {
@@ -56,6 +57,7 @@ describe("database row mappings", () => {
         risk_level: "Critical",
         created_at: "2026-08-01T00:00:00.000Z",
         updated_at: "2026-08-02T00:00:00.000Z",
+        version: 1,
       }),
     ).toEqual({
       id: "company-juniper",
@@ -65,6 +67,7 @@ describe("database row mappings", () => {
       riskLevel: "Critical",
       createdAt: "2026-08-01T00:00:00.000Z",
       updatedAt: "2026-08-02T00:00:00.000Z",
+      version: 1,
     });
   });
 
@@ -155,6 +158,7 @@ describe("database row mappings", () => {
   it("maps remediation, verification, and check rows needed by finding detail", () => {
     expect(
       mapRemediationRow({
+        organization_id: "org-harborline",
         id: "remediation-1",
         finding_id: "finding-sec-1042",
         status: "Completed",
@@ -165,11 +169,13 @@ describe("database row mappings", () => {
         completed_at: "2026-08-11T06:00:00.000Z",
         created_at: "2026-08-11T00:00:00.000Z",
         updated_at: "2026-08-11T06:00:00.000Z",
+        version: 1,
       }),
     ).toMatchObject({ findingId: "finding-sec-1042", status: "Completed" });
 
     expect(
       mapVerificationRunRow({
+        organization_id: "org-harborline",
         id: "verification-1",
         finding_id: "finding-sec-1042",
         remediation_id: "remediation-1",
@@ -181,11 +187,13 @@ describe("database row mappings", () => {
         started_at: "2026-08-12T00:00:00.000Z",
         completed_at: "2026-08-12T00:10:00.000Z",
         created_at: "2026-08-12T00:00:00.000Z",
+        version: 1,
       }),
     ).toMatchObject({ remediationId: "remediation-1", status: "Failed" });
 
     expect(
       mapVerificationCheckRow({
+        organization_id: "org-harborline",
         id: "check-1",
         verification_id: "verification-1",
         sequence: 1,
@@ -200,6 +208,7 @@ describe("database row mappings", () => {
   it("parses evidence metadata JSON for later detail reads", () => {
     expect(
       mapEvidenceItemRow({
+        organization_id: "org-harborline",
         id: "evidence-1",
         finding_id: "finding-verified",
         verification_id: "verification-passed",

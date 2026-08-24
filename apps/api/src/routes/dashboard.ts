@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { organizationIdFrom } from "../authentication.js";
 import type { ApiDependencies } from "../dependencies.js";
 import { findingQueryFrom } from "./finding-query.js";
 import { toDashboard } from "./http-shapes.js";
@@ -9,7 +10,7 @@ export function createDashboardRouter(dependencies: ApiDependencies): Router {
   router.get("/dashboard", (request, response, next) => {
     try {
       const snapshot = dependencies.services.dashboard.getDashboard(
-        findingQueryFrom(request),
+        findingQueryFrom(request, organizationIdFrom(response)),
       );
       response.json(toDashboard(snapshot));
     } catch (error) {

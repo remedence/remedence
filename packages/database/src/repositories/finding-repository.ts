@@ -35,7 +35,8 @@ const FINDING_COLUMNS = `
   f.detected_at,
   f.sla_due_at,
   f.created_at,
-  f.updated_at
+  f.updated_at,
+  f.version
 `;
 
 const COMPANY_COLUMNS = `
@@ -45,10 +46,12 @@ const COMPANY_COLUMNS = `
   risk_score,
   risk_level,
   created_at,
-  updated_at
+  updated_at,
+  version
 `;
 
 const REMEDIATION_COLUMNS = `
+  organization_id,
   id,
   finding_id,
   status,
@@ -58,10 +61,12 @@ const REMEDIATION_COLUMNS = `
   started_at,
   completed_at,
   created_at,
-  updated_at
+  updated_at,
+  version
 `;
 
 const VERIFICATION_COLUMNS = `
+  organization_id,
   id,
   finding_id,
   remediation_id,
@@ -72,10 +77,12 @@ const VERIFICATION_COLUMNS = `
   result_summary,
   started_at,
   completed_at,
-  created_at
+  created_at,
+  version
 `;
 
 const VERIFICATION_CHECK_COLUMNS = `
+  organization_id,
   id,
   verification_id,
   sequence,
@@ -86,6 +93,7 @@ const VERIFICATION_CHECK_COLUMNS = `
 `;
 
 const EVIDENCE_COLUMNS = `
+  organization_id,
   id,
   finding_id,
   verification_id,
@@ -195,25 +203,25 @@ export function createFindingRepository(
   const remediationsByFindingStatement = connection.prepare(
     `SELECT ${REMEDIATION_COLUMNS}
      FROM remediations
-     WHERE finding_id = ?
+     WHERE organization_id = ? AND finding_id = ?
      ORDER BY created_at ASC, id ASC`,
   );
   const verificationsByFindingStatement = connection.prepare(
     `SELECT ${VERIFICATION_COLUMNS}
      FROM verification_runs
-     WHERE finding_id = ?
+     WHERE organization_id = ? AND finding_id = ?
      ORDER BY created_at ASC, id ASC`,
   );
   const checksByVerificationStatement = connection.prepare(
     `SELECT ${VERIFICATION_CHECK_COLUMNS}
      FROM verification_checks
-     WHERE verification_id = ?
+     WHERE organization_id = ? AND verification_id = ?
      ORDER BY sequence ASC, id ASC`,
   );
   const evidenceByFindingStatement = connection.prepare(
     `SELECT ${EVIDENCE_COLUMNS}
      FROM evidence_items
-     WHERE finding_id = ?
+     WHERE organization_id = ? AND finding_id = ?
      ORDER BY created_at ASC, id ASC`,
   );
   const auditByFindingStatement = connection.prepare(
@@ -225,19 +233,22 @@ export function createFindingRepository(
          OR (
            ae.entity_type = 'remediation'
            AND ae.entity_id IN (
-             SELECT r.id FROM remediations AS r WHERE r.finding_id = ?
+             SELECT r.id FROM remediations AS r
+             WHERE r.organization_id = ae.organization_id AND r.finding_id = ?
            )
          )
          OR (
            ae.entity_type = 'verification'
            AND ae.entity_id IN (
-             SELECT vr.id FROM verification_runs AS vr WHERE vr.finding_id = ?
+             SELECT vr.id FROM verification_runs AS vr
+             WHERE vr.organization_id = ae.organization_id AND vr.finding_id = ?
            )
          )
          OR (
            ae.entity_type = 'evidence'
            AND ae.entity_id IN (
-             SELECT ei.id FROM evidence_items AS ei WHERE ei.finding_id = ?
+             SELECT ei.id FROM evidence_items AS ei
+             WHERE ei.organization_id = ae.organization_id AND ei.finding_id = ?
            )
          )
        )
@@ -247,13 +258,13 @@ export function createFindingRepository(
     `INSERT INTO findings (
        id, organization_id, company_id, finding_key, title, description,
        source, severity, state, owner, asset_name, detected_at, sla_due_at,
-       created_at, updated_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       created_at, updated_at, version
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   const updateStateStatement = connection.prepare(
     `UPDATE findings
-     SET state = ?, updated_at = ?
-     WHERE id = ? AND state = ?`,
+     SET state = ?, updated_at = ?, version = version + 1
+     WHERE organization_id = ? AND id = ? AND state = ?`,
   );
 
   return {
@@ -384,19 +395,19 @@ export function createFindingRepository(
         companyByIdStatement.get(organizationId, finding.companyId),
       );
       const remediations = remediationsByFindingStatement
-        .all(finding.id)
+        .all(organizationId, finding.id)
         .map(mapRemediationRow);
       const verifications = verificationsByFindingStatement
-        .all(finding.id)
+        .all(organizationId, finding.id)
         .map(mapVerificationRunRow)
         .map((verification) => ({
           ...verification,
           checks: checksByVerificationStatement
-            .all(verification.id)
+            .all(organizationId, verification.id)
             .map(mapVerificationCheckRow),
         }));
       const evidence = evidenceByFindingStatement
-        .all(finding.id)
+        .all(organizationId, finding.id)
         .map(mapEvidenceItemRow);
       const auditEvents = auditByFindingStatement
         .all(organizationId, finding.id, finding.id, finding.id, finding.id)
@@ -429,13 +440,15 @@ export function createFindingRepository(
         finding.slaDueAt,
         finding.createdAt,
         finding.updatedAt,
+        finding.version,
       );
     },
 
-    updateState(id, expectedState, state, updatedAt): void {
+    updateState(organizationId, id, expectedState, state, updatedAt): void {
       const result = updateStateStatement.run(
         state,
         updatedAt,
+        organizationId,
         id,
         expectedState,
       );

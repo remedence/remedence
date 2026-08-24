@@ -1,9 +1,7 @@
 import type { AuditEventQuery } from "@remedence/core";
 import { Router, type Request } from "express";
-import {
-  LOCAL_ORGANIZATION_ID,
-  type ApiDependencies,
-} from "../dependencies.js";
+import { organizationIdFrom } from "../authentication.js";
+import type { ApiDependencies } from "../dependencies.js";
 import { toAuditEventPage } from "./http-shapes.js";
 
 function queryRecord(request: Request): Record<string, unknown> {
@@ -28,7 +26,10 @@ function integerValue(
   return typeof value === "number" ? value : Number(value);
 }
 
-function auditQueryFrom(request: Request): AuditEventQuery {
+function auditQueryFrom(
+  request: Request,
+  organizationId: string,
+): AuditEventQuery {
   const query = queryRecord(request);
   const entityType = optionalString(query, "entity_type");
   const entityId = optionalString(query, "entity_id");
@@ -36,7 +37,7 @@ function auditQueryFrom(request: Request): AuditEventQuery {
   const to = optionalString(query, "to");
 
   return {
-    organizationId: LOCAL_ORGANIZATION_ID,
+    organizationId,
     page: integerValue(query, "page", 1),
     pageSize: integerValue(query, "page_size", 25),
     ...(entityType !== undefined ? { entityType } : {}),
@@ -52,7 +53,7 @@ export function createAuditEventsRouter(dependencies: ApiDependencies): Router {
   router.get("/audit-events", (request, response, next) => {
     try {
       const page = dependencies.repositories.auditEvents.list(
-        auditQueryFrom(request),
+        auditQueryFrom(request, organizationIdFrom(response)),
       );
       response.json(toAuditEventPage(page));
     } catch (error) {

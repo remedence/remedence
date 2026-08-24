@@ -138,7 +138,7 @@ export class VerificationService {
       }
 
       const runningVerification = repositories.verifications
-        .listByFinding(finding.id)
+        .listByFinding(input.organizationId, finding.id)
         .find((run) => run.status === "Running");
       if (runningVerification) {
         throw new DomainError(
@@ -150,10 +150,11 @@ export class VerificationService {
       }
 
       const remediation = repositories.remediations.getById(
+        input.organizationId,
         input.remediationId,
       );
       const completedRemediations = repositories.remediations
-        .listByFinding(finding.id)
+        .listByFinding(input.organizationId, finding.id)
         .filter((item) => item.status === "Completed");
       if (
         completedRemediations.length === 0 ||
@@ -215,6 +216,7 @@ export class VerificationService {
 
       const now = this.dependencies.clock.now();
       const run: VerificationRun = {
+        organizationId: input.organizationId,
         id: this.dependencies.idGenerator.next(),
         findingId: finding.id,
         remediationId: remediation.id,
@@ -234,10 +236,12 @@ export class VerificationService {
         startedAt: now,
         completedAt: null,
         createdAt: now,
+        version: 1,
       };
       repositories.verifications.insert(run);
       checkNames.forEach((name, index) => {
         repositories.verifications.insertCheck({
+          organizationId: input.organizationId,
           id: this.dependencies.idGenerator.next(),
           verificationId: run.id,
           sequence: index + 1,
@@ -272,7 +276,10 @@ export class VerificationService {
     input: RecordVerificationCheckInput,
   ): VerificationCheck {
     return this.dependencies.unitOfWork.run((repositories) => {
-      const run = repositories.verifications.getById(input.verificationId);
+      const run = repositories.verifications.getById(
+        input.organizationId,
+        input.verificationId,
+      );
       if (!run) {
         throw new DomainError(
           "VERIFICATION_NOT_FOUND",
@@ -288,7 +295,7 @@ export class VerificationService {
       requireRunning(run);
 
       const expected = repositories.verifications
-        .listChecks(run.id)
+        .listChecks(input.organizationId, run.id)
         .find((check) => check.sequence === input.sequence);
       if (!expected) {
         throw new DomainError(
@@ -320,6 +327,7 @@ export class VerificationService {
       }
 
       repositories.verifications.recordCheck(
+        input.organizationId,
         run.id,
         input.sequence,
         input.name,
@@ -343,7 +351,7 @@ export class VerificationService {
       });
 
       const recorded = repositories.verifications
-        .listChecks(run.id)
+        .listChecks(input.organizationId, run.id)
         .find((check) => check.sequence === input.sequence);
       if (!recorded) {
         throw new DomainError(
@@ -360,7 +368,10 @@ export class VerificationService {
     input: CompleteVerificationInput,
   ): VerificationCompletion {
     return this.dependencies.unitOfWork.run((repositories) => {
-      const run = repositories.verifications.getById(input.verificationId);
+      const run = repositories.verifications.getById(
+        input.organizationId,
+        input.verificationId,
+      );
       if (!run) {
         throw new DomainError(
           "VERIFICATION_NOT_FOUND",
@@ -383,7 +394,10 @@ export class VerificationService {
         );
       }
 
-      const checks = repositories.verifications.listChecks(run.id);
+      const checks = repositories.verifications.listChecks(
+        input.organizationId,
+        run.id,
+      );
       const now = this.dependencies.clock.now();
       const summary = input.summary.trim();
 
@@ -404,8 +418,15 @@ export class VerificationService {
         }
 
         assertFindingTransition(finding.state, "Verification failed");
-        repositories.verifications.complete(run.id, "Failed", summary, now);
+        repositories.verifications.complete(
+          input.organizationId,
+          run.id,
+          "Failed",
+          summary,
+          now,
+        );
         repositories.findings.updateState(
+          input.organizationId,
           finding.id,
           finding.state,
           "Verification failed",
@@ -422,7 +443,10 @@ export class VerificationService {
           occurredAt: now,
         });
         return {
-          verification: repositories.verifications.getById(run.id) ?? {
+          verification: repositories.verifications.getById(
+            input.organizationId,
+            run.id,
+          ) ?? {
             ...run,
             status: "Failed",
             resultSummary: summary,
@@ -496,6 +520,7 @@ export class VerificationService {
           );
         }
         return {
+          organizationId: input.organizationId,
           id: this.dependencies.idGenerator.next(),
           findingId: finding.id,
           verificationId: run.id,
@@ -510,8 +535,15 @@ export class VerificationService {
       });
 
       for (const item of evidence) repositories.evidence.insert(item);
-      repositories.verifications.complete(run.id, "Passed", summary, now);
+      repositories.verifications.complete(
+        input.organizationId,
+        run.id,
+        "Passed",
+        summary,
+        now,
+      );
       repositories.findings.updateState(
+        input.organizationId,
         finding.id,
         finding.state,
         "Verified fixed",
@@ -548,7 +580,10 @@ export class VerificationService {
       }
 
       return {
-        verification: repositories.verifications.getById(run.id) ?? {
+        verification: repositories.verifications.getById(
+          input.organizationId,
+          run.id,
+        ) ?? {
           ...run,
           status: "Passed",
           resultSummary: summary,

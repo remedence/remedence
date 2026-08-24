@@ -7,6 +7,7 @@ import { getDatabaseConnection, type RemedenceDatabase } from "../database.js";
 import { mapEvidenceItemRow } from "../rows.js";
 
 const EVIDENCE_COLUMNS = `
+  e.organization_id,
   e.id,
   e.finding_id,
   e.verification_id,
@@ -26,14 +27,13 @@ export function createEvidenceRepository(
   const getByIdStatement = connection.prepare(
     `SELECT ${EVIDENCE_COLUMNS}
      FROM evidence_items AS e
-     JOIN findings AS f ON f.id = e.finding_id
-     WHERE f.organization_id = ? AND e.id = ?`,
+     WHERE e.organization_id = ? AND e.id = ?`,
   );
   const insertStatement = connection.prepare(
     `INSERT INTO evidence_items (
-       id, finding_id, verification_id, kind, label, source_reference,
+       organization_id, id, finding_id, verification_id, kind, label, source_reference,
        content_hash, metadata_json, created_at, locked_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
 
   return {
@@ -46,7 +46,7 @@ export function createEvidenceRepository(
     },
 
     list(query: EvidenceQuery): EvidenceItem[] {
-      const filters = ["f.organization_id = ?"];
+      const filters = ["e.organization_id = ?"];
       const parameters: Array<string | number> = [query.organizationId];
       if (query.findingId !== undefined) {
         filters.push("e.finding_id = ?");
@@ -66,7 +66,6 @@ export function createEvidenceRepository(
         .prepare(
           `SELECT ${EVIDENCE_COLUMNS}
            FROM evidence_items AS e
-           JOIN findings AS f ON f.id = e.finding_id
            WHERE ${filters.join(" AND ")}
            ORDER BY e.created_at ASC, e.id ASC`,
         )
@@ -76,6 +75,7 @@ export function createEvidenceRepository(
 
     insert(item: EvidenceItem): void {
       insertStatement.run(
+        item.organizationId,
         item.id,
         item.findingId,
         item.verificationId,

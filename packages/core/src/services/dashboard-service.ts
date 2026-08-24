@@ -125,15 +125,18 @@ export class DashboardService {
     );
     const verificationActivity: VerificationActivity[] = allFindings
       .flatMap((finding) =>
-        repositories.verifications.listByFinding(finding.id).map((run) => ({
-          verificationId: run.id,
-          findingKey: finding.findingKey,
-          companyName: companyNames.get(finding.companyId) ?? "Unknown company",
-          status: run.status,
-          resultSummary: run.resultSummary,
-          completedAt: run.completedAt,
-          sortAt: run.completedAt ?? run.createdAt,
-        })),
+        repositories.verifications
+          .listByFinding(query.organizationId, finding.id)
+          .map((run) => ({
+            verificationId: run.id,
+            findingKey: finding.findingKey,
+            companyName:
+              companyNames.get(finding.companyId) ?? "Unknown company",
+            status: run.status,
+            resultSummary: run.resultSummary,
+            completedAt: run.completedAt,
+            sortAt: run.completedAt ?? run.createdAt,
+          })),
       )
       .sort(
         (left, right) =>

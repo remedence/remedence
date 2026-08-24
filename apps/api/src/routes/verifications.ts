@@ -1,10 +1,7 @@
 import type { VerificationCheck } from "@remedence/core";
 import { Router } from "express";
-import {
-  LOCAL_ORGANIZATION_ID,
-  type ApiDependencies,
-} from "../dependencies.js";
-import { mutationActorFrom } from "../authentication.js";
+import { mutationActorFrom, organizationIdFrom } from "../authentication.js";
+import type { ApiDependencies } from "../dependencies.js";
 import {
   toVerificationCheck,
   toVerificationCompletion,
@@ -50,7 +47,7 @@ export function createVerificationsRouter(
       const body = request.body as CreateVerificationBody;
       const verification = dependencies.services.verification.startVerification(
         {
-          organizationId: LOCAL_ORGANIZATION_ID,
+          organizationId: organizationIdFrom(response),
           findingId: body.finding_id,
           remediationId: body.remediation_id,
           method: body.method,
@@ -61,6 +58,7 @@ export function createVerificationsRouter(
         },
       );
       const checks = dependencies.repositories.verifications.listChecks(
+        organizationIdFrom(response),
         verification.id,
       );
 
@@ -85,7 +83,7 @@ export function createVerificationsRouter(
         const body = request.body as CreateVerificationCheckBody;
         const check =
           dependencies.services.verification.recordVerificationCheck({
-            organizationId: LOCAL_ORGANIZATION_ID,
+            organizationId: organizationIdFrom(response),
             verificationId: request.params.verificationId ?? "",
             sequence: body.sequence,
             name: body.name,
@@ -107,7 +105,7 @@ export function createVerificationsRouter(
         const body = request.body as CompleteVerificationBody;
         const completion =
           dependencies.services.verification.completeVerification({
-            organizationId: LOCAL_ORGANIZATION_ID,
+            organizationId: organizationIdFrom(response),
             verificationId: request.params.verificationId ?? "",
             result: body.result,
             summary: body.summary,

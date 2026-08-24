@@ -49,9 +49,9 @@ Development is deliberately different: Vite serves the React application and pro
 
 ## Trust boundary
 
-**Remedence local v1 has no user authentication. It binds to 127.0.0.1 and must not be exposed directly to an untrusted network.**
+Remedence supports a loopback local-workspace mode and a required-authentication mode. Local mode binds to `127.0.0.1` and treats the operating-system user session as its trust boundary; it must not be exposed directly to an untrusted network. Required mode resolves every product request from a durable Better Auth session and an active organization membership.
 
-Local v1 assumes the machine/user session is the trust boundary. It does not implement hosted authentication, production multi-user authorization, or MSP RBAC. The server host is fixed to loopback rather than accepting an environment-controlled bind address.
+The server host remains fixed to loopback rather than accepting an environment-controlled bind address. Required mode currently provides tenant membership isolation and authenticated audit actors, but invitation, recovery, enforced MFA, federated identity, and complete role authorization remain separate gates.
 
 The local HTTP process also applies same-origin mutation checks, browser security headers, no-store API caching, bounded JSON payloads, a process-local request-rate budget, safe Problem responses, and server connection/request timeouts. These are local defense-in-depth controls, not a claim of public-edge readiness. See [`http-edge-security.md`](http-edge-security.md).
 
@@ -107,7 +107,7 @@ The seed is idempotent with respect to existing local organization data; it does
 
 ## Organization and customer separation
 
-Local v1 runs one local organization context, currently the Harborline demo organization, and keeps managed companies/customers as separate records beneath that organization.
+Local mode establishes one configured workspace organization. Required mode derives organization identity from the authenticated user's active membership; a user with multiple active memberships must select one explicitly. Managed companies/customers remain separate records beneath that organization.
 
 ```text
 Local organization
@@ -121,7 +121,7 @@ Local organization
   `-- organization audit history
 ```
 
-Finding and audit records carry organization identity; finding records also carry company identity. This is a persistence/domain separation boundary, **not** a claim that production multi-tenant authorization or MSP RBAC already exists.
+Companies, findings, remediations, verification runs and checks, evidence, reports, and audit events carry organization identity. Child foreign keys include that identity, so a relationship cannot cross tenants and identifiers may safely repeat between organizations. Membership roles are persisted, but endpoint-level role authorization is not yet complete.
 
 ## Finding state machine
 
