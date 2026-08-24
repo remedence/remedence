@@ -1,6 +1,7 @@
 export { backupDatabase } from "./backup.js";
 export { restoreDatabaseBackup } from "./restore.js";
 export {
+  getDatabaseConnection,
   openRemedenceDatabase,
   type OpenDatabaseOptions,
   type RemedenceDatabase,

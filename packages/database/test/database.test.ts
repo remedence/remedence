@@ -50,7 +50,7 @@ function connection(): DatabaseSync {
 
 function migrate(): RemedenceDatabase {
   const opened = openDatabase();
-  expect(applyMigrations(opened, migrationsDirectory)).toBe(1);
+  expect(applyMigrations(opened, migrationsDirectory)).toBe(2);
   return opened;
 }
 
@@ -128,11 +128,11 @@ describe("database lifecycle", () => {
     expect(() => db.exec("ATTACH DATABASE ':memory:' AS forbidden")).toThrow();
   });
 
-  it("applies the initial migration exactly once", () => {
+  it("applies every migration exactly once", () => {
     const opened = openDatabase();
 
-    expect(applyMigrations(opened, migrationsDirectory)).toBe(1);
-    expect(opened.schemaVersion).toBe(1);
+    expect(applyMigrations(opened, migrationsDirectory)).toBe(2);
+    expect(opened.schemaVersion).toBe(2);
 
     const tables = connection()
       .prepare(
@@ -145,6 +145,7 @@ describe("database lifecycle", () => {
       .map((row) => (row as { name: string }).name);
 
     expect(tables).toEqual([
+      "account",
       "audit_events",
       "companies",
       "evidence_items",
@@ -153,17 +154,21 @@ describe("database lifecycle", () => {
       "remediations",
       "reports",
       "schema_migrations",
+      "session",
+      "twoFactor",
+      "user",
+      "verification",
       "verification_checks",
       "verification_runs",
     ]);
 
-    expect(applyMigrations(opened, migrationsDirectory)).toBe(1);
-    expect(opened.schemaVersion).toBe(1);
+    expect(applyMigrations(opened, migrationsDirectory)).toBe(2);
+    expect(opened.schemaVersion).toBe(2);
     expect(
       connection()
         .prepare("SELECT COUNT(*) AS count FROM schema_migrations")
         .get(),
-    ).toMatchObject({ count: 1 });
+    ).toMatchObject({ count: 2 });
   });
 
   it("rejects companies that reference a missing organization", () => {
