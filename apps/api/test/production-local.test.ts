@@ -144,7 +144,7 @@ describe("production local mode", () => {
     expect(await healthResponse.json()).toEqual({
       status: "ok",
       database: "ready",
-      schema_version: 7,
+      schema_version: 8,
     });
 
     const dashboardResponse = await fetch(`${baseUrl}/api/v1/dashboard`);

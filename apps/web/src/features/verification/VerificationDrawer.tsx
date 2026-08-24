@@ -8,7 +8,7 @@ import {
 } from "react";
 import type { DashboardFinding } from "../findings/FindingQueue";
 import { LoadingState, ProblemState } from "../shared/AsyncState";
-import { api, entityTag } from "../../lib/api/client";
+import { api, entityTag, idempotencyKey } from "../../lib/api/client";
 import {
   ApiProblemError,
   problemFromResponse,
@@ -282,6 +282,7 @@ export function VerificationDrawer({
           credentials: "include",
           headers: {
             "content-type": "application/octet-stream",
+            "idempotency-key": idempotencyKey(),
             "x-evidence-filename": evidenceFile.name,
           },
           body: evidenceFile,

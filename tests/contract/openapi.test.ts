@@ -4,6 +4,7 @@ import { parse } from "yaml";
 
 interface OpenApiOperation {
   operationId?: string;
+  parameters?: Array<{ $ref?: string }>;
 }
 
 interface OpenApiSchema {
@@ -25,6 +26,7 @@ const document = parse(
 
 const requiredOperations = [
   "getDashboard",
+  "initializeWorkspace",
   "listFindings",
   "getFinding",
   "createImport",
@@ -34,6 +36,7 @@ const requiredOperations = [
   "createVerificationCheck",
   "completeVerification",
   "listEvidence",
+  "uploadEvidenceArtifact",
   "getEvidence",
   "createReport",
   "getReport",
@@ -67,6 +70,18 @@ const mutationSchemas = [
   "CreateReportRequest",
 ] as const;
 
+const mutationPaths = [
+  "/onboarding",
+  "/imports",
+  "/remediations",
+  "/remediations/{remediationId}/complete",
+  "/verifications",
+  "/verifications/{verificationId}/checks",
+  "/verifications/{verificationId}/complete",
+  "/evidence/artifacts",
+  "/reports",
+] as const;
+
 describe("OpenAPI contract", () => {
   it("is OpenAPI 3.1 and contains the persistent workflow operations", () => {
     expect(document.openapi).toBe("3.1.0");
@@ -93,6 +108,20 @@ describe("OpenAPI contract", () => {
         document.components?.schemas?.[schemaName]?.additionalProperties,
         schemaName,
       ).toBe(false);
+    }
+  });
+
+  it("offers durable replay protection on every mutation", () => {
+    for (const path of mutationPaths) {
+      const pathItem = document.paths?.[path];
+      const parameters = [
+        ...(pathItem?.parameters ?? []),
+        ...(pathItem?.post?.parameters ?? []),
+      ];
+      expect(
+        parameters.map((parameter) => parameter.$ref),
+        path,
+      ).toContain("#/components/parameters/IdempotencyKey");
     }
   });
 

@@ -168,6 +168,8 @@ export interface paths {
             header?: {
                 /** @description Required strong ETag returned for the target resource. Omission returns 428. */
                 "If-Match"?: components["parameters"]["IfMatch"];
+                /** @description Optional tenant- and principal-scoped replay key. Reusing the key for the same request replays its successful response for 24 hours; changing the operation or payload returns 409. */
+                "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
             };
             path: {
                 remediationId: components["parameters"]["RemediationId"];
@@ -210,6 +212,8 @@ export interface paths {
             header?: {
                 /** @description Required strong ETag returned for the target resource. Omission returns 428. */
                 "If-Match"?: components["parameters"]["IfMatch"];
+                /** @description Optional tenant- and principal-scoped replay key. Reusing the key for the same request replays its successful response for 24 hours; changing the operation or payload returns 409. */
+                "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
             };
             path: {
                 verificationId: components["parameters"]["VerificationId"];
@@ -232,6 +236,8 @@ export interface paths {
             header?: {
                 /** @description Required strong ETag returned for the target resource. Omission returns 428. */
                 "If-Match"?: components["parameters"]["IfMatch"];
+                /** @description Optional tenant- and principal-scoped replay key. Reusing the key for the same request replays its successful response for 24 hours; changing the operation or payload returns 409. */
+                "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
             };
             path: {
                 verificationId: components["parameters"]["VerificationId"];
@@ -917,6 +923,8 @@ export interface components {
         };
     };
     parameters: {
+        /** @description Optional tenant- and principal-scoped replay key. Reusing the key for the same request replays its successful response for 24 hours; changing the operation or payload returns 409. */
+        IdempotencyKey: string;
         /** @description Required strong ETag returned for the target resource. Omission returns 428. */
         IfMatch: string;
         CompanyId: string;
@@ -941,6 +949,8 @@ export interface components {
         RequestId: string;
         /** @description Strong entity version tag for optimistic concurrency. */
         EntityTag: string;
+        /** @description True when a completed response was durably replayed. */
+        IdempotencyReplayed: "true" | "false";
     };
     pathItems: never;
 }
@@ -970,7 +980,10 @@ export interface operations {
     initializeWorkspace: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Optional tenant- and principal-scoped replay key. Reusing the key for the same request replays its successful response for 24 hours; changing the operation or payload returns 409. */
+                "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -1160,7 +1173,10 @@ export interface operations {
     createImport: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Optional tenant- and principal-scoped replay key. Reusing the key for the same request replays its successful response for 24 hours; changing the operation or payload returns 409. */
+                "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -1193,6 +1209,8 @@ export interface operations {
             header?: {
                 /** @description Required strong ETag returned for the target resource. Omission returns 428. */
                 "If-Match"?: components["parameters"]["IfMatch"];
+                /** @description Optional tenant- and principal-scoped replay key. Reusing the key for the same request replays its successful response for 24 hours; changing the operation or payload returns 409. */
+                "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
             };
             path?: never;
             cookie?: never;
@@ -1230,6 +1248,8 @@ export interface operations {
             header?: {
                 /** @description Required strong ETag returned for the target resource. Omission returns 428. */
                 "If-Match"?: components["parameters"]["IfMatch"];
+                /** @description Optional tenant- and principal-scoped replay key. Reusing the key for the same request replays its successful response for 24 hours; changing the operation or payload returns 409. */
+                "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
             };
             path: {
                 remediationId: components["parameters"]["RemediationId"];
@@ -1268,6 +1288,8 @@ export interface operations {
             header?: {
                 /** @description Required strong ETag returned for the target resource. Omission returns 428. */
                 "If-Match"?: components["parameters"]["IfMatch"];
+                /** @description Optional tenant- and principal-scoped replay key. Reusing the key for the same request replays its successful response for 24 hours; changing the operation or payload returns 409. */
+                "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
             };
             path?: never;
             cookie?: never;
@@ -1305,6 +1327,8 @@ export interface operations {
             header?: {
                 /** @description Required strong ETag returned for the target resource. Omission returns 428. */
                 "If-Match"?: components["parameters"]["IfMatch"];
+                /** @description Optional tenant- and principal-scoped replay key. Reusing the key for the same request replays its successful response for 24 hours; changing the operation or payload returns 409. */
+                "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
             };
             path: {
                 verificationId: components["parameters"]["VerificationId"];
@@ -1343,6 +1367,8 @@ export interface operations {
             header?: {
                 /** @description Required strong ETag returned for the target resource. Omission returns 428. */
                 "If-Match"?: components["parameters"]["IfMatch"];
+                /** @description Optional tenant- and principal-scoped replay key. Reusing the key for the same request replays its successful response for 24 hours; changing the operation or payload returns 409. */
+                "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
             };
             path: {
                 verificationId: components["parameters"]["VerificationId"];
@@ -1408,6 +1434,8 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
+                /** @description Optional tenant- and principal-scoped replay key. Reusing the key for the same request replays its successful response for 24 hours; changing the operation or payload returns 409. */
+                "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
                 "X-Evidence-Filename": string;
             };
             path?: never;
@@ -1485,7 +1513,10 @@ export interface operations {
     createReport: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Optional tenant- and principal-scoped replay key. Reusing the key for the same request replays its successful response for 24 hours; changing the operation or payload returns 409. */
+                "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+            };
             path?: never;
             cookie?: never;
         };

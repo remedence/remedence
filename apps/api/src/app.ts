@@ -20,6 +20,7 @@ import {
   type RateLimitOptions,
 } from "./middleware/edge-security.js";
 import { problemHandler } from "./middleware/problem-handler.js";
+import { createIdempotency } from "./middleware/idempotency.js";
 import { createRequestContext } from "./middleware/request-context.js";
 import { createAuditEventsRouter } from "./routes/audit-events.js";
 import { createCompaniesRouter } from "./routes/companies.js";
@@ -213,6 +214,16 @@ export function createApp(
             ? `tenant:${principal.organizationId}`
             : `public:${request.socket.remoteAddress ?? "unknown"}`;
         },
+      ),
+    );
+  }
+
+  if (dependencies.idempotency) {
+    app.use(
+      "/api/v1",
+      createIdempotency(
+        dependencies.idempotency,
+        dependencies.evidenceProtection.clock.now,
       ),
     );
   }

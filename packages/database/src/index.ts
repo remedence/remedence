@@ -8,6 +8,13 @@ export {
 } from "./database.js";
 export { applyMigrations } from "./migrations.js";
 export {
+  createIdempotencyStore,
+  type IdempotencyReplay,
+  type IdempotencyReservation,
+  type IdempotencyScope,
+  type IdempotencyStore,
+} from "./idempotency-store.js";
+export {
   createRateLimitStore,
   type RateLimitConsumption,
   type RateLimitStore,

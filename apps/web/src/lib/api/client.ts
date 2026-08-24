@@ -8,8 +8,21 @@ const sameOriginApiBaseUrl = new URL(
 
 export const api = createClient<paths>({
   baseUrl: sameOriginApiBaseUrl,
-  fetch: (...arguments_) => globalThis.fetch(...arguments_),
+  fetch: (input) => {
+    const request = new Request(input);
+    if (
+      !["GET", "HEAD", "OPTIONS"].includes(request.method) &&
+      !request.headers.has("idempotency-key")
+    ) {
+      request.headers.set("idempotency-key", idempotencyKey());
+    }
+    return globalThis.fetch(request);
+  },
 });
+
+export function idempotencyKey(): string {
+  return globalThis.crypto.randomUUID();
+}
 
 export function entityTag(kind: string, id: string, version: number): string {
   const bytes = new TextEncoder().encode(id);

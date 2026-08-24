@@ -3,10 +3,8 @@ info:
   title: Remedence API
   version: 0.1.0
   description: >-
-    Canonical local-first API for Remedence findings, remediation, independent
-    verification, immutable evidence metadata, reporting, and audit history.
-    Remedence local v1 binds to loopback and does not provide authentication,
-    webhook delivery, hosted verification workers, managed integrations, or AI inference.
+    Canonical API for authenticated tenant-scoped findings, remediation,
+    independent verification, protected evidence, reporting, and audit history.
 servers:
   - url: /api/v1
     description: Relative Remedence API v1 namespace
@@ -43,6 +41,8 @@ paths:
       tags: [Onboarding]
       operationId: initializeWorkspace
       summary: Initialize an empty workspace or explicitly install demo data
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
         required: true
         content:
@@ -209,6 +209,8 @@ paths:
       tags: [Imports]
       operationId: createImport
       summary: Import one normalized finding into the local workspace
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
         required: true
         content:
@@ -243,6 +245,7 @@ paths:
       summary: Start a remediation record for an eligible finding
       parameters:
         - $ref: "#/components/parameters/IfMatch"
+        - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
         required: true
         content:
@@ -282,6 +285,7 @@ paths:
     parameters:
       - $ref: "#/components/parameters/RemediationId"
       - $ref: "#/components/parameters/IfMatch"
+      - $ref: "#/components/parameters/IdempotencyKey"
     post:
       tags: [Remediations]
       operationId: completeRemediation
@@ -325,6 +329,7 @@ paths:
       summary: Start a principal-bound independent verification run
       parameters:
         - $ref: "#/components/parameters/IfMatch"
+        - $ref: "#/components/parameters/IdempotencyKey"
       description: >-
         Verifier identity and credential class come from the server-established
         principal. The caller supplies source revision and patch digest provenance,
@@ -369,6 +374,7 @@ paths:
     parameters:
       - $ref: "#/components/parameters/VerificationId"
       - $ref: "#/components/parameters/IfMatch"
+      - $ref: "#/components/parameters/IdempotencyKey"
     post:
       tags: [Verifications]
       operationId: createVerificationCheck
@@ -409,6 +415,7 @@ paths:
     parameters:
       - $ref: "#/components/parameters/VerificationId"
       - $ref: "#/components/parameters/IfMatch"
+      - $ref: "#/components/parameters/IdempotencyKey"
     post:
       tags: [Verifications]
       operationId: completeVerification
@@ -488,6 +495,7 @@ paths:
       operationId: uploadEvidenceArtifact
       summary: Upload and malware-scan an immutable evidence artifact
       parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
         - name: X-Evidence-Filename
           in: header
           required: true
@@ -560,6 +568,8 @@ paths:
       tags: [Reports]
       operationId: createReport
       summary: Create an immutable client report snapshot
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
         required: true
         content:
@@ -725,7 +735,22 @@ components:
       description: Strong entity version tag for optimistic concurrency.
       schema:
         type: string
+    IdempotencyReplayed:
+      description: True when a completed response was durably replayed.
+      schema:
+        type: string
+        enum: ["true", "false"]
   parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      description: >-
+        Optional tenant- and principal-scoped replay key. Reusing the key for
+        the same request replays its successful response for 24 hours; changing
+        the operation or payload returns 409.
+      schema:
+        type: string
+        pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]{7,199}$"
     IfMatch:
       name: If-Match
       in: header

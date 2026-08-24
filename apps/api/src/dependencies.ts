@@ -14,6 +14,7 @@ import {
 } from "@remedence/core";
 import {
   applyMigrations,
+  createIdempotencyStore,
   createRepositorySet,
   createRateLimitStore,
   createUnitOfWork,
@@ -21,6 +22,7 @@ import {
   openRemedenceDatabase,
   seedHarborline,
   type RemedenceDatabase,
+  type IdempotencyStore,
   type RateLimitStore,
 } from "@remedence/database";
 import {
@@ -56,6 +58,7 @@ export interface ApiDependencies {
   };
   repositories: RepositorySet;
   rateLimit?: RateLimitStore;
+  idempotency?: IdempotencyStore;
   evidenceProtection: {
     objectStore: EvidenceObjectStore;
     scanner: MalwareScanner;
@@ -218,6 +221,7 @@ export function createDependencies(
       },
       repositories,
       rateLimit: createRateLimitStore(database),
+      idempotency: createIdempotencyStore(database),
       evidenceProtection: {
         objectStore: evidenceObjectStore,
         scanner: malwareScanner,

@@ -1,5 +1,5 @@
 # @remedence/api
 
-Future HTTP service for the canonical Remedence API. Implementations must conform to `../../api/openapi.yaml` rather than creating a separate web-only contract.
+Canonical authenticated HTTP API for tenant-scoped findings, remediation, verification, protected evidence, reports, and audit history. Routes and generated clients conform to [`../../api/openapi.yaml`](../../api/openapi.yaml).
 
-The v1 repository establishes the contract and product workflow first. Authentication, authorization, persistence, and worker-backed execution are intentionally deferred until those controls can be implemented and tested as backend services.
+Mutation clients may send `Idempotency-Key`. Successful responses are durably retained for 24 hours under the authenticated organization and principal. An identical retry replays the original status, body, `Location`, and `ETag`; a changed payload or operation fails with `IDEMPOTENCY_KEY_REUSED`. In-flight duplicates fail closed. The browser client adds a fresh UUID key to every mutation automatically.

@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import type { components } from "../../lib/api/schema";
+import { idempotencyKey } from "../../lib/api/client";
 
 type OnboardingStatus = components["schemas"]["OnboardingStatus"];
 type WorkspaceOrganization = components["schemas"]["WorkspaceOrganization"];
@@ -66,6 +67,7 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
         headers: {
           accept: "application/json",
           "content-type": "application/json",
+          "idempotency-key": idempotencyKey(),
         },
         body: JSON.stringify(
           mode === "demo"

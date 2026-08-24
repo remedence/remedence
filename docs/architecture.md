@@ -79,6 +79,8 @@ generated TypeScript API types/client
 
 The browser never opens SQLite directly. UI reads and mutations go through the typed HTTP API. Generated API drift is checked by `bun run check:generated-api` and by the repository-wide `bun run check` workflow.
 
+The web client attaches a UUID `Idempotency-Key` to every mutation. The API fingerprints the operation and canonical request body, scopes the key to the authenticated organization and principal, and coordinates reservations in `idempotency_records`. A completed identical request replays its original response; changed key reuse and overlapping execution fail closed. Entity-changing remediation and verification routes additionally require current `If-Match` ETags to reject stale updates.
+
 ## Persistence ownership
 
 `packages/database` owns SQLite access, migrations, repository adapters, seed behavior, and backup mechanics. `apps/api` creates the database dependencies and is the application process that owns the live database connection.
