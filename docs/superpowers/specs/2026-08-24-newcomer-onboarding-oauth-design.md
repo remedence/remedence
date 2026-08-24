@@ -110,4 +110,3 @@ Local unauthenticated mode uses the synthetic local actor only inside its loopba
 - OAuth token storage for third-party product integrations.
 - Automatic organization membership based only on email domain.
 - A marketing walkthrough disconnected from real product controls.
-

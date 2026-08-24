@@ -113,4 +113,3 @@ Use compact status bands, trend charts only where time comparison matters, and t
 - Storing raw request bodies, evidence, secrets, or authentication tokens.
 - Claiming high availability solely because dashboards exist.
 - Paging external recipients before the notification engine is configured and tested.
-

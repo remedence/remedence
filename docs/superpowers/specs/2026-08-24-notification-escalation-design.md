@@ -111,4 +111,3 @@ Rule creation uses a review step that states exactly which events, recipients, a
 - Executing arbitrary user-authored templates or scripts.
 - Treating notification acknowledgement as remediation or verification completion.
 - Claiming guaranteed delivery without a provider receipt.
-

@@ -59,4 +59,3 @@ The default installation is an empty workspace. Demo data is an explicit choice 
 - Every workforce, policy, notification, and security-relevant mutation creates an audit event.
 - Onboarding and tours are resumable, dismissible, keyboard accessible, and backed by durable per-user progress.
 - Observability views expose bounded operational metadata, not secrets, tokens, evidence bytes, or raw customer payloads.
-
