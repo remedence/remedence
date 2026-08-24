@@ -1,0 +1,105 @@
+name: remedence
+
+x-remedence: &remedence
+  image: ${REMEDENCE_IMAGE:?Set REMEDENCE_IMAGE to an immutable image digest}
+  env_file:
+    - path: .env.production
+      required: true
+  volumes:
+    - remedence-data:/var/lib/remedence
+  restart: unless-stopped
+  read_only: true
+  tmpfs:
+    - /tmp:size=64m,mode=1777
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+
+services:
+  preflight:
+    <<: *remedence
+    restart: "no"
+    command: ["node", "apps/api/dist/environment-validator.js"]
+
+  migrate:
+    <<: *remedence
+    restart: "no"
+    depends_on:
+      preflight:
+        condition: service_completed_successfully
+    command: ["node", "scripts/db-migrate.mjs"]
+
+  api:
+    <<: *remedence
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      clamav:
+        condition: service_healthy
+    environment:
+      REMEDENCE_API_HOST: 0.0.0.0
+      REMEDENCE_CLAMAV_HOST: clamav
+      REMEDENCE_CLAMAV_PORT: 3310
+    expose:
+      - "43180"
+
+  integration-worker:
+    <<: *remedence
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    command:
+      ["node", "--enable-source-maps", "apps/api/dist/integration-worker.js"]
+
+  privacy-worker:
+    <<: *remedence
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    command: ["node", "--enable-source-maps", "apps/api/dist/privacy-worker.js"]
+
+  verification-worker:
+    <<: *remedence
+    profiles: [verification-worker]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    command:
+      ["node", "--enable-source-maps", "apps/api/dist/verification-worker.js"]
+    volumes:
+      - remedence-data:/var/lib/remedence
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  clamav:
+    image: ${REMEDENCE_CLAMAV_IMAGE:?Set REMEDENCE_CLAMAV_IMAGE to an immutable image digest}
+    restart: unless-stopped
+    volumes:
+      - clamav-data:/var/lib/clamav
+
+  edge:
+    image: ${REMEDENCE_CADDY_IMAGE:?Set REMEDENCE_CADDY_IMAGE to an immutable image digest}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      REMEDENCE_HOSTNAME: ${REMEDENCE_HOSTNAME:?Set the public hostname}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  remedence-data:
+  clamav-data:
+  caddy-data:
+  caddy-config:

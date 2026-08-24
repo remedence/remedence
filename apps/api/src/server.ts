@@ -7,6 +7,7 @@ const dependencies = createDependencies(config);
 const app = createApp(dependencies, {
   ...(config.serveWeb ? { webDirectory: config.webDirectory } : {}),
   allowedMutationOrigins: config.allowedMutationOrigins,
+  ...(config.host === "0.0.0.0" ? { trustProxyHops: 1 } : {}),
 });
 const server = app.listen(config.port, config.host, () => {
   console.log(

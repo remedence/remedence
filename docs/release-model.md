@@ -4,13 +4,14 @@ Remedence currently ships one product mode: **local beta**. Supported self-hoste
 
 ## Mode matrix
 
-| Mode                     | Status                             | Network boundary                                                       | Identity and tenancy                                                                                     | Persistence                                                                                   | Support claim                            |
-| ------------------------ | ---------------------------------- | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ---------------------------------------- |
-| Local beta               | Implemented                        | API fixed to `127.0.0.1`; optional separate local worker process       | Explicit local-workspace trust or required accounts, sessions, MFA, federation config, and tenant roles  | Local SQLite plus protected artifact directory and durable job queue                          | Evaluation and local workflow use only   |
-| Supported self-hosted    | Planned and blocked by gates below | TLS-terminating trusted proxy plus an authenticated application origin | Authenticated principals, secure sessions, recovery, MFA, tenant-scoped RBAC                             | Supported production database adapter and object storage                                      | None until every self-hosted gate passes |
-| Hosted multi-tenant SaaS | Planned and blocked by gates below | Managed public edge and isolated internal worker/data planes           | Managed identity lifecycle, tenant isolation, administration boundaries, enterprise federation direction | Managed production database, encrypted object storage, queues, backups, and disaster recovery | None until every SaaS gate passes        |
+| Mode                       | Status                             | Network boundary                                                       | Identity and tenancy                                                                                     | Persistence                                                                                   | Support claim                             |
+| -------------------------- | ---------------------------------- | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| Local beta                 | Implemented                        | API fixed to `127.0.0.1`; optional separate local worker process       | Explicit local-workspace trust or required accounts, sessions, MFA, federation config, and tenant roles  | Local SQLite plus protected artifact directory and durable job queue                          | Evaluation and local workflow use only    |
+| Single-host container beta | Implemented                        | Caddy TLS edge; authenticated API network binding                      | Required accounts, MFA policy, federation configuration, and tenant roles                                | Single-host SQLite volume, protected artifact directory, ClamAV, and durable workers          | Evaluation and controlled single-host use |
+| Supported self-hosted      | Planned and blocked by gates below | TLS-terminating trusted proxy plus an authenticated application origin | Authenticated principals, secure sessions, recovery, MFA, tenant-scoped RBAC                             | Supported production database adapter and object storage                                      | None until every self-hosted gate passes  |
+| Hosted multi-tenant SaaS   | Planned and blocked by gates below | Managed public edge and isolated internal worker/data planes           | Managed identity lifecycle, tenant isolation, administration boundaries, enterprise federation direction | Managed production database, encrypted object storage, queues, backups, and disaster recovery | None until every SaaS gate passes         |
 
-The server host remains a compile-time loopback constant. There is deliberately no environment variable that can expose the unauthenticated local mode on `0.0.0.0`.
+The server remains loopback-only by default. `REMEDENCE_API_HOST=0.0.0.0` fails closed unless required authentication uses an HTTPS application origin; the supplied deployment publishes only the Caddy TLS edge.
 
 ## Self-hosted release gates
 
@@ -23,7 +24,7 @@ A release cannot be called supported self-hosted until current evidence demonstr
 - a supported production database adapter with pooling, transactional migrations, concurrency tests, tenant-safe keys/indexes, backup/restore drills, and a documented rollback path;
 - secret ownership outside source control, encryption-key hierarchy, rotation and revocation procedures, and startup validation that fails closed;
 - durable evidence artifacts, isolated verification workers, observable queues, and operational receipts;
-- reproducible deployment artifacts, supported-version policy, vulnerability handling, privacy lifecycle, monitoring, SLOs, and support channels.
+- supported-version policy, vulnerability handling, monitoring, SLOs, and support channels.
 
 Putting a reverse proxy in front of the current local process does not satisfy these gates.
 

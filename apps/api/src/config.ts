@@ -34,7 +34,7 @@ export type EvidenceSecurityConfig =
   | { scanner: "clamav"; signingKey: string; host: string; port: number };
 
 export interface ApiConfig {
-  host: typeof API_HOST;
+  host: string;
   port: number;
   dataDirectory: string;
   databasePath: string;
@@ -51,6 +51,8 @@ export interface ApiConfig {
 const PORT_ERROR =
   "REMEDENCE_API_PORT must be an integer from 1024 through 65535.";
 const DATA_DIRECTORY_ERROR = "REMEDENCE_DATA_DIR must not be empty.";
+const API_BIND_ERROR =
+  "REMEDENCE_API_HOST may use 0.0.0.0 only with required authentication and an HTTPS application URL.";
 const DEV_ORIGIN_ERROR =
   "REMEDENCE_DEV_ORIGIN must be an http://127.0.0.1 origin with a port.";
 const AUTH_MODE_ERROR =
@@ -365,6 +367,22 @@ export function resolveApiPort(value = process.env.REMEDENCE_API_PORT): number {
   return port;
 }
 
+export function resolveApiHost(
+  authentication: AuthenticationConfig,
+  value = process.env.REMEDENCE_API_HOST,
+): string {
+  const host = value?.trim() || API_HOST;
+  if (host === API_HOST) return host;
+  if (
+    host === "0.0.0.0" &&
+    authentication.mode === "required" &&
+    authentication.baseURL.startsWith("https://")
+  ) {
+    return host;
+  }
+  throw new Error(API_BIND_ERROR);
+}
+
 export function resolveDataDirectory(
   value = process.env.REMEDENCE_DATA_DIR,
 ): string {
@@ -395,7 +413,7 @@ export function getApiConfig(): ApiConfig {
     process.env.REMEDENCE_INTEGRATION_ENCRYPTION_KEYS,
   );
   return {
-    host: API_HOST,
+    host: resolveApiHost(authentication),
     port: resolveApiPort(),
     dataDirectory,
     databasePath: join(dataDirectory, "remedence.db"),

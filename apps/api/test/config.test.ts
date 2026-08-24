@@ -8,6 +8,7 @@ import {
   DEFAULT_DEV_ORIGIN,
   isProductionMode,
   resolveApiPort,
+  resolveApiHost,
   resolveAuthenticationConfig,
   resolveDevelopmentOrigin,
   resolveEvidenceSecurityConfig,
@@ -17,6 +18,19 @@ import {
 } from "../src/config.js";
 
 describe("local API configuration", () => {
+  it("permits network binding only behind required HTTPS authentication", () => {
+    expect(resolveApiHost({ mode: "local" }, undefined)).toBe(API_HOST);
+    expect(() => resolveApiHost({ mode: "local" }, "0.0.0.0")).toThrow(
+      "REMEDENCE_API_HOST may use 0.0.0.0 only",
+    );
+    expect(
+      resolveApiHost(
+        { mode: "required", baseURL: "https://remedence.example" },
+        "0.0.0.0",
+      ),
+    ).toBe("0.0.0.0");
+  });
+
   it("requires versioned integration encryption keys in hosted mode", () => {
     const hosted = {
       mode: "required" as const,

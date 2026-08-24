@@ -47,6 +47,7 @@ export interface AppOptions {
   webDirectory?: string;
   rateLimit?: RateLimitOptions;
   allowedMutationOrigins?: readonly string[];
+  trustProxyHops?: number;
 }
 
 const DEFAULT_RATE_LIMIT: RateLimitOptions = {
@@ -99,7 +100,7 @@ export function createApp(
 ): Express {
   const app = express();
   app.disable("x-powered-by");
-  app.set("trust proxy", false);
+  app.set("trust proxy", options.trustProxyHops ?? false);
 
   app.use(createRequestContext(dependencies.log));
   app.use(setSecurityHeaders);

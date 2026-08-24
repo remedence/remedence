@@ -63,10 +63,11 @@ Export, retention, legal-hold, and offboarding behavior is documented in [`docs/
 - Production local mode where one loopback Node process serves both the built React application and `/api/v1`.
 - Process-safe `bun run dev` supervision for the API and Vite child process trees.
 - Repository-wide checks and GitHub Actions CI on supported Node releases.
+- Reproducible digest-pinned container deployment with authenticated network binding, environment preflight, a controlled migration job, health checks, workers, TLS edge, staging promotion, and restore-based rollback.
 
 ## Planned, not implemented
 
-Remaining release work includes a supported production database adapter, reproducible deployment and rollback, and hosted control-plane operations. See [`docs/release-model.md`](docs/release-model.md) for the authoritative gates.
+Remaining release work includes a supported production database adapter and hosted control-plane operations. See [`docs/release-model.md`](docs/release-model.md) for the authoritative gates.
 
 ## Security and trust boundary
 

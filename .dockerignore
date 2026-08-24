@@ -1,0 +1,10 @@
+.git
+.wrangler
+artifacts
+data
+node_modules
+test-results
+apps/*/dist
+packages/*/dist
+*.log
+.env*

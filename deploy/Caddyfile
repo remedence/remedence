@@ -1,0 +1,8 @@
+{$REMEDENCE_HOSTNAME} {
+  encode zstd gzip
+  reverse_proxy api:43180
+  header {
+    Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    -Server
+  }
+}
