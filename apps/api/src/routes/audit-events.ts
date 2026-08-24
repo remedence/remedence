@@ -35,10 +35,11 @@ function auditQueryFrom(
   const entityId = optionalString(query, "entity_id");
   const from = optionalString(query, "from");
   const to = optionalString(query, "to");
+  const cursor = optionalString(query, "cursor");
 
   return {
     organizationId,
-    page: integerValue(query, "page", 1),
+    ...(cursor ? { cursor } : {}),
     pageSize: integerValue(query, "page_size", 25),
     ...(entityType !== undefined ? { entityType } : {}),
     ...(entityId !== undefined ? { entityId } : {}),

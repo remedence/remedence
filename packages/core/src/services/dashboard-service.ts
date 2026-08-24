@@ -38,22 +38,19 @@ function listAllFindings(
 ): DashboardFinding[] {
   const pageSize = 100;
   const items: DashboardFinding[] = [];
-  let page = 1;
-  let total = Number.POSITIVE_INFINITY;
+  let cursor: string | undefined;
 
-  while (items.length < total) {
+  do {
     const result = repositories.findings.list({
       organizationId,
       sort: "priority",
       includeVerified: true,
-      page,
       pageSize,
+      ...(cursor ? { cursor } : {}),
     });
-    total = result.total;
     items.push(...result.items);
-    if (result.items.length === 0) break;
-    page += 1;
-  }
+    cursor = result.nextCursor ?? undefined;
+  } while (cursor);
   return items;
 }
 

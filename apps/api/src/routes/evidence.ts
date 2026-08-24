@@ -26,6 +26,16 @@ function optionalBoolean(
   return value === true || value === "true";
 }
 
+function integerValue(
+  query: Record<string, unknown>,
+  name: string,
+  fallback: number,
+): number {
+  const value = query[name];
+  if (value === undefined) return fallback;
+  return typeof value === "number" ? value : Number(value);
+}
+
 function evidenceQueryFrom(
   request: Request,
   organizationId: string,
@@ -34,12 +44,15 @@ function evidenceQueryFrom(
   const findingId = optionalString(query, "finding_id");
   const verificationId = optionalString(query, "verification_id");
   const locked = optionalBoolean(query, "locked");
+  const cursor = optionalString(query, "cursor");
 
   return {
     organizationId,
     ...(findingId !== undefined ? { findingId } : {}),
     ...(verificationId !== undefined ? { verificationId } : {}),
     ...(locked !== undefined ? { locked } : {}),
+    ...(cursor ? { cursor } : {}),
+    pageSize: integerValue(query, "page_size", 25),
   };
 }
 
@@ -133,7 +146,12 @@ export function createEvidenceRouter(dependencies: ApiDependencies): Router {
       const evidence = dependencies.repositories.evidence.list(
         evidenceQueryFrom(request, organizationIdFrom(response)),
       );
-      response.json(evidence.map(toEvidence));
+      response.json({
+        items: evidence.items.map(toEvidence),
+        page_size: evidence.pageSize,
+        total: evidence.total,
+        next_cursor: evidence.nextCursor,
+      });
     } catch (error) {
       next(error);
     }

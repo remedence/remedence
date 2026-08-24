@@ -315,7 +315,7 @@ describe("Task 17 restart persistence", () => {
       total: number;
     }>(
       baseUrl,
-      `/api/v1/findings?search=${encodeURIComponent(findingKey)}&include_verified=true&page=1&page_size=100`,
+      `/api/v1/findings?search=${encodeURIComponent(findingKey)}&include_verified=true&page_size=100`,
     );
     expect(list.response.status).toBe(200);
     expect(

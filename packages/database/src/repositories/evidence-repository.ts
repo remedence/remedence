@@ -1,9 +1,6 @@
-import type {
-  EvidenceItem,
-  EvidenceQuery,
-  EvidenceRepository,
-} from "@remedence/core";
+import type { EvidenceQuery, EvidenceRepository } from "@remedence/core";
 import { getDatabaseConnection, type RemedenceDatabase } from "../database.js";
+import { decodeCursor, encodeCursor } from "../cursor.js";
 import { mapEvidenceArtifactRow, mapEvidenceItemRow } from "../rows.js";
 
 const EVIDENCE_COLUMNS = `
@@ -50,7 +47,14 @@ export function createEvidenceRepository(
       return row ? mapEvidenceItemRow(row) : undefined;
     },
 
-    list(query: EvidenceQuery): EvidenceItem[] {
+    list(query: EvidenceQuery) {
+      if (
+        !Number.isSafeInteger(query.pageSize) ||
+        query.pageSize < 1 ||
+        query.pageSize > 100
+      ) {
+        throw new RangeError("pageSize must be between 1 and 100.");
+      }
       const filters = ["e.organization_id = ?"];
       const parameters: Array<string | number> = [query.organizationId];
       if (query.findingId !== undefined) {
@@ -66,14 +70,50 @@ export function createEvidenceRepository(
           query.locked ? "e.locked_at IS NOT NULL" : "e.locked_at IS NULL",
         );
       }
-      return connection
+      const collectionWhereSql = filters.join(" AND ");
+      const collectionParameters = [...parameters];
+      if (query.cursor !== undefined) {
+        const [createdAt, id] = decodeCursor(query.cursor, "evidence", 2);
+        if (typeof createdAt !== "string" || typeof id !== "string") {
+          throw new RangeError("cursor is invalid for evidence.");
+        }
+        filters.push("(e.created_at < ? OR (e.created_at = ? AND e.id < ?))");
+        parameters.push(createdAt, createdAt, id);
+      }
+      const totalRow = connection
+        .prepare(
+          `SELECT COUNT(e.id) AS total FROM evidence_items AS e
+           WHERE ${collectionWhereSql}`,
+        )
+        .get(...collectionParameters) as { total?: unknown } | undefined;
+      if (
+        typeof totalRow?.total !== "number" ||
+        !Number.isSafeInteger(totalRow.total) ||
+        totalRow.total < 0
+      ) {
+        throw new TypeError("Evidence count query returned an invalid total.");
+      }
+      const rows = connection
         .prepare(
           `SELECT ${EVIDENCE_COLUMNS} FROM evidence_items AS e
            WHERE ${filters.join(" AND ")}
-           ORDER BY e.created_at ASC, e.id ASC`,
+           ORDER BY e.created_at DESC, e.id DESC
+           LIMIT ?`,
         )
-        .all(...parameters)
+        .all(...parameters, query.pageSize + 1)
         .map(mapEvidenceItemRow);
+      const hasNext = rows.length > query.pageSize;
+      const items = hasNext ? rows.slice(0, query.pageSize) : rows;
+      const last = items.at(-1);
+      return {
+        items,
+        pageSize: query.pageSize,
+        total: totalRow.total,
+        nextCursor:
+          hasNext && last
+            ? encodeCursor("evidence", [last.createdAt, last.id])
+            : null,
+      };
     },
 
     insert(item): void {

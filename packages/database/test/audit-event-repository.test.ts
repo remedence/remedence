@@ -105,7 +105,6 @@ describe("AuditEventRepository", () => {
     const repository = createAuditEventRepository(database);
     const page = repository.list({
       organizationId: "org-harborline",
-      page: 1,
       pageSize: 25,
     });
 
@@ -122,7 +121,6 @@ describe("AuditEventRepository", () => {
     const page = repository.list({
       organizationId: "org-harborline",
       entityType: "verification",
-      page: 1,
       pageSize: 25,
     });
 
@@ -135,7 +133,6 @@ describe("AuditEventRepository", () => {
     const page = repository.list({
       organizationId: "org-harborline",
       entityId: "finding-1",
-      page: 1,
       pageSize: 25,
     });
 
@@ -151,7 +148,6 @@ describe("AuditEventRepository", () => {
       organizationId: "org-harborline",
       from: "2026-08-10T10:30:00.000Z",
       to: "2026-08-10T11:30:00.000Z",
-      page: 1,
       pageSize: 25,
     });
 
@@ -160,15 +156,19 @@ describe("AuditEventRepository", () => {
     ]);
   });
 
-  it("returns correct pagination metadata and total", () => {
+  it("returns correct cursor metadata and total", () => {
     const repository = createAuditEventRepository(database);
+    const first = repository.list({
+      organizationId: "org-harborline",
+      pageSize: 2,
+    });
     const page = repository.list({
       organizationId: "org-harborline",
-      page: 2,
+      cursor: first.nextCursor!,
       pageSize: 2,
     });
 
-    expect(page).toMatchObject({ page: 2, pageSize: 2, total: 3 });
+    expect(page).toMatchObject({ pageSize: 2, total: 3, nextCursor: null });
     expect(page.items.map((event) => event.details.position)).toEqual([3]);
   });
 
@@ -178,25 +178,23 @@ describe("AuditEventRepository", () => {
       repository.list({
         organizationId: "org-harborline",
         entityType: "report",
-        page: 1,
         pageSize: 25,
       }),
-    ).toEqual({ items: [], page: 1, pageSize: 25, total: 0 });
+    ).toEqual({ items: [], pageSize: 25, total: 0, nextCursor: null });
   });
 
-  it("rejects invalid pagination values instead of producing broken SQL", () => {
+  it("rejects invalid cursor and page-size values", () => {
     const repository = createAuditEventRepository(database);
     expect(() =>
       repository.list({
         organizationId: "org-harborline",
-        page: 0,
+        cursor: "invalid",
         pageSize: 25,
       }),
-    ).toThrow(/page/);
+    ).toThrow(/cursor/);
     expect(() =>
       repository.list({
         organizationId: "org-harborline",
-        page: 1,
         pageSize: 0,
       }),
     ).toThrow(/pageSize/);
@@ -218,7 +216,6 @@ describe("AuditEventRepository", () => {
     const page = repository.list({
       organizationId: "org-harborline",
       entityType: "report",
-      page: 1,
       pageSize: 25,
     });
     expect(page.items).toHaveLength(1);

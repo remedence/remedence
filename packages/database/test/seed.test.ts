@@ -118,7 +118,6 @@ describe("seedHarborline", () => {
       organizationId: "org-harborline",
       sort: "priority",
       includeVerified: false,
-      page: 1,
       pageSize: 100,
     });
     expect(

@@ -75,7 +75,7 @@ paths:
         - $ref: "#/components/parameters/OwnerQuery"
         - $ref: "#/components/parameters/SortQuery"
         - $ref: "#/components/parameters/IncludeVerified"
-        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Cursor"
         - $ref: "#/components/parameters/PageSize"
       responses:
         "200":
@@ -165,7 +165,7 @@ paths:
         - $ref: "#/components/parameters/OwnerQuery"
         - $ref: "#/components/parameters/SortQuery"
         - $ref: "#/components/parameters/IncludeVerified"
-        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Cursor"
         - $ref: "#/components/parameters/PageSize"
       responses:
         "200":
@@ -427,6 +427,8 @@ paths:
           in: query
           schema:
             type: boolean
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/PageSize"
       responses:
         "200":
           description: Evidence metadata matching the filters.
@@ -436,9 +438,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/EvidenceItem"
+                $ref: "#/components/schemas/EvidencePage"
         "400":
           $ref: "#/components/responses/BadRequest"
         "500":
@@ -617,7 +617,7 @@ paths:
           schema:
             type: string
             format: date-time
-        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Cursor"
         - $ref: "#/components/parameters/PageSize"
       responses:
         "200":
@@ -772,14 +772,14 @@ components:
       schema:
         type: boolean
         default: false
-    Page:
-      name: page
+    Cursor:
+      name: cursor
       in: query
       schema:
-        type: integer
-        minimum: 1
-        maximum: 2147483647
-        default: 1
+        type: string
+        minLength: 1
+        maxLength: 1024
+        pattern: "^[A-Za-z0-9_-]+$"
     PageSize:
       name: page_size
       in: query
@@ -1080,15 +1080,12 @@ components:
     FindingPage:
       type: object
       additionalProperties: false
-      required: [items, page, page_size, total]
+      required: [items, page_size, total, next_cursor]
       properties:
         items:
           type: array
           items:
             $ref: "#/components/schemas/DashboardFinding"
-        page:
-          type: integer
-          minimum: 1
         page_size:
           type: integer
           minimum: 1
@@ -1096,6 +1093,8 @@ components:
         total:
           type: integer
           minimum: 0
+        next_cursor:
+          type: [string, "null"]
     Remediation:
       type: object
       additionalProperties: false
@@ -1276,6 +1275,24 @@ components:
         locked_at:
           type: [string, "null"]
           format: date-time
+    EvidencePage:
+      type: object
+      additionalProperties: false
+      required: [items, page_size, total, next_cursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/EvidenceItem"
+        page_size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
+          minimum: 0
+        next_cursor:
+          type: [string, "null"]
     AuditEvent:
       type: object
       additionalProperties: false
@@ -1314,15 +1331,12 @@ components:
     AuditEventPage:
       type: object
       additionalProperties: false
-      required: [items, page, page_size, total]
+      required: [items, page_size, total, next_cursor]
       properties:
         items:
           type: array
           items:
             $ref: "#/components/schemas/AuditEvent"
-        page:
-          type: integer
-          minimum: 1
         page_size:
           type: integer
           minimum: 1
@@ -1330,6 +1344,8 @@ components:
         total:
           type: integer
           minimum: 0
+        next_cursor:
+          type: [string, "null"]
     FindingDetail:
       type: object
       additionalProperties: false

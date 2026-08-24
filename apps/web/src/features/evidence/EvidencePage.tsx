@@ -8,8 +8,11 @@ import { EmptyState, LoadingState, ProblemState } from "../shared/AsyncState";
 type EvidenceItem = components["schemas"]["EvidenceItem"];
 
 async function loadEvidence(signal: AbortSignal): Promise<EvidenceItem[]> {
-  const { data, error, response } = await api.GET("/evidence", { signal });
-  if (data !== undefined) return data;
+  const { data, error, response } = await api.GET("/evidence", {
+    params: { query: { page_size: 100 } },
+    signal,
+  });
+  if (data !== undefined) return data.items;
   throw new ApiProblemError(problemFromResponse(error, response));
 }
 

@@ -1592,20 +1592,25 @@ describe("Remedence API-backed read models", () => {
               request.method === "GET" &&
               url.pathname === "/api/v1/evidence"
             ) {
-              return jsonResponse([
-                {
-                  ...evidence,
-                  id: "evidence-api-older",
-                  verification_id: "verification-api-older",
-                  label: "Older persisted proof",
-                  source_reference: "artifact://verification-api-older",
-                  content_hash:
-                    "1111111111111111111111111111111111111111111111111111111111111111",
-                  created_at: "2026-08-20T05:00:00.000Z",
-                  locked_at: "2026-08-20T05:00:01.000Z",
-                },
-                evidence,
-              ]);
+              return jsonResponse({
+                items: [
+                  {
+                    ...evidence,
+                    id: "evidence-api-older",
+                    verification_id: "verification-api-older",
+                    label: "Older persisted proof",
+                    source_reference: "artifact://verification-api-older",
+                    content_hash:
+                      "1111111111111111111111111111111111111111111111111111111111111111",
+                    created_at: "2026-08-20T05:00:00.000Z",
+                    locked_at: "2026-08-20T05:00:01.000Z",
+                  },
+                  evidence,
+                ],
+                page_size: 100,
+                total: 2,
+                next_cursor: null,
+              });
             }
             throw new Error(
               `Unexpected request: ${request.method} ${url.pathname}`,

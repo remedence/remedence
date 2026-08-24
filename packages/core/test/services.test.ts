@@ -8,7 +8,7 @@ import {
   type EvidenceItem,
   type Finding,
   type FindingQuery,
-  type Page,
+  type CursorPage,
   type Remediation,
   type Report,
   type RepositorySet,
@@ -212,14 +212,18 @@ function createHarness(initialFindings: Finding[] = []): Harness {
             item.findingKey.trim().toLocaleUpperCase("en-US") === normalized,
         );
       },
-      list(query: FindingQuery): Page<DashboardFinding> {
+      list(query: FindingQuery): CursorPage<DashboardFinding> {
         const rows = dashboardRows(query);
-        const start = (query.page - 1) * query.pageSize;
+        const start = query.cursor ? Number(query.cursor) : 0;
+        const items = rows.slice(start, start + query.pageSize);
         return {
-          items: rows.slice(start, start + query.pageSize),
-          page: query.page,
+          items,
           pageSize: query.pageSize,
           total: rows.length,
+          nextCursor:
+            start + items.length < rows.length
+              ? String(start + items.length)
+              : null,
         };
       },
       getDetail(organizationId: string, findingKey: string) {
@@ -511,9 +515,9 @@ function createHarness(initialFindings: Finding[] = []): Harness {
         entityId?: string;
         from?: string;
         to?: string;
-        page: number;
+        cursor?: string;
         pageSize: number;
-      }): Page<AuditEvent> {
+      }): CursorPage<AuditEvent> {
         let rows = state.auditEvents.filter(
           (item) => item.organizationId === query.organizationId,
         );
@@ -525,9 +529,9 @@ function createHarness(initialFindings: Finding[] = []): Harness {
         }
         return {
           items: rows,
-          page: query.page,
           pageSize: query.pageSize,
           total: rows.length,
+          nextCursor: null,
         };
       },
     },
@@ -1342,7 +1346,6 @@ describe("DashboardService", () => {
       organizationId: ORG,
       sort: "priority",
       includeVerified: false,
-      page: 1,
       pageSize: 25,
     });
 

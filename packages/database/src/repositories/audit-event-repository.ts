@@ -2,8 +2,9 @@ import type {
   AuditEvent,
   AuditEventQuery,
   AuditEventRepository,
-  Page,
+  CursorPage,
 } from "@remedence/core";
+import { decodeCursor, encodeCursor } from "../cursor.js";
 import { getDatabaseConnection, type RemedenceDatabase } from "../database.js";
 import { mapAuditEventRow } from "../rows.js";
 
@@ -61,8 +62,7 @@ export function createAuditEventRepository(
       );
     },
 
-    list(query: AuditEventQuery): Page<AuditEvent> {
-      requirePositiveInteger(query.page, "page");
+    list(query: AuditEventQuery): CursorPage<AuditEvent> {
       requirePositiveInteger(query.pageSize, "pageSize");
 
       const filters = ["organization_id = ?"];
@@ -84,32 +84,47 @@ export function createAuditEventRepository(
         filters.push("occurred_at <= ?");
         parameters.push(query.to);
       }
+      const collectionWhereSql = filters.join(" AND ");
+      const collectionParameters = [...parameters];
+      if (query.cursor !== undefined) {
+        const [id] = decodeCursor(query.cursor, "audit-events", 1);
+        if (typeof id !== "number" || !Number.isSafeInteger(id) || id < 1) {
+          throw new RangeError("cursor is invalid for audit events.");
+        }
+        filters.push("id > ?");
+        parameters.push(String(id));
+      }
 
       const whereSql = filters.join(" AND ");
       const total = readTotal(
         connection
           .prepare(
-            `SELECT COUNT(id) AS total FROM audit_events WHERE ${whereSql}`,
+            `SELECT COUNT(id) AS total FROM audit_events WHERE ${collectionWhereSql}`,
           )
-          .get(...parameters),
+          .get(...collectionParameters),
       );
-      const offset = (query.page - 1) * query.pageSize;
-      const items = connection
+      const rows = connection
         .prepare(
           `SELECT ${AUDIT_EVENT_COLUMNS}
            FROM audit_events
            WHERE ${whereSql}
            ORDER BY id ASC
-           LIMIT ? OFFSET ?`,
+           LIMIT ?`,
         )
-        .all(...parameters, query.pageSize, offset)
+        .all(...parameters, query.pageSize + 1)
         .map(mapAuditEventRow);
+      const hasNext = rows.length > query.pageSize;
+      const items = hasNext ? rows.slice(0, query.pageSize) : rows;
+      const last = items.at(-1);
 
       return {
         items,
-        page: query.page,
         pageSize: query.pageSize,
         total,
+        nextCursor:
+          hasNext && last?.id !== undefined
+            ? encodeCursor("audit-events", [last.id])
+            : null,
       };
     },
   };

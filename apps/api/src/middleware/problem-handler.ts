@@ -89,6 +89,16 @@ export function problemHandler(
     sendProblem(response, request, error.status, error.code, error.message);
     return;
   }
+  if (error instanceof RangeError) {
+    sendProblem(
+      response,
+      request,
+      400,
+      "INVALID_QUERY",
+      "A query parameter is outside the supported range or has an invalid cursor.",
+    );
+    return;
+  }
 
   const candidate =
     typeof error === "object" && error !== null

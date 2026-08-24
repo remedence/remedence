@@ -121,7 +121,6 @@ function dashboardQuery(filters: FindingFilters): DashboardQuery {
     sort: filters.sort,
     include_verified:
       filters.state === "Verified fixed" || Boolean(filters.search.trim()),
-    page: 1,
     page_size: 100,
   };
 }

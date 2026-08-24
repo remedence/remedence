@@ -73,7 +73,6 @@ function query(overrides: Partial<FindingQuery> = {}): FindingQuery {
     organizationId: "org-harborline",
     sort: "priority",
     includeVerified: false,
-    page: 1,
     pageSize: 25,
     ...overrides,
   };
@@ -454,22 +453,22 @@ describe("FindingRepository", () => {
     expect(result.items[1]?.slaBreached).toBe(true);
   });
 
-  it("returns deterministic pagination metadata and an empty page past the end", () => {
+  it("returns deterministic opaque cursor pages without duplicates", () => {
     const repository = createFindingRepository(database, { referenceTime });
-    const page = repository.list(query({ page: 2, pageSize: 2 }));
+    const first = repository.list(query({ pageSize: 2 }));
+    expect(first.nextCursor).toEqual(expect.any(String));
+    const second = repository.list(
+      query({ cursor: first.nextCursor!, pageSize: 2 }),
+    );
 
-    expect(page).toMatchObject({ page: 2, pageSize: 2, total: 6 });
-    expect(page.items.map((finding) => finding.id)).toEqual([
+    expect(second).toMatchObject({ pageSize: 2, total: 6 });
+    expect(second.items.map((finding) => finding.id)).toEqual([
       "finding-breached",
       "finding-high",
     ]);
-
-    expect(repository.list(query({ page: 99, pageSize: 2 }))).toMatchObject({
-      items: [],
-      page: 99,
-      pageSize: 2,
-      total: 6,
-    });
+    expect(second.items.map((finding) => finding.id)).not.toEqual(
+      first.items.map((finding) => finding.id),
+    );
   });
 
   it("never returns another organization's rows from list queries", () => {
@@ -627,9 +626,11 @@ describe("FindingRepository", () => {
     });
   });
 
-  it("rejects invalid pagination and unsupported sort values at runtime", () => {
+  it("rejects invalid cursors, page sizes, and sort values at runtime", () => {
     const repository = createFindingRepository(database, { referenceTime });
-    expect(() => repository.list(query({ page: 0 }))).toThrow(/page/);
+    expect(() => repository.list(query({ cursor: "invalid" }))).toThrow(
+      /cursor/,
+    );
     expect(() => repository.list(query({ pageSize: 101 }))).toThrow(/pageSize/);
     expect(() =>
       repository.list({ ...query(), sort: "unsafe" as FindingQuery["sort"] }),

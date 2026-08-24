@@ -33,6 +33,7 @@ export function findingQueryFrom(
   const state = optionalString(query, "state") as FindingState | undefined;
   const severity = optionalString(query, "severity") as Severity | undefined;
   const owner = optionalString(query, "owner");
+  const cursor = optionalString(query, "cursor");
   const sort = (optionalString(query, "sort") ??
     "priority") as FindingQuery["sort"];
   const includeVerifiedValue = query.include_verified;
@@ -42,7 +43,7 @@ export function findingQueryFrom(
     sort,
     includeVerified:
       includeVerifiedValue === true || includeVerifiedValue === "true",
-    page: integerValue(query, "page", 1),
+    ...(cursor ? { cursor } : {}),
     pageSize: integerValue(query, "page_size", 25),
     ...(search !== undefined ? { search } : {}),
     ...(companyId !== undefined ? { companyId } : {}),

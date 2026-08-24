@@ -211,12 +211,12 @@ describe("Task 17 production abuse boundaries", () => {
   it.each([
     "/api/v1/findings?state=DefinitelyNotAState",
     "/api/v1/findings?sort=sideways",
-    "/api/v1/findings?page=0",
-    "/api/v1/findings?page=-1",
+    "/api/v1/findings?cursor=invalid",
+    "/api/v1/findings?cursor=%21",
     "/api/v1/findings?page_size=0",
     "/api/v1/findings?page_size=-1",
     "/api/v1/findings?page_size=101",
-    "/api/v1/findings?page=999999999999999999999",
+    `/api/v1/findings?cursor=${"a".repeat(1025)}`,
     "/api/v1/findings?state=High&state=Low",
   ])(
     "rejects invalid query probe %s without destabilizing the server",

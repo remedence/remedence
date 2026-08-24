@@ -7,7 +7,7 @@ import type {
   Finding,
   FindingDetail,
   ImportResult,
-  Page,
+  CursorPage,
   Remediation,
   Report,
   VerificationCheck,
@@ -173,21 +173,21 @@ export function toReport(report: Report) {
   };
 }
 
-export function toFindingPage(page: Page<DashboardFinding>) {
+export function toFindingPage(page: CursorPage<DashboardFinding>) {
   return {
     items: page.items.map(toDashboardFinding),
-    page: page.page,
     page_size: page.pageSize,
     total: page.total,
+    next_cursor: page.nextCursor,
   };
 }
 
-export function toAuditEventPage(page: Page<AuditEvent>) {
+export function toAuditEventPage(page: CursorPage<AuditEvent>) {
   return {
     items: page.items.map(toAuditEvent),
-    page: page.page,
     page_size: page.pageSize,
     total: page.total,
+    next_cursor: page.nextCursor,
   };
 }
 

@@ -169,7 +169,6 @@ describe("Task 13 reports and audit reads", () => {
       organizationId,
       entityType: "report",
       entityId: reportId,
-      page: 1,
       pageSize: 100,
     });
     expect(audit.items.map((event) => event.action)).toContain(
@@ -291,10 +290,10 @@ describe("Task 13 reports and audit reads", () => {
 
     const all = await request(fixture.app)
       .get("/api/v1/audit-events")
-      .query({ page: 1, page_size: 100 })
+      .query({ page_size: 100 })
       .expect(200);
     expect(all.headers["x-request-id"]).toMatch(requestIdPattern);
-    expect(all.body).toMatchObject({ page: 1, page_size: 100 });
+    expect(all.body).toMatchObject({ page_size: 100 });
     expect(all.body.total).toBeGreaterThanOrEqual(all.body.items.length);
     expectIncreasingIds(all.body.items);
     expect(
@@ -306,7 +305,7 @@ describe("Task 13 reports and audit reads", () => {
 
     const reportEvents = await request(fixture.app)
       .get("/api/v1/audit-events")
-      .query({ entity_type: "report", page: 1, page_size: 100 })
+      .query({ entity_type: "report", page_size: 100 })
       .expect(200);
     expect(
       reportEvents.body.items.some(
@@ -331,7 +330,6 @@ describe("Task 13 reports and audit reads", () => {
       .query({
         entity_type: "report",
         entity_id: firstReport.body.id,
-        page: 1,
         page_size: 100,
       })
       .expect(200);
@@ -349,7 +347,6 @@ describe("Task 13 reports and audit reads", () => {
         entity_type: "report",
         from: "2026-08-20T11:59:59.000Z",
         to: "2026-08-20T12:00:01.000Z",
-        page: 1,
         page_size: 100,
       })
       .expect(200);
@@ -362,14 +359,14 @@ describe("Task 13 reports and audit reads", () => {
 
     const firstPage = await request(fixture.app)
       .get("/api/v1/audit-events")
-      .query({ page: 1, page_size: 2 })
+      .query({ page_size: 2 })
       .expect(200);
     const secondPage = await request(fixture.app)
       .get("/api/v1/audit-events")
-      .query({ page: 2, page_size: 2 })
+      .query({ cursor: firstPage.body.next_cursor, page_size: 2 })
       .expect(200);
-    expect(firstPage.body).toMatchObject({ page: 1, page_size: 2 });
-    expect(secondPage.body).toMatchObject({ page: 2, page_size: 2 });
+    expect(firstPage.body).toMatchObject({ page_size: 2 });
+    expect(secondPage.body).toMatchObject({ page_size: 2 });
     expect(firstPage.body.total).toBe(secondPage.body.total);
     expect(firstPage.body.items).toHaveLength(2);
     expect(secondPage.body.items).toHaveLength(2);

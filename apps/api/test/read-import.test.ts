@@ -242,7 +242,6 @@ describe("Task 11 persisted API reads and imports", () => {
       organizationId,
       entityType: "finding",
       entityId: reread.id,
-      page: 1,
       pageSize: 100,
     });
     expect(

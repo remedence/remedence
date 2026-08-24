@@ -87,6 +87,22 @@ function findingRepository() {
   return createFindingRepository(database, { referenceTime: REFERENCE_TIME });
 }
 
+function allAuditEvents() {
+  const repository = createAuditEventRepository(database);
+  const items = [];
+  let cursor: string | undefined;
+  do {
+    const page = repository.list({
+      organizationId: ORGANIZATION_ID,
+      pageSize: 100,
+      ...(cursor ? { cursor } : {}),
+    });
+    items.push(...page.items);
+    cursor = page.nextCursor ?? undefined;
+  } while (cursor);
+  return items;
+}
+
 function createWorkflowServices(options: {
   remediationIds: string[];
   verificationIds: string[];
@@ -247,13 +263,11 @@ describe("persistent remediation and verification workflow", () => {
       state: "Needs remediation",
     });
     expect(
-      createAuditEventRepository(database)
-        .list({ organizationId: ORGANIZATION_ID, page: 1, pageSize: 1000 })
-        .items.some(
-          (event) =>
-            event.action === "finding.imported" &&
-            event.entityId === "finding-imported-9000",
-        ),
+      allAuditEvents().some(
+        (event) =>
+          event.action === "finding.imported" &&
+          event.entityId === "finding-imported-9000",
+      ),
     ).toBe(true);
 
     let duplicate: unknown;
@@ -323,11 +337,7 @@ describe("persistent remediation and verification workflow", () => {
         .map((item) => item.status),
     ).toEqual(["Failed", "Passed"]);
 
-    const audit = createAuditEventRepository(database).list({
-      organizationId: ORGANIZATION_ID,
-      page: 1,
-      pageSize: 1000,
-    }).items;
+    const audit = allAuditEvents();
     const actions = audit.map((event) => event.action);
     expect(actions).toEqual(
       expect.arrayContaining([
@@ -402,16 +412,15 @@ describe("persistent remediation and verification workflow", () => {
       createEvidenceRepository(database).list({
         organizationId: ORGANIZATION_ID,
         verificationId: verification.id,
-      }),
+        pageSize: 100,
+      }).items,
     ).toEqual([]);
     expect(
-      createAuditEventRepository(database)
-        .list({ organizationId: ORGANIZATION_ID, page: 1, pageSize: 1000 })
-        .items.some(
-          (event) =>
-            event.action === "verification.failed" &&
-            event.entityId === verification.id,
-        ),
+      allAuditEvents().some(
+        (event) =>
+          event.action === "verification.failed" &&
+          event.entityId === verification.id,
+      ),
     ).toBe(true);
   });
 
@@ -522,11 +531,11 @@ describe("persistent remediation and verification workflow", () => {
       createEvidenceRepository(database).list({
         organizationId: ORGANIZATION_ID,
         verificationId: verification.id,
-      }),
+        pageSize: 100,
+      }).items,
     ).toEqual([]);
-    const actions = createAuditEventRepository(database)
-      .list({ organizationId: ORGANIZATION_ID, page: 1, pageSize: 1000 })
-      .items.filter((event) => event.entityId === verification.id)
+    const actions = allAuditEvents()
+      .filter((event) => event.entityId === verification.id)
       .map((event) => event.action);
     expect(actions).not.toContain("verification.passed");
     expect(actions).not.toContain("evidence.locked");
@@ -551,19 +560,40 @@ describe("persistent remediation and verification workflow", () => {
       true,
     );
     const typedRepository = createEvidenceRepository(database);
+    const firstEvidencePage = typedRepository.list({
+      organizationId: ORGANIZATION_ID,
+      findingId: completion.finding.id,
+      locked: true,
+      pageSize: 1,
+    });
+    const secondEvidencePage = typedRepository.list({
+      organizationId: ORGANIZATION_ID,
+      findingId: completion.finding.id,
+      locked: true,
+      pageSize: 1,
+      cursor: firstEvidencePage.nextCursor!,
+    });
+    expect(firstEvidencePage.total).toBe(2);
+    expect(firstEvidencePage.nextCursor).toEqual(expect.any(String));
+    expect(secondEvidencePage.nextCursor).toBeNull();
+    expect(secondEvidencePage.items[0]?.id).not.toBe(
+      firstEvidencePage.items[0]?.id,
+    );
     expect(
       typedRepository.list({
         organizationId: ORGANIZATION_ID,
         findingId: completion.finding.id,
         locked: true,
-      }),
+        pageSize: 100,
+      }).items,
     ).toHaveLength(2);
     expect(
       typedRepository.list({
         organizationId: ORGANIZATION_ID,
         findingId: completion.finding.id,
         locked: false,
-      }),
+        pageSize: 100,
+      }).items,
     ).toEqual([]);
     expect("update" in repository).toBe(false);
     expect("delete" in repository).toBe(false);
@@ -652,7 +682,8 @@ describe("persistent remediation and verification workflow", () => {
       evidenceRepository.list({
         organizationId: "org-other",
         findingId: completion.finding.id,
-      }),
+        pageSize: 100,
+      }).items,
     ).toEqual([]);
     expect(reportRepository.getById("org-other", report.id)).toBeUndefined();
     expect(
@@ -740,7 +771,6 @@ describe("persistent remediation and verification workflow", () => {
       organizationId: ORGANIZATION_ID,
       sort: "priority",
       includeVerified: false,
-      page: 1,
       pageSize: 25,
     });
 

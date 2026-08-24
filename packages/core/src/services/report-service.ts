@@ -44,22 +44,19 @@ function listCompanyFindings(
 ): DashboardFinding[] {
   const rows: DashboardFinding[] = [];
   const pageSize = 100;
-  let page = 1;
-  let total = Number.POSITIVE_INFINITY;
-  while (rows.length < total) {
+  let cursor: string | undefined;
+  do {
     const result = repositories.findings.list({
       organizationId,
       companyId,
       sort: "priority",
       includeVerified: true,
-      page,
       pageSize,
+      ...(cursor ? { cursor } : {}),
     });
-    total = result.total;
     rows.push(...result.items);
-    if (result.items.length === 0) break;
-    page += 1;
-  }
+    cursor = result.nextCursor ?? undefined;
+  } while (cursor);
   return rows;
 }
 

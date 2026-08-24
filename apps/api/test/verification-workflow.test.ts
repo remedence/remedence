@@ -161,7 +161,6 @@ function auditActions(entityType: string, entityId: string): string[] {
       organizationId,
       entityType,
       entityId,
-      page: 1,
       pageSize: 100,
     })
     .items.map((event) => event.action);
@@ -381,7 +380,11 @@ describe("Task 12 remediation, verification, and evidence workflow", () => {
       .get("/api/v1/evidence")
       .query({ finding_id: findingId })
       .expect(200);
-    expect(evidenceAfterFailure.body).toEqual([]);
+    expect(evidenceAfterFailure.body).toMatchObject({
+      items: [],
+      total: 0,
+      next_cursor: null,
+    });
 
     const remediation2 = await request(fixture.app)
       .post("/api/v1/remediations")
@@ -501,9 +504,13 @@ describe("Task 12 remediation, verification, and evidence workflow", () => {
       })
       .expect(200);
     expect(evidenceList.headers["x-request-id"]).toMatch(requestIdPattern);
-    expect(evidenceList.body).toHaveLength(2);
+    expect(evidenceList.body.items).toHaveLength(2);
 
-    for (const [index, evidence] of evidenceList.body.entries()) {
+    for (const evidence of evidenceList.body.items) {
+      const index = uploadedArtifacts.findIndex(
+        (upload) => upload.body.id === evidence.artifact_id,
+      );
+      expect(index).toBeGreaterThanOrEqual(0);
       expect(evidence.finding_id).toBe(findingId);
       expect(evidence.verification_id).toBe(verification2Id);
       expect(evidence.locked_at).toBe(now);

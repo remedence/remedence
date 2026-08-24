@@ -6,8 +6,9 @@ import {
   type FindingDetail,
   type FindingQuery,
   type FindingRepository,
-  type Page,
+  type CursorPage,
 } from "@remedence/core";
+import { decodeCursor, encodeCursor } from "../cursor.js";
 import { getDatabaseConnection, type RemedenceDatabase } from "../database.js";
 import {
   mapAuditEventRow,
@@ -134,6 +135,87 @@ const SORT_SQL = {
   newest: "detected_at DESC, finding_key ASC",
   sla: "sla_breached DESC, sla_due_at ASC, finding_key ASC",
 } as const;
+
+function findingCursorValues(
+  sort: FindingQuery["sort"],
+  finding: DashboardFinding,
+): Array<string | number> {
+  if (sort === "priority") {
+    return [
+      finding.priorityBucket,
+      finding.slaDueAt,
+      finding.detectedAt,
+      finding.findingKey,
+    ];
+  }
+  if (sort === "newest") return [finding.detectedAt, finding.findingKey];
+  return [finding.slaBreached ? 1 : 0, finding.slaDueAt, finding.findingKey];
+}
+
+function findingCursorFilter(query: FindingQuery): {
+  sql: string;
+  parameters: Array<string | number>;
+} {
+  if (query.cursor === undefined) return { sql: "", parameters: [] };
+  const kind = `findings:${query.sort}`;
+  if (query.sort === "priority") {
+    const [bucket, dueAt, detectedAt, key] = decodeCursor(
+      query.cursor,
+      kind,
+      4,
+    );
+    if (
+      typeof bucket !== "number" ||
+      typeof dueAt !== "string" ||
+      typeof detectedAt !== "string" ||
+      typeof key !== "string"
+    ) {
+      throw new RangeError("cursor is invalid for findings.");
+    }
+    return {
+      sql: `WHERE priority_bucket > ?
+        OR (priority_bucket = ? AND sla_due_at > ?)
+        OR (priority_bucket = ? AND sla_due_at = ? AND detected_at > ?)
+        OR (priority_bucket = ? AND sla_due_at = ? AND detected_at = ? AND finding_key > ?)`,
+      parameters: [
+        bucket,
+        bucket,
+        dueAt,
+        bucket,
+        dueAt,
+        detectedAt,
+        bucket,
+        dueAt,
+        detectedAt,
+        key,
+      ],
+    };
+  }
+  if (query.sort === "newest") {
+    const [detectedAt, key] = decodeCursor(query.cursor, kind, 2);
+    if (typeof detectedAt !== "string" || typeof key !== "string") {
+      throw new RangeError("cursor is invalid for findings.");
+    }
+    return {
+      sql: "WHERE detected_at < ? OR (detected_at = ? AND finding_key > ?)",
+      parameters: [detectedAt, detectedAt, key],
+    };
+  }
+  const [breached, dueAt, key] = decodeCursor(query.cursor, kind, 3);
+  if (
+    typeof breached !== "number" ||
+    typeof dueAt !== "string" ||
+    typeof key !== "string"
+  ) {
+    throw new RangeError("cursor is invalid for findings.");
+  }
+  return {
+    sql: `WHERE sla_breached < ?
+      OR (sla_breached = ? AND sla_due_at > ?)
+      OR (sla_breached = ? AND sla_due_at = ? AND finding_key > ?)`,
+    parameters: [breached, breached, dueAt, breached, dueAt, key],
+  };
+}
 
 export interface FindingRepositoryOptions {
   referenceTime: string | (() => string);
@@ -288,8 +370,7 @@ export function createFindingRepository(
       return row ? mapFindingRow(row) : undefined;
     },
 
-    list(query: FindingQuery): Page<DashboardFinding> {
-      requirePositiveInteger(query.page, "page");
+    list(query: FindingQuery): CursorPage<DashboardFinding> {
       requirePositiveInteger(query.pageSize, "pageSize", 100);
       const orderBy = (SORT_SQL as Record<string, string>)[query.sort];
       if (orderBy === undefined) {
@@ -350,46 +431,59 @@ export function createFindingRepository(
           .get(...parameters),
       );
       const referenceTime = resolveReferenceTime(options);
-      const offset = (query.page - 1) * query.pageSize;
-      const items = connection
+      const cursor = findingCursorFilter(query);
+      const rows = connection
         .prepare(
-          `SELECT
-             ${FINDING_COLUMNS},
-             c.name AS company_name,
-             CASE
-               WHEN f.state <> 'Verified fixed' AND f.sla_due_at < ? THEN 1
-               ELSE 0
-             END AS sla_breached,
-             CASE
-               WHEN f.state = 'Verification failed' THEN 1
-               WHEN f.state = 'Awaiting verification' AND f.severity = 'Critical' THEN 2
-               WHEN f.state = 'Verified fixed' THEN 6
-               WHEN f.sla_due_at < ? THEN 3
-               WHEN f.severity IN ('Critical', 'High')
-                 AND f.state IN ('Needs remediation', 'Remediating') THEN 4
-               ELSE 5
-             END AS priority_bucket
-           FROM findings AS f
-           JOIN companies AS c
-             ON c.organization_id = f.organization_id AND c.id = f.company_id
-           WHERE ${whereSql}
+          `WITH ranked AS (
+             SELECT
+               ${FINDING_COLUMNS},
+               c.name AS company_name,
+               CASE
+                 WHEN f.state <> 'Verified fixed' AND f.sla_due_at < ? THEN 1
+                 ELSE 0
+               END AS sla_breached,
+               CASE
+                 WHEN f.state = 'Verification failed' THEN 1
+                 WHEN f.state = 'Awaiting verification' AND f.severity = 'Critical' THEN 2
+                 WHEN f.state = 'Verified fixed' THEN 6
+                 WHEN f.sla_due_at < ? THEN 3
+                 WHEN f.severity IN ('Critical', 'High')
+                   AND f.state IN ('Needs remediation', 'Remediating') THEN 4
+                 ELSE 5
+               END AS priority_bucket
+             FROM findings AS f
+             JOIN companies AS c
+               ON c.organization_id = f.organization_id AND c.id = f.company_id
+             WHERE ${whereSql}
+           )
+           SELECT * FROM ranked
+           ${cursor.sql}
            ORDER BY ${orderBy}
-           LIMIT ? OFFSET ?`,
+           LIMIT ?`,
         )
         .all(
           referenceTime,
           referenceTime,
           ...parameters,
-          query.pageSize,
-          offset,
+          ...cursor.parameters,
+          query.pageSize + 1,
         )
         .map(mapDashboardFindingRow);
+      const hasNext = rows.length > query.pageSize;
+      const items = hasNext ? rows.slice(0, query.pageSize) : rows;
+      const last = items.at(-1);
 
       return {
         items,
-        page: query.page,
         pageSize: query.pageSize,
         total,
+        nextCursor:
+          hasNext && last
+            ? encodeCursor(
+                `findings:${query.sort}`,
+                findingCursorValues(query.sort, last),
+              )
+            : null,
       };
     },
 

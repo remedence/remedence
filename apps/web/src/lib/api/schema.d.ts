@@ -526,9 +526,9 @@ export interface components {
         };
         FindingPage: {
             items: components["schemas"]["DashboardFinding"][];
-            page: number;
             page_size: number;
             total: number;
+            next_cursor: string | null;
         };
         Remediation: {
             id: string;
@@ -601,6 +601,12 @@ export interface components {
             /** Format: date-time */
             locked_at: string | null;
         };
+        EvidencePage: {
+            items: components["schemas"]["EvidenceItem"][];
+            page_size: number;
+            total: number;
+            next_cursor: string | null;
+        };
         AuditEvent: {
             id: number;
             organization_id: string;
@@ -617,9 +623,9 @@ export interface components {
         };
         AuditEventPage: {
             items: components["schemas"]["AuditEvent"][];
-            page: number;
             page_size: number;
             total: number;
+            next_cursor: string | null;
         };
         FindingDetail: {
             finding: components["schemas"]["Finding"];
@@ -892,7 +898,7 @@ export interface components {
         OwnerQuery: string;
         SortQuery: "priority" | "newest" | "sla";
         IncludeVerified: boolean;
-        Page: number;
+        Cursor: string;
         PageSize: number;
     };
     requestBodies: never;
@@ -962,7 +968,7 @@ export interface operations {
                 owner?: components["parameters"]["OwnerQuery"];
                 sort?: components["parameters"]["SortQuery"];
                 include_verified?: components["parameters"]["IncludeVerified"];
-                page?: components["parameters"]["Page"];
+                cursor?: components["parameters"]["Cursor"];
                 page_size?: components["parameters"]["PageSize"];
             };
             header?: never;
@@ -1066,7 +1072,7 @@ export interface operations {
                 owner?: components["parameters"]["OwnerQuery"];
                 sort?: components["parameters"]["SortQuery"];
                 include_verified?: components["parameters"]["IncludeVerified"];
-                page?: components["parameters"]["Page"];
+                cursor?: components["parameters"]["Cursor"];
                 page_size?: components["parameters"]["PageSize"];
             };
             header?: never;
@@ -1308,6 +1314,8 @@ export interface operations {
                 finding_id?: string;
                 verification_id?: string;
                 locked?: boolean;
+                cursor?: components["parameters"]["Cursor"];
+                page_size?: components["parameters"]["PageSize"];
             };
             header?: never;
             path?: never;
@@ -1322,7 +1330,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["EvidenceItem"][];
+                    "application/json": components["schemas"]["EvidencePage"];
                 };
             };
             400: components["responses"]["BadRequest"];
@@ -1495,7 +1503,7 @@ export interface operations {
                 entity_id?: string;
                 from?: string;
                 to?: string;
-                page?: components["parameters"]["Page"];
+                cursor?: components["parameters"]["Cursor"];
                 page_size?: components["parameters"]["PageSize"];
             };
             header?: never;

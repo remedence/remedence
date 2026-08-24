@@ -12,11 +12,11 @@ import type {
   VerificationRun,
 } from "../domain/entities.js";
 
-export interface Page<T> {
+export interface CursorPage<T> {
   items: T[];
-  page: number;
   pageSize: number;
   total: number;
+  nextCursor: string | null;
 }
 
 export interface FindingQuery {
@@ -28,7 +28,7 @@ export interface FindingQuery {
   owner?: string;
   sort: "priority" | "newest" | "sla";
   includeVerified: boolean;
-  page: number;
+  cursor?: string;
   pageSize: number;
 }
 
@@ -56,7 +56,7 @@ export interface CompanyRepository {
 export interface FindingRepository {
   getById(organizationId: string, findingId: string): Finding | undefined;
   findByKey(organizationId: string, findingKey: string): Finding | undefined;
-  list(query: FindingQuery): Page<DashboardFinding>;
+  list(query: FindingQuery): CursorPage<DashboardFinding>;
   getDetail(
     organizationId: string,
     findingKey: string,
@@ -117,11 +117,13 @@ export interface EvidenceQuery {
   findingId?: string;
   verificationId?: string;
   locked?: boolean;
+  cursor?: string;
+  pageSize: number;
 }
 
 export interface EvidenceRepository {
   getById(organizationId: string, evidenceId: string): EvidenceItem | undefined;
-  list(query: EvidenceQuery): EvidenceItem[];
+  list(query: EvidenceQuery): CursorPage<EvidenceItem>;
   insert(item: EvidenceItem): void;
   getArtifact?(
     organizationId: string,
@@ -147,13 +149,13 @@ export interface AuditEventQuery {
   entityId?: string;
   from?: string;
   to?: string;
-  page: number;
+  cursor?: string;
   pageSize: number;
 }
 
 export interface AuditEventRepository {
   append(event: AuditEvent): void;
-  list(query: AuditEventQuery): Page<AuditEvent>;
+  list(query: AuditEventQuery): CursorPage<AuditEvent>;
 }
 
 export interface RepositorySet {
