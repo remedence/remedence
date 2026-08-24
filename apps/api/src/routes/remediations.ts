@@ -3,6 +3,7 @@ import {
   LOCAL_ORGANIZATION_ID,
   type ApiDependencies,
 } from "../dependencies.js";
+import { mutationActorFrom } from "../authentication.js";
 import { toRemediation } from "./http-shapes.js";
 
 interface CreateRemediationBody {
@@ -16,11 +17,6 @@ interface CompleteRemediationBody {
   summary: string;
   reference: string;
 }
-
-const LOCAL_ACTOR = {
-  actorType: "local_user",
-  actorId: "local-workspace",
-} as const;
 
 export function createRemediationsRouter(
   dependencies: ApiDependencies,
@@ -36,7 +32,7 @@ export function createRemediationsRouter(
         owner: body.owner,
         summary: body.summary,
         reference: body.reference,
-        actor: LOCAL_ACTOR,
+        actor: mutationActorFrom(response),
       });
 
       response.location(
@@ -59,7 +55,7 @@ export function createRemediationsRouter(
             remediationId: request.params.remediationId ?? "",
             summary: body.summary,
             reference: body.reference,
-            actor: LOCAL_ACTOR,
+            actor: mutationActorFrom(response),
           });
         response.json(toRemediation(remediation));
       } catch (error) {

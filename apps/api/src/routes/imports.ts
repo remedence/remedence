@@ -4,6 +4,7 @@ import {
   LOCAL_ORGANIZATION_ID,
   type ApiDependencies,
 } from "../dependencies.js";
+import { mutationActorFrom } from "../authentication.js";
 import { toImportResult } from "./http-shapes.js";
 
 interface CreateImportBody {
@@ -18,11 +19,6 @@ interface CreateImportBody {
   detected_at: string;
   sla_due_at: string;
 }
-
-const LOCAL_ACTOR = {
-  actorType: "local_user",
-  actorId: "local-workspace",
-} as const;
 
 export function createImportsRouter(dependencies: ApiDependencies): Router {
   const router = Router();
@@ -42,7 +38,7 @@ export function createImportsRouter(dependencies: ApiDependencies): Router {
         assetName: body.asset_name,
         detectedAt: body.detected_at,
         slaDueAt: body.sla_due_at,
-        actor: LOCAL_ACTOR,
+        actor: mutationActorFrom(response),
       });
 
       response.location(

@@ -21,6 +21,11 @@ import {
   type RemedenceDatabase,
 } from "@remedence/database";
 import { hashEvidenceMetadata } from "@remedence/evidence";
+import {
+  createAuthentication,
+  type RemedenceAuthentication,
+} from "./authentication.js";
+import type { AuthenticationConfig } from "./config.js";
 
 export const LOCAL_ORGANIZATION_ID = "org-harborline";
 
@@ -29,6 +34,7 @@ const migrationsDirectory = fileURLToPath(
 );
 
 export interface ApiDependencies {
+  authentication?: RemedenceAuthentication | null;
   services: {
     dashboard: DashboardService;
     imports: ImportFindingService;
@@ -50,6 +56,7 @@ export interface ApiDependencyConfig {
   idGenerator?: IdGenerator;
   referenceTime?: string;
   log?: (entry: Record<string, unknown>) => void;
+  authentication?: AuthenticationConfig;
 }
 
 const databases = new WeakMap<ApiDependencies, RemedenceDatabase>();
@@ -93,6 +100,10 @@ export function createDependencies(
     const idGenerator = config.idGenerator ?? uuidGenerator();
 
     const dependencies: ApiDependencies = {
+      authentication: createAuthentication(
+        database,
+        config.authentication ?? { mode: "local" },
+      ),
       services: {
         dashboard: new DashboardService({ repositories }),
         imports: new ImportFindingService({ unitOfWork, clock, idGenerator }),

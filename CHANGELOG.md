@@ -6,6 +6,7 @@ All notable changes will be documented here. Remedence follows Semantic Versioni
 
 ### Added
 
+- Optional fail-closed Better Auth persistence, secure sessions, two-factor schema, and authenticated product-route enforcement.
 - Local HTTP security headers, same-origin mutation rejection, request-rate budgets, and bounded server timeouts.
 - Separate liveness and readiness probes.
 - Validated, non-overwriting SQLite restore flow and recovery runbook.

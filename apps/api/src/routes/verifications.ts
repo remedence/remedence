@@ -4,6 +4,7 @@ import {
   LOCAL_ORGANIZATION_ID,
   type ApiDependencies,
 } from "../dependencies.js";
+import { mutationActorFrom } from "../authentication.js";
 import {
   toVerificationCheck,
   toVerificationCompletion,
@@ -39,11 +40,6 @@ interface CompleteVerificationBody {
   evidence?: CompleteVerificationEvidenceBody[];
 }
 
-const LOCAL_ACTOR = {
-  actorType: "local_user",
-  actorId: "local-workspace",
-} as const;
-
 export function createVerificationsRouter(
   dependencies: ApiDependencies,
 ): Router {
@@ -61,7 +57,7 @@ export function createVerificationsRouter(
           workerName: body.worker_name,
           scope: body.scope,
           checks: body.checks,
-          actor: LOCAL_ACTOR,
+          actor: mutationActorFrom(response),
         },
       );
       const checks = dependencies.repositories.verifications.listChecks(
@@ -95,7 +91,7 @@ export function createVerificationsRouter(
             name: body.name,
             status: body.status,
             message: body.message,
-            actor: LOCAL_ACTOR,
+            actor: mutationActorFrom(response),
           });
         response.status(201).json(toVerificationCheck(check));
       } catch (error) {
@@ -121,7 +117,7 @@ export function createVerificationsRouter(
               sourceReference: item.source_reference,
               metadata: item.metadata,
             })),
-            actor: LOCAL_ACTOR,
+            actor: mutationActorFrom(response),
           });
         response.json(toVerificationCompletion(completion));
       } catch (error) {

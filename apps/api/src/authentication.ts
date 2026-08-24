@@ -1,7 +1,14 @@
 import { betterAuth } from "better-auth";
 import type { BetterAuthOptions } from "better-auth/minimal";
+import { fromNodeHeaders } from "better-auth/node";
 import { twoFactor } from "better-auth/plugins";
 import type { DatabaseSync } from "node:sqlite";
+import type { MutationActor } from "@remedence/core";
+import type {
+  NextFunction,
+  Request as ExpressRequest,
+  Response as ExpressResponse,
+} from "express";
 import {
   getDatabaseConnection,
   type RemedenceDatabase,
@@ -27,8 +34,63 @@ export interface AuthenticationSession {
 }
 
 export interface RemedenceAuthentication {
-  handler: (request: Request) => Promise<Response>;
+  handler: (request: globalThis.Request) => Promise<globalThis.Response>;
   getSession: (headers: Headers) => Promise<AuthenticationSession | null>;
+}
+
+export interface AuthenticatedPrincipal {
+  userId: string;
+  sessionId: string;
+  name: string;
+  email: string;
+}
+
+export function authenticatedPrincipalFrom(
+  response: ExpressResponse,
+): AuthenticatedPrincipal | undefined {
+  return response.locals.authenticatedPrincipal as
+    AuthenticatedPrincipal | undefined;
+}
+
+export function mutationActorFrom(response: ExpressResponse): MutationActor {
+  const principal = authenticatedPrincipalFrom(response);
+  return principal
+    ? { actorType: "user", actorId: principal.userId }
+    : { actorType: "local_user", actorId: "local-workspace" };
+}
+
+export function requireAuthenticatedPrincipal(
+  authentication: RemedenceAuthentication,
+) {
+  return async function authenticationRequired(
+    request: ExpressRequest,
+    response: ExpressResponse,
+    next: NextFunction,
+  ): Promise<void> {
+    try {
+      const session = await authentication.getSession(
+        fromNodeHeaders(request.headers),
+      );
+      if (!session) {
+        next(
+          Object.assign(new Error("Authentication is required."), {
+            status: 401,
+            code: "AUTHENTICATION_REQUIRED",
+          }),
+        );
+        return;
+      }
+      response.locals.authenticatedPrincipal = {
+        userId: session.user.id,
+        sessionId: session.session.id,
+        name: session.user.name,
+        email: session.user.email,
+      } satisfies AuthenticatedPrincipal;
+      next();
+    } catch (error) {
+      next(error);
+    }
+  };
 }
 
 export function createAuthenticationOptions(

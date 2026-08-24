@@ -20,6 +20,8 @@ function titleFor(status: number): string {
   switch (status) {
     case 400:
       return "Bad Request";
+    case 401:
+      return "Unauthorized";
     case 403:
       return "Forbidden";
     case 404:
@@ -100,6 +102,17 @@ export function problemHandler(
       404,
       "NOT_FOUND",
       "The requested resource was not found.",
+    );
+    return;
+  }
+
+  if (candidate?.status === 401) {
+    sendProblem(
+      response,
+      request,
+      401,
+      "AUTHENTICATION_REQUIRED",
+      "A valid authenticated session is required.",
     );
     return;
   }

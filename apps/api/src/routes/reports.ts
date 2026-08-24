@@ -8,17 +8,13 @@ import {
   LOCAL_ORGANIZATION_ID,
   type ApiDependencies,
 } from "../dependencies.js";
+import { mutationActorFrom } from "../authentication.js";
 import { toReport } from "./http-shapes.js";
 
 interface CreateReportBody {
   company_id: string;
   period_label: string;
 }
-
-const LOCAL_ACTOR = {
-  actorType: "local_user",
-  actorId: "local-workspace",
-} as const;
 
 function slugSegment(value: string): string {
   const slug = value
@@ -58,7 +54,7 @@ export function createReportsRouter(dependencies: ApiDependencies): Router {
         organizationId: LOCAL_ORGANIZATION_ID,
         companyId: body.company_id,
         periodLabel: body.period_label,
-        actor: LOCAL_ACTOR,
+        actor: mutationActorFrom(response),
       });
 
       response.location(`/api/v1/reports/${encodeURIComponent(report.id)}`);

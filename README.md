@@ -40,6 +40,8 @@ Remedence local v1 does **not** provide autonomous patch generation, hosted SaaS
 
 The supported release model is defined in [`docs/release-model.md`](docs/release-model.md). The current `0.x` product is local beta only; supported self-hosted and hosted multi-tenant modes remain gated future targets.
 
+Authentication implementation status and its fail-closed activation requirements are documented in [`docs/authentication.md`](docs/authentication.md).
+
 ## Implemented in local v1
 
 - Canonical `/api/v1` OpenAPI 3.1 API.
@@ -117,6 +119,7 @@ Environment controls:
 - `REMEDENCE_API_PORT` overrides the loopback port with an integer from 1024 through 65535.
 - `REMEDENCE_DATA_DIR` overrides the data directory. The default is `./data` relative to the process working directory.
 - `NODE_ENV=production` also enables production web serving when the compiled server is started directly instead of through `bun run start`.
+- `REMEDENCE_AUTH_MODE=required` enables Better Auth and rejects anonymous `/api/v1` access. It also requires an explicit `BETTER_AUTH_URL` and at least 32 characters of secret material in `BETTER_AUTH_SECRET` or every versioned `BETTER_AUTH_SECRETS` value. Public account creation remains disabled.
 
 Operational probes are `GET /livez` for process liveness and `GET /readyz` for database/schema readiness. `GET /healthz` remains a compatibility alias for readiness. Probe responses are non-cacheable and do not expose local paths.
 

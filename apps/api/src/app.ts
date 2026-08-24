@@ -2,7 +2,9 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import express, { type Express } from "express";
 import * as OpenApiValidator from "express-openapi-validator";
+import { toNodeHandler } from "better-auth/node";
 import type { ApiDependencies } from "./dependencies.js";
+import { requireAuthenticatedPrincipal } from "./authentication.js";
 import {
   createRateLimit,
   createSameOriginGuard,
@@ -87,6 +89,9 @@ export function createApp(
   app.use(setSecurityHeaders);
   app.use(createSameOriginGuard(options.allowedMutationOrigins));
   app.use(createRateLimit(options.rateLimit ?? DEFAULT_RATE_LIMIT));
+  if (dependencies.authentication) {
+    app.all("/api/auth/*splat", toNodeHandler(dependencies.authentication));
+  }
   app.use(
     express.json({
       limit: "256kb",
@@ -111,6 +116,13 @@ export function createApp(
   };
   app.get("/readyz", readinessHandler);
   app.get("/healthz", readinessHandler);
+
+  if (dependencies.authentication) {
+    app.use(
+      "/api/v1",
+      requireAuthenticatedPrincipal(dependencies.authentication),
+    );
+  }
 
   app.use(
     OpenApiValidator.middleware({
