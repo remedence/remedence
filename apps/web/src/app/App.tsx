@@ -16,6 +16,7 @@ import { ImportFindingDialog } from "../features/imports/ImportFindingDialog";
 import { RemediationPanel } from "../features/remediation/RemediationPanel";
 import { ReportDialog } from "../features/reports/ReportDialog";
 import { VerificationDrawer } from "../features/verification/VerificationDrawer";
+import { useAuthentication } from "../features/auth/AuthenticationGate";
 import {
   SeverityChip,
   StatusChip,
@@ -549,6 +550,8 @@ function SecondaryPage({
   onOpenFinding: (findingKey: string, trigger: HTMLButtonElement) => void;
   onGenerateReport: (trigger: HTMLButtonElement) => void;
 }) {
+  const authentication = useAuthentication();
+
   if (page === "Companies") {
     return (
       <ScaffoldPage
@@ -810,13 +813,34 @@ function SecondaryPage({
       copy="Current local workspace identity and organization context."
     >
       <div className="account-panel">
-        <div className="account-avatar">HO</div>
+        <div className="account-avatar">
+          {authentication.user
+            ? authentication.user.name
+                .split(/\s+/)
+                .slice(0, 2)
+                .map((part) => part[0]?.toLocaleUpperCase("en-US"))
+                .join("")
+            : "HO"}
+        </div>
         <div>
-          <h2>Harborline Operator</h2>
-          <p>Harborline Technology Group · Local workspace operator</p>
-          <small>
-            Local v1 does not claim a connected production identity provider.
-          </small>
+          <h2>{authentication.user?.name ?? "Harborline Operator"}</h2>
+          <p>
+            {authentication.user?.email ??
+              "Harborline Technology Group · Local workspace operator"}
+          </p>
+          {authentication.mode === "required" ? (
+            <button
+              type="button"
+              className="button secondary"
+              onClick={() => void authentication.signOut()}
+            >
+              Sign out
+            </button>
+          ) : (
+            <small>
+              Local v1 does not claim a connected production identity provider.
+            </small>
+          )}
         </div>
       </div>
     </ScaffoldPage>

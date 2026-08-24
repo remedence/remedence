@@ -68,6 +68,15 @@ describe("GET /healthz", () => {
       schema_version: 2,
     });
     expect(ready.headers["cache-control"]).toBe("no-store");
+
+    const authentication = await request(app)
+      .get("/api/auth/remedence-status")
+      .expect(200);
+    expect(authentication.body).toEqual({
+      mode: "local",
+      authenticated: true,
+      user: null,
+    });
   });
 });
 

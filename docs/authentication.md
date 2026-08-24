@@ -14,7 +14,8 @@ The default `REMEDENCE_AUTH_MODE=local` behavior preserves the current loopback-
 - liveness and readiness probes remain unauthenticated;
 - every `/api/v1` route requires a valid database-backed session;
 - mutation audit events use the authenticated Better Auth user ID instead of the local-workspace actor; and
-- public email/password sign-up is disabled by default.
+- public email/password sign-up is disabled by default; and
+- the web application presents a sign-in screen, refreshes durable session state after login/logout, and shows the authenticated account identity.
 
 ## Initial owner
 
@@ -34,4 +35,4 @@ Prefer `BETTER_AUTH_SECRETS` for non-destructive rotation. The first entry is th
 
 ## Not yet production-complete
 
-Required-authentication mode is an implemented security foundation, not a supported production release. There is not yet an invitation flow, sign-in UI, password-recovery delivery, enforced MFA policy, organization membership/RBAC mapping, OIDC/SAML configuration, or production secrets manager. Until those interfaces and their tests exist, public sign-up remains closed and the release model remains local beta.
+Required-authentication mode is an implemented security foundation, not a supported production release. There is not yet an invitation flow, password-recovery delivery, enforced MFA enrollment/challenge UI, organization membership/RBAC mapping, OIDC/SAML configuration, or production secrets manager. Until those interfaces and their tests exist, public sign-up remains closed and the release model remains local beta.

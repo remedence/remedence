@@ -8,6 +8,7 @@ All notable changes will be documented here. Remedence follows Semantic Versioni
 
 - Optional fail-closed Better Auth persistence, secure sessions, two-factor schema, and authenticated product-route enforcement.
 - One-time, closed-after-first-use initial-owner provisioning without command-line password exposure.
+- A Better Auth sign-in gate, durable session refresh, sign-out action, and authenticated account identity in the web application.
 - Local HTTP security headers, same-origin mutation rejection, request-rate budgets, and bounded server timeouts.
 - Separate liveness and readiness probes.
 - Validated, non-overwriting SQLite restore flow and recovery runbook.

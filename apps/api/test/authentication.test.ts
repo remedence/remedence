@@ -128,6 +128,9 @@ describe("Better Auth persistence", () => {
 
     await request(app).get("/api/auth/ok").expect(200);
     await request(app).get("/livez").expect(200);
+    expect(
+      (await request(app).get("/api/auth/remedence-status").expect(200)).body,
+    ).toEqual({ mode: "required", authenticated: false, user: null });
     const protectedResponse = await request(app)
       .get("/api/v1/companies")
       .expect(401);
@@ -154,6 +157,22 @@ describe("Better Auth persistence", () => {
       .get("set-cookie")
       ?.split(";", 1)[0];
     expect(cookie).toBeTruthy();
+
+    expect(
+      (
+        await request(app)
+          .get("/api/auth/remedence-status")
+          .set("Cookie", cookie!)
+          .expect(200)
+      ).body,
+    ).toMatchObject({
+      mode: "required",
+      authenticated: true,
+      user: {
+        name: "Remedence Owner",
+        email: "integrated-owner@example.com",
+      },
+    });
 
     await request(app)
       .get("/api/v1/companies")
