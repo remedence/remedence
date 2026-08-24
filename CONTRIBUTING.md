@@ -25,4 +25,4 @@ Use small Conventional Commit subjects such as `fix(api): reject cross-origin mu
 
 ## License
 
-The repository does not yet contain an approved open-source license. Contributions cannot be accepted under an inferred license; maintainers must select and add the governing license first.
+Remedence is licensed under the Apache License 2.0. Unless explicitly stated otherwise, contributions submitted for inclusion in Remedence are licensed under the same terms. See `LICENSE` for the complete terms.
