@@ -42,6 +42,8 @@ The supported release model is defined in [`docs/release-model.md`](docs/release
 
 Authentication implementation status and its fail-closed activation requirements are documented in [`docs/authentication.md`](docs/authentication.md).
 
+Export, retention, legal-hold, and offboarding behavior is documented in [`docs/privacy-lifecycle.md`](docs/privacy-lifecycle.md).
+
 ## Implemented in local v1
 
 - Canonical `/api/v1` OpenAPI 3.1 API.
@@ -51,6 +53,7 @@ Authentication implementation status and its fail-closed activation requirements
 - Persistent verification runs and checks, including retained failed verification history.
 - Durable isolated verification jobs with leases, cancellation, bounded retries, dead letters, digest-pinned Docker profiles, and signed execution receipts.
 - Encrypted tenant integration credentials, signed scanner intake, generic HTTPS and GitHub Issues providers, durable deduplicated delivery queues, bounded retries, and dead-letter recovery.
+- Tenant export, legal holds, retention enforcement, confirmed offboarding, and durable deletion cleanup receipts.
 - **Verified fixed** only after a persisted verification passes.
 - Locked evidence metadata with source reference, SHA-256 content hash, timestamps, and verification linkage.
 - Append-only audit events.
@@ -63,7 +66,7 @@ Authentication implementation status and its fail-closed activation requirements
 
 ## Planned, not implemented
 
-Remaining release work includes a supported production database adapter, reproducible deployment and rollback, privacy/offboarding lifecycle, and hosted control-plane operations. See [`docs/release-model.md`](docs/release-model.md) for the authoritative gates.
+Remaining release work includes a supported production database adapter, reproducible deployment and rollback, and hosted control-plane operations. See [`docs/release-model.md`](docs/release-model.md) for the authoritative gates.
 
 ## Security and trust boundary
 

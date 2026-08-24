@@ -40,7 +40,7 @@ describe("GET /healthz", () => {
     expect(response.body).toEqual({
       status: "ok",
       database: "ready",
-      schema_version: 10,
+      schema_version: 11,
     });
     expect(response.headers["x-request-id"]).toMatch(/^[A-Za-z0-9._-]{1,80}$/);
     expect(JSON.stringify(response.body)).not.toMatch(/[A-Z]:\\|\/home\//);
@@ -65,7 +65,7 @@ describe("GET /healthz", () => {
     expect(ready.body).toEqual({
       status: "ok",
       database: "ready",
-      schema_version: 10,
+      schema_version: 11,
     });
     expect(ready.headers["cache-control"]).toBe("no-store");
 
@@ -99,7 +99,7 @@ describe("GET /healthz", () => {
     expect(ready.body).toEqual({
       status: "degraded",
       database: "degraded",
-      schema_version: 10,
+      schema_version: 11,
     });
     expect(JSON.stringify(ready.body)).not.toMatch(/[A-Z]:\\|\/home\//);
   });

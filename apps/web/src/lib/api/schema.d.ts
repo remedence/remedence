@@ -585,6 +585,62 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/privacy/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export tenant records and integrity-checked evidence bytes */
+        get: operations["exportTenantData"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/privacy/artifacts/{artifactId}/legal-hold": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant- and principal-scoped replay key. Reusing the key for the same request replays its successful response for 24 hours; changing the operation or payload returns 409. */
+                "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                artifactId: components["parameters"]["EvidenceArtifactId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Apply or release retention-exempt legal hold */
+        post: operations["setEvidenceLegalHold"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/privacy/delete-tenant": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Irreversibly offboard the authenticated tenant */
+        post: operations["deleteTenant"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1056,6 +1112,41 @@ export interface components {
             /** Format: date-time */
             completed_at: string | null;
         };
+        TenantExportArtifact: {
+            id: string;
+            filename: string;
+            content_hash: string;
+            bytes_base64: string;
+        };
+        TenantExport: {
+            organization_id: string;
+            /** Format: date-time */
+            exported_at: string;
+            records: {
+                [key: string]: {
+                    [key: string]: unknown;
+                }[];
+            };
+            artifacts: components["schemas"]["TenantExportArtifact"][];
+        };
+        SetLegalHoldRequest: {
+            legal_hold: boolean;
+        };
+        LegalHoldState: {
+            id: string;
+            legal_hold: boolean;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        DeleteTenantRequest: {
+            confirmation: string;
+        };
+        TenantDeletionReceipt: {
+            receipt_id: string;
+            organization_digest: string;
+            /** @enum {string} */
+            status: "Pending object cleanup" | "Complete";
+        };
         ProblemFieldError: {
             path: string;
             message: string;
@@ -1184,6 +1275,7 @@ export interface components {
         IntegrationConnectionId: string;
         IntegrationDeliveryId: string;
         EvidenceId: string;
+        EvidenceArtifactId: string;
         ReportId: string;
         Search: string;
         CompanyQuery: string;
@@ -2170,6 +2262,102 @@ export interface operations {
                     "application/json": components["schemas"]["IntegrationDelivery"];
                 };
             };
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    exportTenantData: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Complete tenant export without authentication credentials or connector secrets. */
+            200: {
+                headers: {
+                    "Content-Disposition"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TenantExport"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    setEvidenceLegalHold: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant- and principal-scoped replay key. Reusing the key for the same request replays its successful response for 24 hours; changing the operation or payload returns 409. */
+                "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                artifactId: components["parameters"]["EvidenceArtifactId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetLegalHoldRequest"];
+            };
+        };
+        responses: {
+            /** @description Current legal-hold state. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LegalHoldState"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    deleteTenant: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant- and principal-scoped replay key. Reusing the key for the same request replays its successful response for 24 hours; changing the operation or payload returns 409. */
+                "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeleteTenantRequest"];
+            };
+        };
+        responses: {
+            /** @description Tenant records and evidence objects were removed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TenantDeletionReceipt"];
+                };
+            };
+            /** @description Tenant records were removed and durable object cleanup remains pending. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TenantDeletionReceipt"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
             403: components["responses"]["Forbidden"];
             409: components["responses"]["Conflict"];
             500: components["responses"]["InternalError"];

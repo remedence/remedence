@@ -50,7 +50,7 @@ function connection(): DatabaseSync {
 
 function migrate(): RemedenceDatabase {
   const opened = openDatabase();
-  expect(applyMigrations(opened, migrationsDirectory)).toBe(10);
+  expect(applyMigrations(opened, migrationsDirectory)).toBe(11);
   return opened;
 }
 
@@ -131,8 +131,8 @@ describe("database lifecycle", () => {
   it("applies every migration exactly once", () => {
     const opened = openDatabase();
 
-    expect(applyMigrations(opened, migrationsDirectory)).toBe(10);
-    expect(opened.schemaVersion).toBe(10);
+    expect(applyMigrations(opened, migrationsDirectory)).toBe(11);
+    expect(opened.schemaVersion).toBe(11);
 
     const tables = connection()
       .prepare(
@@ -156,7 +156,9 @@ describe("database lifecycle", () => {
       "integration_deliveries",
       "integration_inbound_events",
       "organization_memberships",
+      "organization_privacy_settings",
       "organizations",
+      "privacy_deletion_receipts",
       "rate_limit_buckets",
       "remediations",
       "reports",
@@ -172,13 +174,13 @@ describe("database lifecycle", () => {
       "verification_runs",
     ]);
 
-    expect(applyMigrations(opened, migrationsDirectory)).toBe(10);
-    expect(opened.schemaVersion).toBe(10);
+    expect(applyMigrations(opened, migrationsDirectory)).toBe(11);
+    expect(opened.schemaVersion).toBe(11);
     expect(
       connection()
         .prepare("SELECT COUNT(*) AS count FROM schema_migrations")
         .get(),
-    ).toMatchObject({ count: 10 });
+    ).toMatchObject({ count: 11 });
   });
 
   it("rejects companies that reference a missing organization", () => {

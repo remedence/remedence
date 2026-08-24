@@ -52,6 +52,9 @@ const requiredOperations = [
   "listIntegrationDeliveries",
   "enqueueIntegrationDelivery",
   "retryIntegrationDelivery",
+  "exportTenantData",
+  "setEvidenceLegalHold",
+  "deleteTenant",
 ] as const;
 
 const requiredPaths = [
@@ -67,6 +70,7 @@ const requiredPaths = [
   "/webhooks",
   "/integrations",
   "/audit-events",
+  "/privacy/export",
 ] as const;
 
 const mutationSchemas = [
@@ -80,6 +84,8 @@ const mutationSchemas = [
   "CreateReportRequest",
   "CreateIntegrationRequest",
   "CreateIntegrationDeliveryRequest",
+  "SetLegalHoldRequest",
+  "DeleteTenantRequest",
 ] as const;
 
 const mutationPaths = [
@@ -98,6 +104,8 @@ const mutationPaths = [
   "/integrations/{connectionId}/disable",
   "/integrations/{connectionId}/deliveries",
   "/integration-deliveries/{deliveryId}/retry",
+  "/privacy/artifacts/{artifactId}/legal-hold",
+  "/privacy/delete-tenant",
 ] as const;
 
 describe("OpenAPI contract", () => {

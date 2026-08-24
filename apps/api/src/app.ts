@@ -34,6 +34,7 @@ import { inboundPayloadDigest } from "./routes/integrations.js";
 import { verifyInboundSignature } from "./integration-runtime.js";
 import { toImportResult } from "./routes/http-shapes.js";
 import { createOnboardingRouter } from "./routes/onboarding.js";
+import { createPrivacyRouter } from "./routes/privacy.js";
 import { createRemediationsRouter } from "./routes/remediations.js";
 import { createReportsRouter } from "./routes/reports.js";
 import { createVerificationsRouter } from "./routes/verifications.js";
@@ -369,6 +370,7 @@ export function createApp(
   app.use("/api/v1", createImportsRouter(dependencies));
   app.use("/api/v1", createIntegrationsRouter(dependencies));
   app.use("/api/v1", createOnboardingRouter(dependencies));
+  app.use("/api/v1", createPrivacyRouter(dependencies));
   app.use("/api/v1", createRemediationsRouter(dependencies));
   app.use("/api/v1", createReportsRouter(dependencies));
   app.use("/api/v1", createVerificationsRouter(dependencies));

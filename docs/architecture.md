@@ -274,3 +274,4 @@ Managed worker fleet scheduling, regional capacity, and cross-tool attestation p
 - `scripts/dev.mjs` owns process-safe local development supervision.
 - `workers/verification` documents the separately deployable isolated execution process.
 - `packages/database/src/integration-store.ts` owns tenant-scoped integration connections, inbound event deduplication, and leased delivery state. `apps/api/src/integration-runtime.ts` owns AES-GCM credential protection and the generic HTTPS/GitHub provider boundary; provider response bytes are reduced to a digest before persistence.
+- `packages/database/src/privacy-store.ts` owns tenant export selection, legal holds, retention selection, dependency-ordered tenant deletion, and durable object-cleanup receipts. `apps/api/src/routes/privacy.ts` owns role and exact-confirmation policy; the evidence object store owns byte removal.

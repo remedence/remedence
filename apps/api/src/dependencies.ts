@@ -16,6 +16,7 @@ import {
   applyMigrations,
   createIdempotencyStore,
   createIntegrationStore,
+  createPrivacyStore,
   createRepositorySet,
   createRateLimitStore,
   createUnitOfWork,
@@ -26,6 +27,7 @@ import {
   type RemedenceDatabase,
   type IdempotencyStore,
   type IntegrationStore,
+  type PrivacyStore,
   type RateLimitStore,
 } from "@remedence/database";
 import type {
@@ -81,6 +83,7 @@ export interface ApiDependencies {
     store: IntegrationStore;
     credentials: IntegrationCredentialProtector;
   };
+  privacy: PrivacyStore;
   runAtomically?: <T>(operation: () => T) => T;
   evidenceProtection: {
     objectStore: EvidenceObjectStore;
@@ -265,6 +268,7 @@ export function createDependencies(
             localIntegrationKeyring(config.databasePath),
         ),
       },
+      privacy: createPrivacyStore(database),
       verificationExecution: {
         queue: createVerificationJobQueue(database),
         profiles: new Map(

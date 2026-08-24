@@ -42,6 +42,12 @@ export {
   type ProtectedIntegrationCredential,
 } from "./integration-store.js";
 export {
+  createPrivacyStore,
+  type DeletionReceipt,
+  type PrivacyExportSnapshot,
+  type PrivacyStore,
+} from "./privacy-store.js";
+export {
   createRepositorySet,
   createUnitOfWork,
   type RepositorySetOptions,

@@ -1,6 +1,7 @@
 import type { AuditEventQuery } from "@remedence/core";
 import { Router, type Request } from "express";
 import { organizationIdFrom } from "../authentication.js";
+import { requirePrincipalRole } from "../authentication.js";
 import type { ApiDependencies } from "../dependencies.js";
 import { toAuditEventPage } from "./http-shapes.js";
 
@@ -51,16 +52,20 @@ function auditQueryFrom(
 export function createAuditEventsRouter(dependencies: ApiDependencies): Router {
   const router = Router();
 
-  router.get("/audit-events", (request, response, next) => {
-    try {
-      const page = dependencies.repositories.auditEvents.list(
-        auditQueryFrom(request, organizationIdFrom(response)),
-      );
-      response.json(toAuditEventPage(page));
-    } catch (error) {
-      next(error);
-    }
-  });
+  router.get(
+    "/audit-events",
+    requirePrincipalRole(["Owner", "Administrator"]),
+    (request, response, next) => {
+      try {
+        const page = dependencies.repositories.auditEvents.list(
+          auditQueryFrom(request, organizationIdFrom(response)),
+        );
+        response.json(toAuditEventPage(page));
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
 
   return router;
 }

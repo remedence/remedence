@@ -22,6 +22,7 @@ tags:
   - name: Audit
   - name: Webhooks
   - name: Integrations
+  - name: Privacy
 paths:
   /onboarding:
     get:
@@ -932,6 +933,89 @@ paths:
           $ref: "#/components/responses/Conflict"
         "500":
           $ref: "#/components/responses/InternalError"
+  /privacy/export:
+    get:
+      tags: [Privacy]
+      operationId: exportTenantData
+      summary: Export tenant records and integrity-checked evidence bytes
+      responses:
+        "200":
+          description: Complete tenant export without authentication credentials or connector secrets.
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TenantExport"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /privacy/artifacts/{artifactId}/legal-hold:
+    parameters:
+      - $ref: "#/components/parameters/EvidenceArtifactId"
+      - $ref: "#/components/parameters/IdempotencyKey"
+    post:
+      tags: [Privacy]
+      operationId: setEvidenceLegalHold
+      summary: Apply or release retention-exempt legal hold
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetLegalHoldRequest"
+      responses:
+        "200":
+          description: Current legal-hold state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegalHoldState"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /privacy/delete-tenant:
+    post:
+      tags: [Privacy]
+      operationId: deleteTenant
+      summary: Irreversibly offboard the authenticated tenant
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeleteTenantRequest"
+      responses:
+        "200":
+          description: Tenant records and evidence objects were removed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TenantDeletionReceipt"
+        "202":
+          description: Tenant records were removed and durable object cleanup remains pending.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TenantDeletionReceipt"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalError"
 components:
   headers:
     RequestId:
@@ -1026,6 +1110,14 @@ components:
         maxLength: 100
     EvidenceId:
       name: evidenceId
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 100
+    EvidenceArtifactId:
+      name: artifactId
       in: path
       required: true
       schema:
@@ -2461,6 +2553,83 @@ components:
         completed_at:
           type: [string, "null"]
           format: date-time
+    TenantExportArtifact:
+      type: object
+      additionalProperties: false
+      required: [id, filename, content_hash, bytes_base64]
+      properties:
+        id:
+          type: string
+        filename:
+          type: string
+        content_hash:
+          type: string
+          pattern: "^[0-9a-f]{64}$"
+        bytes_base64:
+          type: string
+          contentEncoding: base64
+    TenantExport:
+      type: object
+      additionalProperties: false
+      required: [organization_id, exported_at, records, artifacts]
+      properties:
+        organization_id:
+          type: string
+        exported_at:
+          type: string
+          format: date-time
+        records:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: object
+              additionalProperties: true
+        artifacts:
+          type: array
+          items:
+            $ref: "#/components/schemas/TenantExportArtifact"
+    SetLegalHoldRequest:
+      type: object
+      additionalProperties: false
+      required: [legal_hold]
+      properties:
+        legal_hold:
+          type: boolean
+    LegalHoldState:
+      type: object
+      additionalProperties: false
+      required: [id, legal_hold, updated_at]
+      properties:
+        id:
+          type: string
+        legal_hold:
+          type: boolean
+        updated_at:
+          type: string
+          format: date-time
+    DeleteTenantRequest:
+      type: object
+      additionalProperties: false
+      required: [confirmation]
+      properties:
+        confirmation:
+          type: string
+          minLength: 8
+          maxLength: 200
+    TenantDeletionReceipt:
+      type: object
+      additionalProperties: false
+      required: [receipt_id, organization_digest, status]
+      properties:
+        receipt_id:
+          type: string
+        organization_digest:
+          type: string
+          pattern: "^[0-9a-f]{64}$"
+        status:
+          type: string
+          enum: [Pending object cleanup, Complete]
     ProblemFieldError:
       type: object
       additionalProperties: false
