@@ -5,6 +5,7 @@ import {
   DEFAULT_DEV_ORIGIN,
   isProductionMode,
   resolveApiPort,
+  resolveAuthenticationConfig,
   resolveDevelopmentOrigin,
 } from "../src/config.js";
 
@@ -53,4 +54,89 @@ describe("local API configuration", () => {
       );
     },
   );
+
+  it("defaults to the loopback-only local authentication boundary", () => {
+    expect(resolveAuthenticationConfig({})).toEqual({ mode: "local" });
+  });
+
+  it("requires secret material and an explicit origin for required authentication", () => {
+    expect(() =>
+      resolveAuthenticationConfig({
+        mode: "required",
+        baseURL: "https://remedence.example",
+      }),
+    ).toThrow(
+      "BETTER_AUTH_SECRET or every BETTER_AUTH_SECRETS value must contain at least 32 characters when authentication is required.",
+    );
+    expect(() =>
+      resolveAuthenticationConfig({
+        mode: "required",
+        secret: "a".repeat(32),
+      }),
+    ).toThrow(
+      "BETTER_AUTH_URL must be an explicit HTTPS origin, or an HTTP 127.0.0.1 origin for local testing.",
+    );
+  });
+
+  it("accepts HTTPS production and explicit loopback test origins", () => {
+    expect(
+      resolveAuthenticationConfig({
+        mode: "required",
+        baseURL: "https://remedence.example",
+        secrets: `2:${"b".repeat(32)},1:${"a".repeat(32)}`,
+      }),
+    ).toEqual({ mode: "required", baseURL: "https://remedence.example" });
+    expect(
+      resolveAuthenticationConfig({
+        mode: "required",
+        baseURL: "http://127.0.0.1:43180",
+        secret: "a".repeat(32),
+      }),
+    ).toEqual({ mode: "required", baseURL: "http://127.0.0.1:43180" });
+  });
+
+  it.each([
+    { secret: "short" },
+    { secrets: `2:${"a".repeat(31)}` },
+    { secrets: `2:${"a".repeat(32)},2:${"b".repeat(32)}` },
+    { secrets: `not-a-version:${"a".repeat(32)}` },
+  ])("rejects weak or malformed authentication secrets", (environment) => {
+    expect(() =>
+      resolveAuthenticationConfig({
+        mode: "required",
+        baseURL: "https://remedence.example",
+        ...environment,
+      }),
+    ).toThrow(
+      "BETTER_AUTH_SECRET or every BETTER_AUTH_SECRETS value must contain at least 32 characters when authentication is required.",
+    );
+  });
+
+  it.each(["enabled", "REQUIRED", ""])(
+    "rejects unknown authentication mode %j",
+    (mode) => {
+      expect(() => resolveAuthenticationConfig({ mode })).toThrow(
+        'REMEDENCE_AUTH_MODE must be either "local" or "required".',
+      );
+    },
+  );
+
+  it.each([
+    "http://remedence.example",
+    "http://localhost:43180",
+    "http://127.0.0.1",
+    "https://user:password@remedence.example",
+    "https://remedence.example/path",
+    "https://remedence.example?tenant=other",
+  ])("rejects unsafe required-authentication URL %j", (baseURL) => {
+    expect(() =>
+      resolveAuthenticationConfig({
+        mode: "required",
+        baseURL,
+        secret: "a".repeat(32),
+      }),
+    ).toThrow(
+      "BETTER_AUTH_URL must be an explicit HTTPS origin, or an HTTP 127.0.0.1 origin for local testing.",
+    );
+  });
 });

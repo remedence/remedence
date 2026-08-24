@@ -9,6 +9,9 @@ export const DEFAULT_WEB_DIRECTORY = fileURLToPath(
   new URL("../../web/dist", import.meta.url),
 );
 
+export type AuthenticationConfig =
+  { mode: "local" } | { mode: "required"; baseURL: string };
+
 export interface ApiConfig {
   host: typeof API_HOST;
   port: number;
@@ -17,6 +20,7 @@ export interface ApiConfig {
   serveWeb: boolean;
   webDirectory: string;
   allowedMutationOrigins: readonly string[];
+  authentication: AuthenticationConfig;
 }
 
 const PORT_ERROR =
@@ -24,6 +28,87 @@ const PORT_ERROR =
 const DATA_DIRECTORY_ERROR = "REMEDENCE_DATA_DIR must not be empty.";
 const DEV_ORIGIN_ERROR =
   "REMEDENCE_DEV_ORIGIN must be an http://127.0.0.1 origin with a port.";
+const AUTH_MODE_ERROR =
+  'REMEDENCE_AUTH_MODE must be either "local" or "required".';
+const AUTH_URL_ERROR =
+  "BETTER_AUTH_URL must be an explicit HTTPS origin, or an HTTP 127.0.0.1 origin for local testing.";
+const AUTH_SECRET_ERROR =
+  "BETTER_AUTH_SECRET or every BETTER_AUTH_SECRETS value must contain at least 32 characters when authentication is required.";
+
+export interface AuthenticationEnvironment {
+  mode?: string | undefined;
+  baseURL?: string | undefined;
+  secret?: string | undefined;
+  secrets?: string | undefined;
+}
+
+function hasValidAuthenticationSecret(
+  secret: string | undefined,
+  secrets: string | undefined,
+): boolean {
+  if (secrets?.trim()) {
+    const versions = new Set<number>();
+    const entries = secrets.split(",");
+    return entries.every((entry) => {
+      const separator = entry.indexOf(":");
+      const version = Number(entry.slice(0, separator));
+      const value = entry.slice(separator + 1);
+      if (
+        separator <= 0 ||
+        !Number.isSafeInteger(version) ||
+        version <= 0 ||
+        versions.has(version) ||
+        value.length < 32
+      ) {
+        return false;
+      }
+      versions.add(version);
+      return true;
+    });
+  }
+  return (secret?.length ?? 0) >= 32;
+}
+
+export function resolveAuthenticationConfig({
+  mode,
+  baseURL,
+  secret,
+  secrets,
+}: AuthenticationEnvironment): AuthenticationConfig {
+  const resolvedMode = mode ?? "local";
+  if (resolvedMode === "local") return { mode: "local" };
+  if (resolvedMode !== "required") throw new Error(AUTH_MODE_ERROR);
+
+  if (!hasValidAuthenticationSecret(secret, secrets)) {
+    throw new Error(AUTH_SECRET_ERROR);
+  }
+  if (!baseURL) throw new Error(AUTH_URL_ERROR);
+
+  let parsed: URL;
+  try {
+    parsed = new URL(baseURL);
+  } catch {
+    throw new Error(AUTH_URL_ERROR);
+  }
+
+  const isSecureOrigin = parsed.protocol === "https:";
+  const isLoopbackTestOrigin =
+    parsed.protocol === "http:" &&
+    parsed.hostname === API_HOST &&
+    parsed.port !== "";
+  if (
+    (!isSecureOrigin && !isLoopbackTestOrigin) ||
+    parsed.username !== "" ||
+    parsed.password !== "" ||
+    parsed.pathname !== "/" ||
+    parsed.search !== "" ||
+    parsed.hash !== ""
+  ) {
+    throw new Error(AUTH_URL_ERROR);
+  }
+
+  return { mode: "required", baseURL: parsed.origin };
+}
 
 export function resolveDevelopmentOrigin(
   value = process.env.REMEDENCE_DEV_ORIGIN,
@@ -93,5 +178,11 @@ export function getApiConfig(): ApiConfig {
     serveWeb,
     webDirectory: DEFAULT_WEB_DIRECTORY,
     allowedMutationOrigins: serveWeb ? [] : [resolveDevelopmentOrigin()],
+    authentication: resolveAuthenticationConfig({
+      mode: process.env.REMEDENCE_AUTH_MODE,
+      baseURL: process.env.BETTER_AUTH_URL,
+      secret: process.env.BETTER_AUTH_SECRET,
+      secrets: process.env.BETTER_AUTH_SECRETS,
+    }),
   };
 }
