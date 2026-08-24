@@ -162,6 +162,10 @@ export function createApp(
       type: "application/json",
     }),
   );
+  app.use(
+    "/api/v1/evidence/artifacts",
+    express.raw({ type: "application/octet-stream", limit: "25mb" }),
+  );
 
   app.get("/livez", (_request, response) => {
     response.json({ status: "ok" });

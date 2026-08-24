@@ -23,6 +23,10 @@ export interface PasswordResetDeliveryConfig {
   bearerToken: string;
 }
 
+export type EvidenceSecurityConfig =
+  | { scanner: "local"; signingKey?: string }
+  | { scanner: "clamav"; signingKey: string; host: string; port: number };
+
 export interface ApiConfig {
   host: typeof API_HOST;
   port: number;
@@ -33,6 +37,7 @@ export interface ApiConfig {
   allowedMutationOrigins: readonly string[];
   authentication: AuthenticationConfig;
   workspaceMode: "empty" | "demo";
+  evidence: EvidenceSecurityConfig;
 }
 
 const PORT_ERROR =
@@ -52,6 +57,46 @@ const PASSWORD_RESET_DELIVERY_ERROR =
   "REMEDENCE_PASSWORD_RESET_WEBHOOK_URL must be HTTPS and REMEDENCE_PASSWORD_RESET_WEBHOOK_TOKEN must contain at least 32 characters.";
 const WORKSPACE_MODE_ERROR =
   'REMEDENCE_WORKSPACE_MODE must be either "empty" or "demo".';
+const EVIDENCE_SECURITY_ERROR =
+  "Hosted mode requires REMEDENCE_EVIDENCE_SIGNING_KEY (32+ characters) and a ClamAV scanner host/port.";
+
+export function resolveEvidenceSecurityConfig(
+  authentication: AuthenticationConfig,
+  environment: {
+    signingKey?: string;
+    scanner?: string;
+    scannerHost?: string;
+    scannerPort?: string;
+  },
+): EvidenceSecurityConfig {
+  const hosted =
+    authentication.mode === "required" &&
+    authentication.baseURL.startsWith("https://");
+  const scanner = environment.scanner ?? (hosted ? "clamav" : "local");
+  if (scanner === "local" && !hosted) {
+    return {
+      scanner: "local",
+      ...(environment.signingKey ? { signingKey: environment.signingKey } : {}),
+    };
+  }
+  const port = Number(environment.scannerPort ?? "3310");
+  if (
+    scanner !== "clamav" ||
+    (environment.signingKey?.length ?? 0) < 32 ||
+    !environment.scannerHost?.trim() ||
+    !Number.isInteger(port) ||
+    port < 1 ||
+    port > 65_535
+  ) {
+    throw new Error(EVIDENCE_SECURITY_ERROR);
+  }
+  return {
+    scanner: "clamav",
+    signingKey: environment.signingKey!,
+    host: environment.scannerHost.trim(),
+    port,
+  };
+}
 
 export function resolveWorkspaceMode(
   value = process.env.REMEDENCE_WORKSPACE_MODE,
@@ -247,6 +292,16 @@ export function getApiConfig(): ApiConfig {
     process.env.NODE_ENV,
     process.env.npm_lifecycle_event,
   );
+  const authentication = resolveAuthenticationConfig({
+    mode: process.env.REMEDENCE_AUTH_MODE,
+    baseURL: process.env.BETTER_AUTH_URL,
+    secret: process.env.BETTER_AUTH_SECRET,
+    secrets: process.env.BETTER_AUTH_SECRETS,
+    requireMfa: process.env.REMEDENCE_REQUIRE_MFA,
+    passwordResetWebhookURL: process.env.REMEDENCE_PASSWORD_RESET_WEBHOOK_URL,
+    passwordResetWebhookToken:
+      process.env.REMEDENCE_PASSWORD_RESET_WEBHOOK_TOKEN,
+  });
   return {
     host: API_HOST,
     port: resolveApiPort(),
@@ -255,15 +310,20 @@ export function getApiConfig(): ApiConfig {
     serveWeb,
     webDirectory: DEFAULT_WEB_DIRECTORY,
     allowedMutationOrigins: serveWeb ? [] : [resolveDevelopmentOrigin()],
-    authentication: resolveAuthenticationConfig({
-      mode: process.env.REMEDENCE_AUTH_MODE,
-      baseURL: process.env.BETTER_AUTH_URL,
-      secret: process.env.BETTER_AUTH_SECRET,
-      secrets: process.env.BETTER_AUTH_SECRETS,
-      requireMfa: process.env.REMEDENCE_REQUIRE_MFA,
-      passwordResetWebhookURL: process.env.REMEDENCE_PASSWORD_RESET_WEBHOOK_URL,
-      passwordResetWebhookToken:
-        process.env.REMEDENCE_PASSWORD_RESET_WEBHOOK_TOKEN,
+    authentication,
+    evidence: resolveEvidenceSecurityConfig(authentication, {
+      ...(process.env.REMEDENCE_EVIDENCE_SIGNING_KEY
+        ? { signingKey: process.env.REMEDENCE_EVIDENCE_SIGNING_KEY }
+        : {}),
+      ...(process.env.REMEDENCE_MALWARE_SCANNER
+        ? { scanner: process.env.REMEDENCE_MALWARE_SCANNER }
+        : {}),
+      ...(process.env.REMEDENCE_CLAMAV_HOST
+        ? { scannerHost: process.env.REMEDENCE_CLAMAV_HOST }
+        : {}),
+      ...(process.env.REMEDENCE_CLAMAV_PORT
+        ? { scannerPort: process.env.REMEDENCE_CLAMAV_PORT }
+        : {}),
     }),
     workspaceMode: resolveWorkspaceMode(),
   };

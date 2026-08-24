@@ -1,6 +1,7 @@
 import type {
   AuditEvent,
   Company,
+  EvidenceArtifact,
   EvidenceItem,
   Finding,
   FindingState,
@@ -122,6 +123,16 @@ export interface EvidenceRepository {
   getById(organizationId: string, evidenceId: string): EvidenceItem | undefined;
   list(query: EvidenceQuery): EvidenceItem[];
   insert(item: EvidenceItem): void;
+  getArtifact?(
+    organizationId: string,
+    artifactId: string,
+  ): EvidenceArtifact | undefined;
+  insertArtifact?(artifact: EvidenceArtifact): void;
+  adoptArtifact?(
+    organizationId: string,
+    artifactId: string,
+    adoptedAt: string,
+  ): boolean;
 }
 
 export interface ReportRepository {

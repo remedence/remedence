@@ -1313,6 +1313,24 @@ describe("Remedence API-backed read models", () => {
             }
             if (
               request.method === "POST" &&
+              url.pathname === "/api/v1/evidence/artifacts"
+            ) {
+              return jsonResponse(
+                {
+                  id: "artifact-5002-b",
+                  content_hash: "0".repeat(64),
+                  size_bytes: 24,
+                  original_filename: "regression.txt",
+                  scan_status: "Clean",
+                  scanner: "test-scanner",
+                  created_at: "2026-08-21T04:29:00.000Z",
+                  retention_until: "2027-08-21T04:29:00.000Z",
+                },
+                201,
+              );
+            }
+            if (
+              request.method === "POST" &&
               url.pathname ===
                 "/api/v1/verifications/verification-5002-b/complete"
             ) {
@@ -1335,6 +1353,10 @@ describe("Remedence API-backed read models", () => {
                   source_reference: "artifact://verification-5002-b",
                   content_hash:
                     "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+                  artifact_id: "artifact-5002-b",
+                  manifest_hash: "1".repeat(64),
+                  manifest_signature: "2".repeat(64),
+                  attested_by: "test-scanner",
                   metadata: { suite: "authorization" },
                   created_at: "2026-08-21T04:30:00.000Z",
                   locked_at: "2026-08-21T04:30:00.000Z",
@@ -1484,21 +1506,37 @@ describe("Remedence API-backed read models", () => {
         "artifact://verification-5002-b",
       );
       expect(drawer.getByLabelText("Evidence metadata")).toHaveValue("{}");
+      await user.upload(
+        drawer.getByLabelText("Evidence artifact"),
+        new File(["authorization regression"], "regression.txt", {
+          type: "text/plain",
+        }),
+      );
       await user.click(
         drawer.getByRole("button", { name: "Complete passed verification" }),
       );
 
-      expect(passedBody).toEqual({
-        result: "Passed",
-        summary: "All independent regression checks passed.",
-        evidence: [
-          {
-            kind: "regression-output",
-            label: "Authorization regression proof",
-            source_reference: "artifact://verification-5002-b",
-            metadata: {},
-          },
-        ],
+      await waitFor(() => {
+        expect(
+          fetchMock.mock.calls.some(([input]) =>
+            String(input).includes("/api/v1/evidence/artifacts"),
+          ),
+        ).toBe(true);
+      });
+      await waitFor(() => {
+        expect(passedBody).toEqual({
+          result: "Passed",
+          summary: "All independent regression checks passed.",
+          evidence: [
+            {
+              artifact_id: "artifact-5002-b",
+              kind: "regression-output",
+              label: "Authorization regression proof",
+              source_reference: "artifact://verification-5002-b",
+              metadata: {},
+            },
+          ],
+        });
       });
       expect(
         await drawer.findByText("Verified fixed. Evidence bundle locked."),
@@ -1527,6 +1565,10 @@ describe("Remedence API-backed read models", () => {
         source_reference: "artifact://verification-api-7001",
         content_hash:
           "abcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+        artifact_id: "artifact-api-7001",
+        manifest_hash: "1".repeat(64),
+        manifest_signature: "2".repeat(64),
+        attested_by: "clamav-instream",
         metadata: { suite: "authorization" },
         created_at: "2026-08-21T05:00:00.000Z",
         locked_at: "2026-08-21T05:00:01.000Z",

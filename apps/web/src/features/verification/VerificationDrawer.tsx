@@ -30,6 +30,7 @@ type CreateVerificationCheckRequest =
 type CompleteVerificationRequest =
   operations["completeVerification"]["requestBody"]["content"]["application/json"];
 type CreateEvidenceItem = components["schemas"]["CreateEvidenceItem"];
+type EvidenceArtifact = components["schemas"]["EvidenceArtifact"];
 
 interface VerificationDrawerProps {
   finding: DashboardFinding;
@@ -111,6 +112,9 @@ export function VerificationDrawer({
   const [evidenceLabel, setEvidenceLabel] = useState("");
   const [evidenceSourceReference, setEvidenceSourceReference] = useState("");
   const [evidenceMetadata, setEvidenceMetadata] = useState("{}");
+  const [evidenceFile, setEvidenceFile] = useState<File>();
+  const [uploadedArtifactId, setUploadedArtifactId] = useState<string>();
+  const [uploadingEvidence, setUploadingEvidence] = useState(false);
   const [localProblem, setLocalProblem] = useState<ApiProblem | undefined>();
   const [pendingCheckIds, setPendingCheckIds] = useState<Set<string>>(
     () => new Set(),
@@ -199,7 +203,7 @@ export function VerificationDrawer({
     onPersistedChange("Verification failed. A new remediation is required.");
   }
 
-  function parsedEvidence(): CreateEvidenceItem | undefined {
+  function parsedEvidence(artifactId: string): CreateEvidenceItem | undefined {
     try {
       const parsed: unknown = JSON.parse(evidenceMetadata || "{}");
       if (
@@ -210,6 +214,7 @@ export function VerificationDrawer({
         throw new Error("Evidence metadata must be a JSON object.");
       }
       return {
+        artifact_id: artifactId,
         kind: evidenceKind.trim(),
         label: evidenceLabel.trim(),
         source_reference: evidenceSourceReference.trim(),
@@ -235,7 +240,56 @@ export function VerificationDrawer({
   async function completePassed(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLocalProblem(undefined);
-    const evidence = parsedEvidence();
+    if (!evidenceFile) {
+      setLocalProblem({
+        type: "about:blank",
+        title: "Evidence artifact is required",
+        status: 0,
+        detail:
+          "Choose the artifact bytes produced by the independent verification.",
+        instance: "/api/v1/evidence/artifacts",
+        code: "EVIDENCE_ARTIFACT_REQUIRED",
+        request_id: "",
+      });
+      return;
+    }
+    setUploadingEvidence(true);
+    let artifactId = uploadedArtifactId;
+    if (!artifactId) {
+      const upload = await fetch(
+        new URL("/api/v1/evidence/artifacts", window.location.origin),
+        {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "content-type": "application/octet-stream",
+            "x-evidence-filename": evidenceFile.name,
+          },
+          body: evidenceFile,
+        },
+      );
+      if (!upload.ok) {
+        const problem = (await upload.json().catch(() => undefined)) as
+          ApiProblem | undefined;
+        setLocalProblem(
+          problem ?? {
+            type: "about:blank",
+            title: "Evidence upload failed",
+            status: upload.status,
+            detail: "The artifact could not be scanned and protected.",
+            instance: "/api/v1/evidence/artifacts",
+            code: "EVIDENCE_UPLOAD_FAILED",
+            request_id: upload.headers.get("x-request-id") ?? "",
+          },
+        );
+        setUploadingEvidence(false);
+        return;
+      }
+      artifactId = ((await upload.json()) as EvidenceArtifact).id;
+      setUploadedArtifactId(artifactId);
+    }
+    const evidence = parsedEvidence(artifactId);
+    setUploadingEvidence(false);
     if (!evidence) return;
     const result = await completionMutation.mutate({
       result: "Passed",
@@ -263,7 +317,8 @@ export function VerificationDrawer({
   const closeBlocked =
     createMutation.status === "pending" ||
     completionMutation.status === "pending" ||
-    pendingCheckIds.size > 0;
+    pendingCheckIds.size > 0 ||
+    uploadingEvidence;
   function setCheckPending(checkId: string, pending: boolean) {
     setPendingCheckIds((current) => {
       const next = new Set(current);
@@ -571,6 +626,19 @@ export function VerificationDrawer({
                 />
               </label>
               <label>
+                <span>Evidence artifact</span>
+                <input
+                  aria-label="Evidence artifact"
+                  name="evidenceArtifact"
+                  type="file"
+                  onChange={(event) => {
+                    setEvidenceFile(event.target.files?.[0]);
+                    setUploadedArtifactId(undefined);
+                    setLocalProblem(undefined);
+                  }}
+                />
+              </label>
+              <label>
                 <span>Evidence kind</span>
                 <input
                   aria-label="Evidence kind"
@@ -631,15 +699,19 @@ export function VerificationDrawer({
                 />
               ) : null}
               <p className="mutation-pending" role="status" aria-live="polite">
-                {completionMutation.status === "pending"
-                  ? "Recording verification result…"
-                  : ""}
+                {uploadingEvidence
+                  ? "Scanning and protecting evidence artifact…"
+                  : completionMutation.status === "pending"
+                    ? "Recording verification result…"
+                    : ""}
               </p>
               <div className="drawer-actions">
                 <button
                   type="submit"
                   className="button primary"
-                  disabled={completionMutation.status === "pending"}
+                  disabled={
+                    completionMutation.status === "pending" || uploadingEvidence
+                  }
                 >
                   Complete passed verification
                 </button>

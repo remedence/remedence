@@ -443,6 +443,39 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "500":
           $ref: "#/components/responses/InternalError"
+  /evidence/artifacts:
+    post:
+      tags: [Evidence]
+      operationId: uploadEvidenceArtifact
+      summary: Upload and malware-scan an immutable evidence artifact
+      parameters:
+        - name: X-Evidence-Filename
+          in: header
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 255
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "201":
+          description: Artifact stored after a clean malware scan.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvidenceArtifact"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "413":
+          $ref: "#/components/responses/RequestTooLarge"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
   /evidence/{evidenceId}:
     parameters:
       - $ref: "#/components/parameters/EvidenceId"
@@ -464,6 +497,25 @@ paths:
           $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalError"
+  /evidence/{evidenceId}/content:
+    parameters:
+      - $ref: "#/components/parameters/EvidenceId"
+    get:
+      tags: [Evidence]
+      operationId: downloadEvidenceArtifact
+      summary: Download an integrity-checked protected evidence artifact
+      responses:
+        "200":
+          description: Protected evidence bytes.
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /reports:
     post:
       tags: [Reports]
@@ -769,6 +821,18 @@ components:
       headers:
         X-Request-ID:
           $ref: "#/components/headers/RequestId"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    UnprocessableEntity:
+      description: Uploaded content was rejected by the evidence security boundary.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    ServiceUnavailable:
+      description: A required protected dependency or artifact is unavailable.
       content:
         application/problem+json:
           schema:
@@ -1170,6 +1234,10 @@ components:
         - label
         - source_reference
         - content_hash
+        - artifact_id
+        - manifest_hash
+        - manifest_signature
+        - attested_by
         - metadata
         - created_at
         - locked_at
@@ -1189,6 +1257,16 @@ components:
         content_hash:
           type: string
           pattern: "^[a-f0-9]{64}$"
+        artifact_id:
+          type: [string, "null"]
+        manifest_hash:
+          type: [string, "null"]
+          pattern: "^[a-f0-9]{64}$"
+        manifest_signature:
+          type: [string, "null"]
+          pattern: "^[a-f0-9]{64}$"
+        attested_by:
+          type: [string, "null"]
         metadata:
           type: object
           additionalProperties: true
@@ -1664,8 +1742,12 @@ components:
     CreateEvidenceItem:
       type: object
       additionalProperties: false
-      required: [kind, label, source_reference, metadata]
+      required: [artifact_id, kind, label, source_reference, metadata]
       properties:
+        artifact_id:
+          type: string
+          minLength: 1
+          maxLength: 100
         kind:
           type: string
           minLength: 1
@@ -1681,6 +1763,40 @@ components:
         metadata:
           type: object
           additionalProperties: true
+    EvidenceArtifact:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - content_hash
+        - size_bytes
+        - original_filename
+        - scan_status
+        - scanner
+        - created_at
+        - retention_until
+      properties:
+        id:
+          type: string
+        content_hash:
+          type: string
+          pattern: "^[a-f0-9]{64}$"
+        size_bytes:
+          type: integer
+          minimum: 1
+        original_filename:
+          type: string
+        scan_status:
+          type: string
+          enum: [Clean]
+        scanner:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        retention_until:
+          type: string
+          format: date-time
     CompleteVerificationRequest:
       type: object
       additionalProperties: false

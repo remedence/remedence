@@ -259,6 +259,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/evidence/artifacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Upload and malware-scan an immutable evidence artifact */
+        post: operations["uploadEvidenceArtifact"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/evidence/{evidenceId}": {
         parameters: {
             query?: never;
@@ -270,6 +287,25 @@ export interface paths {
         };
         /** Get immutable evidence metadata */
         get: operations["getEvidence"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/evidence/{evidenceId}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                evidenceId: components["parameters"]["EvidenceId"];
+            };
+            cookie?: never;
+        };
+        /** Download an integrity-checked protected evidence artifact */
+        get: operations["downloadEvidenceArtifact"];
         put?: never;
         post?: never;
         delete?: never;
@@ -553,6 +589,10 @@ export interface components {
             label: string;
             source_reference: string;
             content_hash: string;
+            artifact_id: string | null;
+            manifest_hash: string | null;
+            manifest_signature: string | null;
+            attested_by: string | null;
             metadata: {
                 [key: string]: unknown;
             };
@@ -709,12 +749,26 @@ export interface components {
             message: string;
         };
         CreateEvidenceItem: {
+            artifact_id: string;
             kind: string;
             label: string;
             source_reference: string;
             metadata: {
                 [key: string]: unknown;
             };
+        };
+        EvidenceArtifact: {
+            id: string;
+            content_hash: string;
+            size_bytes: number;
+            original_filename: string;
+            /** @enum {string} */
+            scan_status: "Clean";
+            scanner: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            retention_until: string;
         };
         CompleteVerificationRequest: {
             /** @enum {string} */
@@ -789,6 +843,24 @@ export interface components {
         RequestTooLarge: {
             headers: {
                 "X-Request-ID": components["headers"]["RequestId"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /** @description Uploaded content was rejected by the evidence security boundary. */
+        UnprocessableEntity: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /** @description A required protected dependency or artifact is unavailable. */
+        ServiceUnavailable: {
+            headers: {
                 [name: string]: unknown;
             };
             content: {
@@ -1257,6 +1329,35 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
+    uploadEvidenceArtifact: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-Evidence-Filename": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/octet-stream": string;
+            };
+        };
+        responses: {
+            /** @description Artifact stored after a clean malware scan. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvidenceArtifact"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            413: components["responses"]["RequestTooLarge"];
+            422: components["responses"]["UnprocessableEntity"];
+        };
+    };
     getEvidence: {
         parameters: {
             query?: never;
@@ -1280,6 +1381,30 @@ export interface operations {
             };
             404: components["responses"]["NotFound"];
             500: components["responses"]["InternalError"];
+        };
+    };
+    downloadEvidenceArtifact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                evidenceId: components["parameters"]["EvidenceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Protected evidence bytes. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+            404: components["responses"]["NotFound"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     createReport: {

@@ -2,6 +2,7 @@ import type {
   AuditEvent,
   Company,
   DashboardFinding,
+  EvidenceArtifact,
   EvidenceItem,
   Finding,
   FindingState,
@@ -299,9 +300,34 @@ export function mapEvidenceItemRow(value: unknown): EvidenceItem {
     label: requireString(row, "label"),
     sourceReference: requireString(row, "source_reference"),
     contentHash: requireString(row, "content_hash"),
+    artifactId: requireNullableString(row, "artifact_id"),
+    manifestHash: requireNullableString(row, "manifest_hash"),
+    manifestSignature: requireNullableString(row, "manifest_signature"),
+    attestedBy: requireNullableString(row, "attested_by"),
     metadata: parseObjectJson(row, "metadata_json"),
     createdAt: requireString(row, "created_at"),
     lockedAt: requireNullableString(row, "locked_at"),
+  };
+}
+
+export function mapEvidenceArtifactRow(value: unknown): EvidenceArtifact {
+  const row = requireRow(value);
+  return {
+    organizationId: requireString(row, "organization_id"),
+    id: requireString(row, "id"),
+    objectKey: requireString(row, "object_key"),
+    contentHash: requireString(row, "content_hash"),
+    size: requireInteger(row, "size_bytes"),
+    mediaType: requireString(row, "media_type"),
+    originalFilename: requireString(row, "original_filename"),
+    scanStatus: requireEnum(row, "scan_status", ["Clean", "Infected"]),
+    scanner: requireString(row, "scanner"),
+    scanReceipt: parseObjectJson(row, "scan_receipt_json"),
+    uploadedBy: requireString(row, "uploaded_by"),
+    createdAt: requireString(row, "created_at"),
+    retentionUntil: requireString(row, "retention_until"),
+    legalHold: requireBooleanInteger(row, "legal_hold"),
+    adoptedAt: requireNullableString(row, "adopted_at"),
   };
 }
 

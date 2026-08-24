@@ -19,13 +19,21 @@ export interface EvidenceHashInput {
 
 export type EvidenceHasher = (input: EvidenceHashInput) => string;
 
-export interface VerificationEvidenceInput extends EvidenceHashInput {}
+export interface VerificationEvidenceInput extends EvidenceHashInput {
+  artifactId?: string;
+}
+
+export type EvidenceManifestSigner = (manifest: Record<string, unknown>) => {
+  manifestHash: string;
+  signature: string;
+};
 
 export interface VerificationServiceDependencies {
   unitOfWork: UnitOfWork;
   clock: Clock;
   idGenerator: IdGenerator;
   hashEvidence: EvidenceHasher;
+  signEvidenceManifest?: EvidenceManifestSigner;
 }
 
 export interface TrustedVerifierPrincipal {
@@ -548,12 +556,61 @@ export class VerificationService {
           "EVIDENCE_SOURCE_REQUIRED",
           "Evidence source reference is required.",
         );
-        const contentHash = this.dependencies.hashEvidence({
-          kind,
-          label,
-          sourceReference,
-          metadata: item.metadata,
-        });
+        const artifact = item.artifactId
+          ? repositories.evidence.getArtifact?.(
+              input.organizationId,
+              item.artifactId,
+            )
+          : undefined;
+        if (this.dependencies.signEvidenceManifest && !artifact) {
+          throw new DomainError(
+            "EVIDENCE_ARTIFACT_REQUIRED",
+            409,
+            "Passed verification evidence must reference a clean uploaded artifact.",
+          );
+        }
+        if (artifact && artifact.scanStatus !== "Clean") {
+          throw new DomainError(
+            "EVIDENCE_ARTIFACT_NOT_CLEAN",
+            409,
+            "Evidence artifacts must pass malware scanning before adoption.",
+          );
+        }
+        if (artifact?.adoptedAt) {
+          throw new DomainError(
+            "EVIDENCE_ARTIFACT_ALREADY_ADOPTED",
+            409,
+            "Evidence artifacts can be adopted exactly once.",
+          );
+        }
+        const manifest = artifact
+          ? {
+              artifact_id: artifact.id,
+              artifact_sha256: artifact.contentHash,
+              size_bytes: artifact.size,
+              media_type: artifact.mediaType,
+              original_filename: artifact.originalFilename,
+              scan_receipt: artifact.scanReceipt,
+              kind,
+              label,
+              source_reference: sourceReference,
+              metadata: cloneMetadata(item.metadata),
+              finding_id: finding.id,
+              verification_id: run.id,
+              locked_at: now,
+            }
+          : undefined;
+        const signed = manifest
+          ? this.dependencies.signEvidenceManifest?.(manifest)
+          : undefined;
+        const contentHash =
+          artifact?.contentHash ??
+          this.dependencies.hashEvidence({
+            kind,
+            label,
+            sourceReference,
+            metadata: item.metadata,
+          });
         if (!/^[0-9a-f]{64}$/.test(contentHash)) {
           throw new DomainError(
             "INVALID_EVIDENCE_HASH",
@@ -570,12 +627,32 @@ export class VerificationService {
           label,
           sourceReference,
           contentHash,
+          artifactId: artifact?.id ?? null,
+          manifestHash: signed?.manifestHash ?? null,
+          manifestSignature: signed?.signature ?? null,
+          attestedBy: artifact?.scanner ?? null,
           metadata: cloneMetadata(item.metadata),
           createdAt: now,
           lockedAt: now,
         };
       });
 
+      for (const item of evidence) {
+        if (
+          item.artifactId &&
+          !repositories.evidence.adoptArtifact?.(
+            input.organizationId,
+            item.artifactId,
+            now,
+          )
+        ) {
+          throw new DomainError(
+            "EVIDENCE_ARTIFACT_ADOPTION_CONFLICT",
+            409,
+            "Evidence artifact adoption conflicted with another request.",
+          );
+        }
+      }
       for (const item of evidence) repositories.evidence.insert(item);
       repositories.verifications.complete(
         input.organizationId,

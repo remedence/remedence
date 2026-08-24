@@ -18,7 +18,12 @@ import {
   seedHarborline,
   type RemedenceDatabase,
 } from "@remedence/database";
-import { hashEvidenceMetadata } from "@remedence/evidence";
+import {
+  hashEvidenceMetadata,
+  LocalDevelopmentMalwareScanner,
+  LocalEvidenceObjectStore,
+  signEvidenceManifest,
+} from "@remedence/evidence";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createApp } from "../src/app.js";
@@ -73,6 +78,11 @@ function buildFixture(): Fixture {
       clock,
       idGenerator,
       hashEvidence: hashEvidenceMetadata,
+      signEvidenceManifest: (manifest) =>
+        signEvidenceManifest(
+          manifest,
+          "task12-evidence-signing-key-000000000000",
+        ),
     }),
     reports: new ReportService({ unitOfWork, clock, idGenerator }),
   };
@@ -81,6 +91,16 @@ function buildFixture(): Fixture {
     app: createApp({
       services,
       repositories,
+      evidenceProtection: {
+        objectStore: new LocalEvidenceObjectStore(
+          join(temporaryDirectory, "evidence-objects"),
+        ),
+        scanner: new LocalDevelopmentMalwareScanner(),
+        signingKey: "task12-evidence-signing-key-000000000000",
+        retentionDays: 365,
+        clock,
+        idGenerator,
+      },
       health: () => ({
         database: "ready" as const,
         schemaVersion: database.schemaVersion,
@@ -419,6 +439,22 @@ describe("Task 12 remediation, verification, and evidence workflow", () => {
         metadata: { passed: 18, failed: 0, skipped: 0 },
       },
     ];
+    const artifactBytes = [
+      Buffer.from("secondary query path rejected with HTTP 403", "utf8"),
+      Buffer.from("authorization regression suite: 18 passed", "utf8"),
+    ];
+    const uploadedArtifacts = [];
+    for (const [index, bytes] of artifactBytes.entries()) {
+      uploadedArtifacts.push(
+        await request(fixture.app)
+          .post("/api/v1/evidence/artifacts")
+          .set("content-type", "application/octet-stream")
+          .set("x-evidence-filename", `verification-${index + 1}.txt`)
+          .send(bytes)
+          .expect(201),
+      );
+      requestedEvidence[index]!.artifact_id = uploadedArtifacts[index].body.id;
+    }
 
     const passedCompletion = await request(fixture.app)
       .post(`/api/v1/verifications/${verification2Id}/complete`)
@@ -473,18 +509,22 @@ describe("Task 12 remediation, verification, and evidence workflow", () => {
       expect(evidence.locked_at).toBe(now);
       expect(evidence.content_hash).toMatch(/^[0-9a-f]{64}$/);
       expect(evidence.content_hash).toBe(
-        hashEvidenceMetadata({
-          kind: requestedEvidence[index].kind,
-          label: requestedEvidence[index].label,
-          sourceReference: requestedEvidence[index].source_reference,
-          metadata: requestedEvidence[index].metadata,
-        }),
+        uploadedArtifacts[index].body.content_hash,
       );
+      expect(evidence.artifact_id).toBe(uploadedArtifacts[index].body.id);
+      expect(evidence.manifest_hash).toMatch(/^[0-9a-f]{64}$/);
+      expect(evidence.manifest_signature).toMatch(/^[0-9a-f]{64}$/);
+      expect(evidence.attested_by).toBe("remedence-local-eicar-boundary");
 
       const detail = await request(fixture.app)
         .get(`/api/v1/evidence/${evidence.id}`)
         .expect(200);
       expect(detail.body).toEqual(evidence);
+      const content = await request(fixture.app)
+        .get(`/api/v1/evidence/${evidence.id}/content`)
+        .buffer(true)
+        .expect(200);
+      expect(content.body).toEqual(artifactBytes[index]);
       expect(auditActions("evidence", evidence.id)).toContain(
         "evidence.locked",
       );

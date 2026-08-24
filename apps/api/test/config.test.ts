@@ -7,10 +7,33 @@ import {
   resolveApiPort,
   resolveAuthenticationConfig,
   resolveDevelopmentOrigin,
+  resolveEvidenceSecurityConfig,
   resolveWorkspaceMode,
 } from "../src/config.js";
 
 describe("local API configuration", () => {
+  it("requires ClamAV and a manifest key for hosted evidence", () => {
+    const authentication = {
+      mode: "required" as const,
+      baseURL: "https://remedence.example",
+    };
+    expect(() => resolveEvidenceSecurityConfig(authentication, {})).toThrow(
+      "Hosted mode requires REMEDENCE_EVIDENCE_SIGNING_KEY",
+    );
+    expect(
+      resolveEvidenceSecurityConfig(authentication, {
+        signingKey: "e".repeat(32),
+        scanner: "clamav",
+        scannerHost: "clamav",
+        scannerPort: "3310",
+      }),
+    ).toEqual({
+      scanner: "clamav",
+      signingKey: "e".repeat(32),
+      host: "clamav",
+      port: 3310,
+    });
+  });
   it("keeps the unauthenticated API on loopback", () => {
     expect(API_HOST).toBe("127.0.0.1");
   });

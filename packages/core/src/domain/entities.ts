@@ -108,9 +108,31 @@ export interface EvidenceItem {
   label: string;
   sourceReference: string;
   contentHash: string;
+  artifactId: string | null;
+  manifestHash: string | null;
+  manifestSignature: string | null;
+  attestedBy: string | null;
   metadata: Record<string, unknown>;
   createdAt: string;
   lockedAt: string | null;
+}
+
+export interface EvidenceArtifact {
+  organizationId: string;
+  id: string;
+  objectKey: string;
+  contentHash: string;
+  size: number;
+  mediaType: string;
+  originalFilename: string;
+  scanStatus: "Clean" | "Infected";
+  scanner: string;
+  scanReceipt: Record<string, unknown>;
+  uploadedBy: string;
+  createdAt: string;
+  retentionUntil: string;
+  legalHold: boolean;
+  adoptedAt: string | null;
 }
 
 export interface AuditEvent {

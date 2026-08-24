@@ -1,6 +1,6 @@
-import { randomUUID } from "node:crypto";
-import { mkdirSync } from "node:fs";
-import { dirname } from "node:path";
+import { randomBytes, randomUUID } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   DashboardService,
@@ -23,12 +23,20 @@ import {
   type RemedenceDatabase,
   type RateLimitStore,
 } from "@remedence/database";
-import { hashEvidenceMetadata } from "@remedence/evidence";
+import {
+  ClamAvMalwareScanner,
+  hashEvidenceMetadata,
+  LocalDevelopmentMalwareScanner,
+  LocalEvidenceObjectStore,
+  signEvidenceManifest,
+  type EvidenceObjectStore,
+  type MalwareScanner,
+} from "@remedence/evidence";
 import {
   createAuthentication,
   type RemedenceAuthentication,
 } from "./authentication.js";
-import type { AuthenticationConfig } from "./config.js";
+import type { AuthenticationConfig, EvidenceSecurityConfig } from "./config.js";
 
 export const DEFAULT_LOCAL_ORGANIZATION_ID = "org-harborline";
 export const EMPTY_LOCAL_ORGANIZATION_ID = "org-local-workspace";
@@ -48,6 +56,14 @@ export interface ApiDependencies {
   };
   repositories: RepositorySet;
   rateLimit?: RateLimitStore;
+  evidenceProtection: {
+    objectStore: EvidenceObjectStore;
+    scanner: MalwareScanner;
+    signingKey: string;
+    retentionDays: number;
+    clock: Clock;
+    idGenerator: IdGenerator;
+  };
   localOrganizationId: string;
   workspace: {
     status: () => {
@@ -77,6 +93,9 @@ export interface ApiDependencyConfig {
   authentication?: AuthenticationConfig;
   localOrganizationId?: string;
   workspaceMode?: "empty" | "demo";
+  evidence?: EvidenceSecurityConfig;
+  evidenceObjectStore?: EvidenceObjectStore;
+  malwareScanner?: MalwareScanner;
 }
 
 const databases = new WeakMap<ApiDependencies, RemedenceDatabase>();
@@ -95,6 +114,19 @@ function uuidGenerator(): IdGenerator {
 
 function structuredConsoleLog(entry: Record<string, unknown>): void {
   console.log(JSON.stringify(entry));
+}
+
+function localSigningKey(databasePath: string): string {
+  const path = join(dirname(databasePath), "evidence-signing.key");
+  if (!existsSync(path)) {
+    writeFileSync(path, randomBytes(32).toString("hex"), {
+      flag: "wx",
+      mode: 0o600,
+    });
+  }
+  const key = readFileSync(path, "utf8").trim();
+  if (key.length < 32) throw new Error("Evidence signing key is invalid.");
+  return key;
 }
 
 export function createDependencies(
@@ -120,6 +152,19 @@ export function createDependencies(
     const repositories = createRepositorySet(database, { referenceTime });
     const unitOfWork = createUnitOfWork(database, { referenceTime });
     const idGenerator = config.idGenerator ?? uuidGenerator();
+    const evidenceConfig = config.evidence ?? { scanner: "local" };
+    const signingKey =
+      evidenceConfig.signingKey ?? localSigningKey(config.databasePath);
+    const malwareScanner =
+      config.malwareScanner ??
+      (evidenceConfig.scanner === "clamav"
+        ? new ClamAvMalwareScanner(evidenceConfig.host, evidenceConfig.port)
+        : new LocalDevelopmentMalwareScanner());
+    const evidenceObjectStore =
+      config.evidenceObjectStore ??
+      new LocalEvidenceObjectStore(
+        join(dirname(config.databasePath), "evidence-objects"),
+      );
     const databaseProbe = getDatabaseConnection(database).prepare(
       "SELECT 1 AS responsive",
     );
@@ -166,11 +211,21 @@ export function createDependencies(
           clock,
           idGenerator,
           hashEvidence: hashEvidenceMetadata,
+          signEvidenceManifest: (manifest) =>
+            signEvidenceManifest(manifest, signingKey),
         }),
         reports: new ReportService({ unitOfWork, clock, idGenerator }),
       },
       repositories,
       rateLimit: createRateLimitStore(database),
+      evidenceProtection: {
+        objectStore: evidenceObjectStore,
+        scanner: malwareScanner,
+        signingKey,
+        retentionDays: 365,
+        clock,
+        idGenerator,
+      },
       localOrganizationId,
       workspace: {
         status: workspaceStatus,

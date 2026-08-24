@@ -30,6 +30,7 @@ interface CreateVerificationCheckBody {
 }
 
 interface CompleteVerificationEvidenceBody {
+  artifact_id: string;
   kind: string;
   label: string;
   source_reference: string;
@@ -117,6 +118,7 @@ export function createVerificationsRouter(
             result: body.result,
             summary: body.summary,
             evidence: (body.evidence ?? []).map((item) => ({
+              artifactId: item.artifact_id,
               kind: item.kind,
               label: item.label,
               sourceReference: item.source_reference,

@@ -268,6 +268,11 @@ test.describe("Task 15 persistent mutation workflows", () => {
     await verification
       .getByLabel("Evidence source reference")
       .fill(`artifact://task15/e2e/${suffix}`);
+    await verification.getByLabel("Evidence artifact").setInputFiles({
+      name: `authorization-regression-${suffix}.txt`,
+      mimeType: "text/plain",
+      buffer: Buffer.from("Authorization regression passed independently."),
+    });
     await verification
       .getByRole("button", { name: "Complete passed verification" })
       .click();

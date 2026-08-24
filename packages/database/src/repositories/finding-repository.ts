@@ -107,6 +107,10 @@ const EVIDENCE_COLUMNS = `
   label,
   source_reference,
   content_hash,
+  artifact_id,
+  manifest_hash,
+  manifest_signature,
+  attested_by,
   metadata_json,
   created_at,
   locked_at
