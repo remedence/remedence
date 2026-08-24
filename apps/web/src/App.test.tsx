@@ -935,6 +935,10 @@ describe("Remedence API-backed read models", () => {
                 status: "Running",
                 method: "Regression test",
                 worker_name: "Independent reviewer",
+                credential_type: "session",
+                execution_source: "authenticated-api",
+                source_revision: "commit-5001",
+                patch_digest: "a".repeat(64),
                 scope: "Authorization boundary",
                 result_summary: "",
                 started_at: "2026-08-21T04:30:00.000Z",
@@ -1008,10 +1012,8 @@ describe("Remedence API-backed read models", () => {
         drawer.getByLabelText("Verification method"),
         "Regression test",
       );
-      await user.type(
-        drawer.getByLabelText("Verifier"),
-        "Independent reviewer",
-      );
+      await user.type(drawer.getByLabelText("Source revision"), "commit-5001");
+      await user.type(drawer.getByLabelText("Patch SHA-256"), "a".repeat(64));
       await user.type(
         drawer.getByLabelText("Verification scope"),
         "Authorization boundary",
@@ -1033,8 +1035,9 @@ describe("Remedence API-backed read models", () => {
         finding_id: finding.id,
         remediation_id: remediation.id,
         method: "Regression test",
-        worker_name: "Independent reviewer",
         scope: "Authorization boundary",
+        source_revision: "commit-5001",
+        patch_digest: "a".repeat(64),
         checks: ["Authorization regression"],
       });
 
@@ -1129,6 +1132,10 @@ describe("Remedence API-backed read models", () => {
             status: "Failed",
             method: "Regression test",
             worker_name: "Independent reviewer",
+            credential_type: "session",
+            execution_source: "authenticated-api",
+            source_revision: "commit-5002-a",
+            patch_digest: "a".repeat(64),
             scope: "Authorization boundary",
             result_summary: "First patch left a secondary path open.",
             started_at: "2026-08-21T03:15:00.000Z",
@@ -1261,7 +1268,11 @@ describe("Remedence API-backed read models", () => {
                 remediation_id: "remediation-5002-b",
                 status: "Running",
                 method: body.method,
-                worker_name: body.worker_name,
+                worker_name: "Authenticated verifier",
+                credential_type: "session",
+                execution_source: "authenticated-api",
+                source_revision: body.source_revision,
+                patch_digest: body.patch_digest,
                 scope: body.scope,
                 result_summary: "",
                 started_at: "2026-08-21T04:20:00.000Z",
@@ -1417,9 +1428,10 @@ describe("Remedence API-backed read models", () => {
         "Regression test",
       );
       await user.type(
-        drawer.getByLabelText("Verifier"),
-        "Independent reviewer B",
+        drawer.getByLabelText("Source revision"),
+        "commit-5002-b",
       );
+      await user.type(drawer.getByLabelText("Patch SHA-256"), "b".repeat(64));
       await user.type(
         drawer.getByLabelText("Verification scope"),
         "Authorization boundary",

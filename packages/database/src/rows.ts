@@ -42,6 +42,11 @@ const VERIFICATION_CHECK_STATUSES = [
   "Failed",
   "Skipped",
 ] as const;
+const VERIFICATION_CREDENTIAL_TYPES = [
+  "session",
+  "local-process",
+  "legacy-assertion",
+] as const;
 const REPORT_STATUSES = ["Draft", "Ready"] as const;
 
 type Row = Record<string, unknown>;
@@ -224,6 +229,7 @@ export function mapRemediationRow(value: unknown): Remediation {
     summary: requireString(row, "summary"),
     reference: requireString(row, "reference"),
     owner: requireString(row, "owner"),
+    remediatorPrincipalId: requireString(row, "remediator_principal_id"),
     startedAt: requireString(row, "started_at"),
     completedAt: requireNullableString(row, "completed_at"),
     createdAt: requireString(row, "created_at"),
@@ -246,6 +252,15 @@ export function mapVerificationRunRow(value: unknown): VerificationRun {
     ) as VerificationStatus,
     method: requireString(row, "method"),
     workerName: requireString(row, "worker_name"),
+    verifierPrincipalId: requireString(row, "verifier_principal_id"),
+    credentialType: requireEnum(
+      row,
+      "credential_type",
+      VERIFICATION_CREDENTIAL_TYPES,
+    ) as VerificationRun["credentialType"],
+    executionSource: requireString(row, "execution_source"),
+    sourceRevision: requireString(row, "source_revision"),
+    patchDigest: requireString(row, "patch_digest"),
     scope: requireString(row, "scope"),
     resultSummary: requireString(row, "result_summary"),
     startedAt: requireString(row, "started_at"),

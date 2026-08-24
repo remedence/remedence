@@ -102,8 +102,9 @@ export function VerificationDrawer({
   const createErrorRef = useRef<HTMLDivElement | null>(null);
   const completionErrorRef = useRef<HTMLDivElement | null>(null);
   const [method, setMethod] = useState("");
-  const [verifier, setVerifier] = useState("");
   const [scope, setScope] = useState("");
+  const [sourceRevision, setSourceRevision] = useState("");
+  const [patchDigest, setPatchDigest] = useState("");
   const [expectedChecks, setExpectedChecks] = useState("");
   const [resultSummary, setResultSummary] = useState("");
   const [evidenceKind, setEvidenceKind] = useState("verification-artifact");
@@ -175,8 +176,9 @@ export function VerificationDrawer({
       finding_id: finding.id,
       remediation_id: completedRemediation.id,
       method: method.trim(),
-      worker_name: verifier.trim(),
       scope: scope.trim(),
+      source_revision: sourceRevision.trim(),
+      patch_digest: patchDigest.trim().toLocaleLowerCase("en-US"),
       checks,
     });
     if (!result) return;
@@ -352,8 +354,8 @@ export function VerificationDrawer({
           <section aria-labelledby="create-verification-title">
             <h3 id="create-verification-title">Create verification</h3>
             <p className="workflow-copy">
-              Record the verifier, method, scope, and required checks. Remedence
-              does not treat remediation as self-verification.
+              Your authenticated identity is bound to this run. Record the
+              method, immutable patch provenance, scope, and required checks.
             </p>
             <form className="workflow-form" onSubmit={createVerification}>
               <label>
@@ -371,14 +373,29 @@ export function VerificationDrawer({
                 />
               </label>
               <label>
-                <span>Verifier</span>
+                <span>Source revision</span>
                 <input
-                  aria-label="Verifier"
-                  name="verifier"
+                  aria-label="Source revision"
+                  name="sourceRevision"
                   required
-                  value={verifier}
+                  value={sourceRevision}
                   onChange={(event) => {
-                    setVerifier(event.target.value);
+                    setSourceRevision(event.target.value);
+                    if (createMutation.status === "error")
+                      createMutation.reset();
+                  }}
+                />
+              </label>
+              <label>
+                <span>Patch SHA-256</span>
+                <input
+                  aria-label="Patch SHA-256"
+                  name="patchDigest"
+                  required
+                  pattern="[0-9a-fA-F]{64}"
+                  value={patchDigest}
+                  onChange={(event) => {
+                    setPatchDigest(event.target.value);
                     if (createMutation.status === "error")
                       createMutation.reset();
                   }}

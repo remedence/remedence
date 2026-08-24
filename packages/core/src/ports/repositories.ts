@@ -79,6 +79,7 @@ export interface RemediationRepository {
     id: string,
     summary: string,
     reference: string,
+    remediatorPrincipalId: string,
     completedAt: string,
     updatedAt: string,
   ): void;

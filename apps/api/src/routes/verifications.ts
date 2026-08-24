@@ -1,6 +1,10 @@
 import type { VerificationCheck } from "@remedence/core";
 import { Router } from "express";
-import { mutationActorFrom, organizationIdFrom } from "../authentication.js";
+import {
+  organizationIdFrom,
+  trustedVerifierFrom,
+  verificationActorFrom,
+} from "../authentication.js";
 import type { ApiDependencies } from "../dependencies.js";
 import {
   toVerificationCheck,
@@ -12,8 +16,9 @@ interface CreateVerificationBody {
   finding_id: string;
   remediation_id: string;
   method: string;
-  worker_name: string;
   scope: string;
+  source_revision: string;
+  patch_digest: string;
   checks: string[];
 }
 
@@ -51,10 +56,12 @@ export function createVerificationsRouter(
           findingId: body.finding_id,
           remediationId: body.remediation_id,
           method: body.method,
-          workerName: body.worker_name,
           scope: body.scope,
+          sourceRevision: body.source_revision,
+          patchDigest: body.patch_digest,
+          verifier: trustedVerifierFrom(response),
           checks: body.checks,
-          actor: mutationActorFrom(response),
+          actor: verificationActorFrom(response),
         },
       );
       const checks = dependencies.repositories.verifications.listChecks(
@@ -89,7 +96,7 @@ export function createVerificationsRouter(
             name: body.name,
             status: body.status,
             message: body.message,
-            actor: mutationActorFrom(response),
+            actor: verificationActorFrom(response),
           });
         response.status(201).json(toVerificationCheck(check));
       } catch (error) {
@@ -115,7 +122,7 @@ export function createVerificationsRouter(
               sourceReference: item.source_reference,
               metadata: item.metadata,
             })),
-            actor: mutationActorFrom(response),
+            actor: verificationActorFrom(response),
           });
         response.json(toVerificationCompletion(completion));
       } catch (error) {

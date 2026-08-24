@@ -30,6 +30,16 @@ const migrationsDirectory = fileURLToPath(
 const ORGANIZATION_ID = "org-harborline";
 const REFERENCE_TIME = "2026-08-20T15:00:00.000Z";
 const actor = { actorType: "operator", actorId: "local-user" };
+const verifierActor = { actorType: "operator", actorId: "verification-user" };
+const verificationProvenance = {
+  sourceRevision: "commit-under-test",
+  patchDigest: "a".repeat(64),
+  verifier: {
+    principalId: verifierActor.actorId,
+    displayName: "Harborline verification operator",
+    credentialType: "session" as const,
+  },
+};
 
 let temporaryDirectory: string;
 let database: RemedenceDatabase;
@@ -154,10 +164,10 @@ function completeSec1042Successfully(
     findingId: finding.id,
     remediationId: remediation.id,
     method: "Independent manual retest",
-    workerName: "Harborline verification operator",
+    ...verificationProvenance,
     scope: "Patient Portal API primary and secondary query paths",
     checks: ["Primary query path", "Secondary query path"],
-    actor,
+    actor: verifierActor,
   });
   expect(verification.id).toBe(ids.verification);
 
@@ -172,7 +182,7 @@ function completeSec1042Successfully(
       name,
       status: "Passed",
       message: "No SQL injection reproduced",
-      actor,
+      actor: verifierActor,
     });
   }
 
@@ -195,7 +205,7 @@ function completeSec1042Successfully(
         metadata: { path: "secondary", reproduced: false },
       },
     ],
-    actor,
+    actor: verifierActor,
   });
 
   return { finding, remediation, verification, completion };
@@ -360,10 +370,10 @@ describe("persistent remediation and verification workflow", () => {
       findingId: target.id,
       remediationId: remediation.id,
       method: "Independent account policy review",
-      workerName: "Harborline verification operator",
+      ...verificationProvenance,
       scope: "Administrator MFA coverage",
       checks: ["All administrators require MFA"],
-      actor,
+      actor: verifierActor,
     });
     services.verification.recordVerificationCheck({
       organizationId: ORGANIZATION_ID,
@@ -372,7 +382,7 @@ describe("persistent remediation and verification workflow", () => {
       name: "All administrators require MFA",
       status: "Failed",
       message: "One administrator still lacks MFA enrollment",
-      actor,
+      actor: verifierActor,
     });
     const completion = services.verification.completeVerification({
       organizationId: ORGANIZATION_ID,
@@ -380,7 +390,7 @@ describe("persistent remediation and verification workflow", () => {
       result: "Failed",
       summary: "One administrator still lacks MFA enrollment",
       evidence: [],
-      actor,
+      actor: verifierActor,
     });
 
     expect(completion.finding.state).toBe("Verification failed");
@@ -446,10 +456,10 @@ describe("persistent remediation and verification workflow", () => {
       findingId: finding.id,
       remediationId: remediation.id,
       method: "Independent retest",
-      workerName: "Operator",
+      ...verificationProvenance,
       scope: "Both query paths",
       checks: ["Primary query path", "Secondary query path"],
-      actor,
+      actor: verifierActor,
     });
     for (const [sequence, name] of [
       [1, "Primary query path"],
@@ -462,7 +472,7 @@ describe("persistent remediation and verification workflow", () => {
         name,
         status: "Passed",
         message: "No SQL injection reproduced",
-        actor,
+        actor: verifierActor,
       });
     }
 
@@ -495,7 +505,7 @@ describe("persistent remediation and verification workflow", () => {
             metadata: { path: "secondary" },
           },
         ],
-        actor,
+        actor: verifierActor,
       }),
     ).toThrow(/forced second evidence failure/);
 
@@ -696,6 +706,7 @@ describe("persistent remediation and verification workflow", () => {
           "remediation-sec-1042-1",
           "Already complete",
           "CHG-SEC-1042-1",
+          "local-user",
           REFERENCE_TIME,
           REFERENCE_TIME,
         ),

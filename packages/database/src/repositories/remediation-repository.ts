@@ -14,6 +14,7 @@ const REMEDIATION_COLUMNS = `
   summary,
   reference,
   owner,
+  remediator_principal_id,
   started_at,
   completed_at,
   created_at,
@@ -52,14 +53,16 @@ export function createRemediationRepository(
   const insertStatement = connection.prepare(
     `INSERT INTO remediations (
        organization_id, id, finding_id, status, summary, reference, owner,
-       started_at, completed_at, created_at, updated_at, version
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       remediator_principal_id, started_at, completed_at, created_at, updated_at,
+       version
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   const completeStatement = connection.prepare(
     `UPDATE remediations
      SET status = 'Completed',
          summary = ?,
          reference = ?,
+         remediator_principal_id = ?,
          completed_at = ?,
          updated_at = ?,
          version = version + 1
@@ -87,6 +90,7 @@ export function createRemediationRepository(
         remediation.summary,
         remediation.reference,
         remediation.owner,
+        remediation.remediatorPrincipalId,
         remediation.startedAt,
         remediation.completedAt,
         remediation.createdAt,
@@ -100,12 +104,14 @@ export function createRemediationRepository(
       id,
       summary,
       reference,
+      remediatorPrincipalId,
       completedAt,
       updatedAt,
     ): void {
       const result = completeStatement.run(
         summary,
         reference,
+        remediatorPrincipalId,
         completedAt,
         updatedAt,
         organizationId,

@@ -73,6 +73,7 @@ export class RemediationService {
           "REMEDIATION_OWNER_REQUIRED",
           "Remediation owner is required.",
         ),
+        remediatorPrincipalId: input.actor.actorId,
         startedAt: now,
         completedAt: null,
         createdAt: now,
@@ -150,6 +151,7 @@ export class RemediationService {
         remediation.id,
         summary,
         reference,
+        input.actor.actorId,
         now,
         now,
       );

@@ -28,13 +28,21 @@ export interface VerificationServiceDependencies {
   hashEvidence: EvidenceHasher;
 }
 
+export interface TrustedVerifierPrincipal {
+  principalId: string;
+  displayName: string;
+  credentialType: "session" | "local-process";
+}
+
 export interface StartVerificationInput {
   organizationId: string;
   findingId: string;
   remediationId: string;
   method: string;
-  workerName: string;
   scope: string;
+  sourceRevision: string;
+  patchDigest: string;
+  verifier: TrustedVerifierPrincipal;
   checks: string[];
   actor: MutationActor;
 }
@@ -68,10 +76,6 @@ function requireText(value: string, code: string, message: string): string {
   const trimmed = value.trim();
   if (!trimmed) throw new DomainError(code, 409, message);
   return trimmed;
-}
-
-function normalizedIdentityLabel(value: string): string {
-  return value.trim().normalize("NFKC").toLocaleLowerCase("en-US");
 }
 
 function cloneJsonValue(value: unknown): unknown {
@@ -169,20 +173,35 @@ export class VerificationService {
         );
       }
 
-      const workerName = requireText(
-        input.workerName,
+      const verifierPrincipalId = requireText(
+        input.verifier.principalId,
         "VERIFICATION_WORKER_REQUIRED",
-        "Verification worker name is required.",
+        "A trusted verifier principal is required.",
       );
-      if (
-        normalizedIdentityLabel(workerName) ===
-        normalizedIdentityLabel(remediation.owner)
-      ) {
+      if (verifierPrincipalId === remediation.remediatorPrincipalId) {
         throw new DomainError(
           "VERIFIER_NOT_INDEPENDENT",
           409,
-          "The asserted verifier must differ from the persisted remediation owner.",
+          "The authenticated verifier must differ from the principal that performed the remediation.",
           { remediationId: remediation.id },
+        );
+      }
+      const workerName = requireText(
+        input.verifier.displayName,
+        "VERIFICATION_WORKER_REQUIRED",
+        "The trusted verifier principal must have a display name.",
+      );
+      const sourceRevision = requireText(
+        input.sourceRevision,
+        "VERIFICATION_SOURCE_REVISION_REQUIRED",
+        "A source revision is required for verification.",
+      );
+      const patchDigest = input.patchDigest.trim().toLocaleLowerCase("en-US");
+      if (!/^[0-9a-f]{64}$/.test(patchDigest)) {
+        throw new DomainError(
+          "INVALID_PATCH_DIGEST",
+          400,
+          "Patch digest must be a lowercase SHA-256 digest.",
         );
       }
 
@@ -227,6 +246,11 @@ export class VerificationService {
           "Verification method is required.",
         ),
         workerName,
+        verifierPrincipalId,
+        credentialType: input.verifier.credentialType,
+        executionSource: "authenticated-api",
+        sourceRevision,
+        patchDigest,
         scope: requireText(
           input.scope,
           "VERIFICATION_SCOPE_REQUIRED",
@@ -262,9 +286,13 @@ export class VerificationService {
           finding_id: finding.id,
           remediation_id: remediation.id,
           required_checks: checkNames.length,
-          independence_policy: "different_asserted_identity_label",
-          remediation_owner: remediation.owner,
-          verifier_label: workerName,
+          independence_policy: "distinct_authenticated_principals",
+          remediator_principal_id: remediation.remediatorPrincipalId,
+          verifier_principal_id: verifierPrincipalId,
+          credential_type: input.verifier.credentialType,
+          execution_source: "authenticated-api",
+          source_revision: sourceRevision,
+          patch_digest: patchDigest,
         },
         occurredAt: now,
       });
@@ -293,6 +321,13 @@ export class VerificationService {
         repositories.findings.getById.bind(repositories.findings),
       );
       requireRunning(run);
+      if (input.actor.actorId !== run.verifierPrincipalId) {
+        throw new DomainError(
+          "VERIFICATION_PRINCIPAL_MISMATCH",
+          403,
+          "Only the authenticated principal assigned to this verification may record its checks.",
+        );
+      }
 
       const expected = repositories.verifications
         .listChecks(input.organizationId, run.id)
@@ -380,6 +415,13 @@ export class VerificationService {
         );
       }
       requireRunning(run);
+      if (input.actor.actorId !== run.verifierPrincipalId) {
+        throw new DomainError(
+          "VERIFICATION_PRINCIPAL_MISMATCH",
+          403,
+          "Only the authenticated principal assigned to this verification may complete it.",
+        );
+      }
       const finding = requireOwnedFinding(
         input.organizationId,
         run.findingId,

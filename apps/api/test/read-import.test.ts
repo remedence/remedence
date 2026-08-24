@@ -130,7 +130,7 @@ describe("Task 11 persisted API reads and imports", () => {
     expect(response.body).toEqual({
       status: "ok",
       database: "ready",
-      schema_version: 3,
+      schema_version: 4,
     });
     expect(response.headers["x-request-id"]).toMatch(requestIdPattern);
     expect(JSON.stringify(response.body)).not.toMatch(/[A-Z]:\\\\|\/home\//);

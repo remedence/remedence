@@ -191,8 +191,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Start an operator-recorded independent verification run
-         * @description Local v1 records an independent verification result supplied by the operator. It does not execute commands or fetch arbitrary URLs.
+         * Start a principal-bound independent verification run
+         * @description Verifier identity and credential class come from the server-established principal. The caller supplies source revision and patch digest provenance, but cannot override verifier identity. This endpoint does not execute commands or fetch arbitrary URLs.
          */
         post: operations["createVerification"];
         delete?: never;
@@ -517,6 +517,11 @@ export interface components {
             status: components["schemas"]["VerificationStatus"];
             method: string;
             worker_name: string;
+            /** @enum {string} */
+            credential_type: "session" | "local-process" | "legacy-assertion";
+            execution_source: string;
+            source_revision: string;
+            patch_digest: string;
             scope: string;
             result_summary: string;
             /** Format: date-time */
@@ -691,7 +696,8 @@ export interface components {
             finding_id: string;
             remediation_id: string;
             method: string;
-            worker_name: string;
+            source_revision: string;
+            patch_digest: string;
             scope: string;
             checks: string[];
         };

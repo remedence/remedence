@@ -15,6 +15,11 @@ const VERIFICATION_COLUMNS = `
   status,
   method,
   worker_name,
+  verifier_principal_id,
+  credential_type,
+  execution_source,
+  source_revision,
+  patch_digest,
   scope,
   result_summary,
   started_at,
@@ -74,9 +79,10 @@ export function createVerificationRepository(
   const insertStatement = connection.prepare(
     `INSERT INTO verification_runs (
        organization_id, id, finding_id, remediation_id, status, method,
-       worker_name, scope, result_summary, started_at, completed_at, created_at,
-       version
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       worker_name, verifier_principal_id, credential_type, execution_source,
+       source_revision, patch_digest, scope, result_summary, started_at,
+       completed_at, created_at, version
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   const insertCheckStatement = connection.prepare(
     `INSERT INTO verification_checks (
@@ -129,6 +135,11 @@ export function createVerificationRepository(
         run.status,
         run.method,
         run.workerName,
+        run.verifierPrincipalId,
+        run.credentialType,
+        run.executionSource,
+        run.sourceRevision,
+        run.patchDigest,
         run.scope,
         run.resultSummary,
         run.startedAt,

@@ -248,25 +248,22 @@ Outside systems can evolve independently. A scanner can produce a finding; a cod
 
 - Finding `source` records the finding source as a string.
 - Remediation records have `owner` and `reference` strings.
-- Verification runs have `worker_name`, `method`, `scope`, remediation linkage, result summary, and checks.
+- Verification runs have a server-derived verifier principal, display name, credential class, execution source, immutable source revision and patch digest, method, scope, remediation linkage, result summary, and checks.
 - Evidence records have verification linkage, source reference, content hash, metadata, and lock time.
 - Audit records have generic actor type/id and entity/action provenance.
-- Starting a verification rejects an asserted `worker_name` that equals the persisted remediation `owner` after whitespace, Unicode, and case normalization. The accepted different-label policy and both labels are appended to the `verification.started` audit details.
+- Remediations persist the authenticated principal that completes the patch. Verification identity comes from the server-established principal; callers cannot submit a verifier label. A run is rejected when its verifier principal matches the remediation principal, and every check/completion must come from the principal bound to the run.
 
-The last rule is a local fail-closed guard against obvious self-verification. Because local beta has no authenticated principals, both labels remain caller assertions and are not trusted identities or credentials.
+Existing pre-migration records are explicitly marked `legacy-assertion` / `legacy-untrusted`; migration does not claim they acquired trusted provenance retroactively. Local mode uses a server-owned local verification-process principal distinct from the local workspace actor.
 
 ### Planned
 
 The current schema does not yet contain first-class fields for:
 
-- structured remediator identity,
-- structured verifier identity/credential,
-- an explicit `independent_from_remediator` assertion,
-- structured patch/commit/PR identity,
+- independently signed worker execution receipts,
 - signed verification artifact bundles,
 - cross-tool attestation/orchestration policy.
 
-Production verifier independence therefore remains blocked on the authentication principal model, an authoritative remediator/verifier credential source, structured patch provenance, and a policy that compares durable principal identifiers rather than labels.
+Production verifier execution remains blocked on an isolated worker runtime and independently signed receipts. Principal independence and patch provenance are enforced by the current API and schema.
 
 Those belong to a later milestone. Documentation and UI must not claim they exist until the persistent schema and contracts actually support them.
 
@@ -281,4 +278,4 @@ Those belong to a later milestone. Documentation and UI must not claim they exis
 - `api/openapi.yaml` is the canonical REST contract.
 - generated TypeScript contracts keep browser code aligned with that API boundary.
 - `scripts/dev.mjs` owns process-safe local development supervision.
-- `workers/verification`, managed integrations, and production auth/RBAC remain future boundaries rather than implemented runtime claims.
+- Isolated `workers/verification` execution and managed integrations remain future boundaries rather than implemented runtime claims.

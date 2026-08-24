@@ -3,7 +3,7 @@ import type { BetterAuthOptions } from "better-auth/minimal";
 import { fromNodeHeaders } from "better-auth/node";
 import { twoFactor } from "better-auth/plugins";
 import type { DatabaseSync } from "node:sqlite";
-import type { MutationActor } from "@remedence/core";
+import type { MutationActor, TrustedVerifierPrincipal } from "@remedence/core";
 import type {
   NextFunction,
   Request as ExpressRequest,
@@ -72,6 +72,36 @@ export function mutationActorFrom(response: ExpressResponse): MutationActor {
   return principal.userId === "local-workspace"
     ? { actorType: "local_user", actorId: principal.userId }
     : { actorType: "user", actorId: principal.userId };
+}
+
+export function trustedVerifierFrom(
+  response: ExpressResponse,
+): TrustedVerifierPrincipal {
+  const principal = authenticatedPrincipalFrom(response);
+  if (!principal) throw new Error("Request principal was not established.");
+  return {
+    principalId:
+      principal.userId === "local-workspace"
+        ? "local-verification-process"
+        : principal.userId,
+    displayName:
+      principal.userId === "local-workspace"
+        ? "Local verification process"
+        : principal.name,
+    credentialType:
+      principal.userId === "local-workspace" ? "local-process" : "session",
+  };
+}
+
+export function verificationActorFrom(
+  response: ExpressResponse,
+): MutationActor {
+  const verifier = trustedVerifierFrom(response);
+  return {
+    actorType:
+      verifier.credentialType === "local-process" ? "local_worker" : "user",
+    actorId: verifier.principalId,
+  };
 }
 
 export function organizationIdFrom(response: ExpressResponse): string {

@@ -59,6 +59,7 @@ export interface Remediation {
   summary: string;
   reference: string;
   owner: string;
+  remediatorPrincipalId: string;
   startedAt: string;
   completedAt: string | null;
   createdAt: string;
@@ -74,6 +75,11 @@ export interface VerificationRun {
   status: VerificationStatus;
   method: string;
   workerName: string;
+  verifierPrincipalId: string;
+  credentialType: "session" | "local-process" | "legacy-assertion";
+  executionSource: string;
+  sourceRevision: string;
+  patchDigest: string;
   scope: string;
   resultSummary: string;
   startedAt: string;

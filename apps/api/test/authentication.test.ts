@@ -56,7 +56,7 @@ function openMigratedDatabase(): RemedenceDatabase {
     path: join(directory, "remedence.db"),
   });
   databases.push(database);
-  expect(applyMigrations(database, migrationsDirectory)).toBe(3);
+  expect(applyMigrations(database, migrationsDirectory)).toBe(4);
   return database;
 }
 

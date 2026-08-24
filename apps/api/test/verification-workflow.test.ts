@@ -128,8 +128,9 @@ function verificationBody(
     finding_id: findingId,
     remediation_id: remediationId,
     method: "Operator-recorded authorization retest",
-    worker_name: "local-independent-verifier",
     scope: `SEC-2099 remediation attempt ${attempt} query and regression paths`,
+    source_revision: `commit-remediation-${attempt}`,
+    patch_digest: String(attempt).repeat(64),
     checks: [...expectedChecks],
   };
 }
@@ -156,7 +157,7 @@ afterEach(() => {
 });
 
 describe("Task 12 remediation, verification, and evidence workflow", () => {
-  it("rejects the persisted remediation owner as verifier without partial state", async () => {
+  it("rejects caller-supplied verifier labels without partial state", async () => {
     const imported = await request(fixture.app)
       .post("/api/v1/imports")
       .send(importBody())
@@ -178,11 +179,10 @@ describe("Task 12 remediation, verification, and evidence workflow", () => {
         ...verificationBody(findingId, remediationId, 1),
         worker_name: " s. PATEL ",
       })
-      .expect(409);
+      .expect(400);
 
     expect(rejected.body).toMatchObject({
-      status: 409,
-      code: "VERIFIER_NOT_INDEPENDENT",
+      status: 400,
     });
     expect(
       fixture.repositories.verifications.listByFinding(

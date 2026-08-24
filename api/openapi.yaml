@@ -305,10 +305,12 @@ paths:
     post:
       tags: [Verifications]
       operationId: createVerification
-      summary: Start an operator-recorded independent verification run
+      summary: Start a principal-bound independent verification run
       description: >-
-        Local v1 records an independent verification result supplied by the operator.
-        It does not execute commands or fetch arbitrary URLs.
+        Verifier identity and credential class come from the server-established
+        principal. The caller supplies source revision and patch digest provenance,
+        but cannot override verifier identity. This endpoint does not execute commands
+        or fetch arbitrary URLs.
       requestBody:
         required: true
         content:
@@ -1079,6 +1081,10 @@ components:
         - status
         - method
         - worker_name
+        - credential_type
+        - execution_source
+        - source_revision
+        - patch_digest
         - scope
         - result_summary
         - started_at
@@ -1097,6 +1103,16 @@ components:
           type: string
         worker_name:
           type: string
+        credential_type:
+          type: string
+          enum: [session, local-process, legacy-assertion]
+        execution_source:
+          type: string
+        source_revision:
+          type: string
+        patch_digest:
+          type: string
+          pattern: "^[0-9a-f]{64}$"
         scope:
           type: string
         result_summary:
@@ -1584,7 +1600,16 @@ components:
     CreateVerificationRequest:
       type: object
       additionalProperties: false
-      required: [finding_id, remediation_id, method, worker_name, scope, checks]
+      required:
+        [
+          finding_id,
+          remediation_id,
+          method,
+          scope,
+          source_revision,
+          patch_digest,
+          checks,
+        ]
       properties:
         finding_id:
           type: string
@@ -1598,10 +1623,13 @@ components:
           type: string
           minLength: 1
           maxLength: 200
-        worker_name:
+        source_revision:
           type: string
           minLength: 1
           maxLength: 200
+        patch_digest:
+          type: string
+          pattern: "^[0-9a-f]{64}$"
         scope:
           type: string
           minLength: 1

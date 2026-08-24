@@ -129,7 +129,8 @@ test.describe("Task 15 persistent mutation workflows", () => {
     await verification
       .getByLabel("Verification method")
       .fill("Playwright regression");
-    await verification.getByLabel("Verifier").fill("Independent verifier A");
+    await verification.getByLabel("Source revision").fill("commit-e2e-a");
+    await verification.getByLabel("Patch SHA-256").fill("a".repeat(64));
     await verification
       .getByLabel("Verification scope")
       .fill("Authorization boundary");
@@ -238,7 +239,8 @@ test.describe("Task 15 persistent mutation workflows", () => {
     await verification
       .getByLabel("Verification method")
       .fill("Playwright regression");
-    await verification.getByLabel("Verifier").fill("Independent verifier B");
+    await verification.getByLabel("Source revision").fill("commit-e2e-b");
+    await verification.getByLabel("Patch SHA-256").fill("b".repeat(64));
     await verification
       .getByLabel("Verification scope")
       .fill("Authorization boundary after remediation two");
@@ -419,7 +421,10 @@ test.describe("Task 15 persistent mutation workflows", () => {
     await verification
       .getByLabel("Verification method")
       .fill("Task 18 duplicate-submit regression");
-    await verification.getByLabel("Verifier").fill("Independent verifier");
+    await verification
+      .getByLabel("Source revision")
+      .fill("commit-duplicate-submit");
+    await verification.getByLabel("Patch SHA-256").fill("c".repeat(64));
     await verification
       .getByLabel("Verification scope")
       .fill("Pending mutation dismissal boundary");

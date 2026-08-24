@@ -304,6 +304,7 @@ function createHarness(initialFindings: Finding[] = []): Harness {
         id: string,
         summary: string,
         reference: string,
+        remediatorPrincipalId: string,
         completedAt: string,
         updatedAt: string,
       ) {
@@ -322,6 +323,7 @@ function createHarness(initialFindings: Finding[] = []): Harness {
           status: "Completed",
           summary,
           reference,
+          remediatorPrincipalId,
           completedAt,
           updatedAt,
           version: state.remediations[index]!.version + 1,
@@ -554,6 +556,23 @@ function ids(...values: string[]) {
 
 const clock = { now: () => NOW };
 const actor = { actorType: "operator", actorId: "local-user" };
+const verificationProvenance = {
+  sourceRevision: "commit-under-test",
+  patchDigest: "a".repeat(64),
+  verifier: {
+    principalId: actor.actorId,
+    displayName: "Operator",
+    credentialType: "session" as const,
+  },
+};
+const persistedVerificationProvenance = {
+  workerName: verificationProvenance.verifier.displayName,
+  verifierPrincipalId: verificationProvenance.verifier.principalId,
+  credentialType: verificationProvenance.verifier.credentialType,
+  executionSource: "authenticated-api",
+  sourceRevision: verificationProvenance.sourceRevision,
+  patchDigest: verificationProvenance.patchDigest,
+};
 const hashEvidence = () => "a".repeat(64);
 
 function expectDomainError(
@@ -805,6 +824,7 @@ describe("VerificationService", () => {
       summary: "Both query paths parameterized",
       reference: "CHG-1042-2",
       owner: "L. Chen",
+      remediatorPrincipalId: "remediation-user",
       startedAt: "2026-08-20T10:00:00.000Z",
       completedAt: "2026-08-20T11:00:00.000Z",
       createdAt: "2026-08-20T10:00:00.000Z",
@@ -831,7 +851,7 @@ describe("VerificationService", () => {
           findingId: base.id,
           remediationId: "missing-remediation",
           method: "Independent manual retest",
-          workerName: "Operator",
+          ...verificationProvenance,
           scope: "Patient Portal API",
           checks: ["Primary query path"],
           actor,
@@ -854,7 +874,7 @@ describe("VerificationService", () => {
       findingId: base.id,
       remediationId: "remediation-2",
       method: "Independent manual retest",
-      workerName: "Operator",
+      ...verificationProvenance,
       scope: "Patient Portal API",
       checks: ["Primary query path", "Secondary query path"],
       actor,
@@ -872,7 +892,7 @@ describe("VerificationService", () => {
     );
   });
 
-  it("rejects the persisted remediation owner as the asserted verifier", () => {
+  it("rejects the authenticated principal that performed the remediation", () => {
     const { base, harness } = eligibleHarness();
     const service = new VerificationService({
       unitOfWork: harness.unitOfWork,
@@ -888,7 +908,11 @@ describe("VerificationService", () => {
           findingId: base.id,
           remediationId: "remediation-2",
           method: "Independent manual retest",
-          workerName: "  l. CHEN  ",
+          ...verificationProvenance,
+          verifier: {
+            ...verificationProvenance.verifier,
+            principalId: "remediation-user",
+          },
           scope: "Patient Portal API",
           checks: ["Primary query path"],
           actor,
@@ -918,7 +942,7 @@ describe("VerificationService", () => {
       findingId: base.id,
       remediationId: "remediation-2",
       method: "Independent manual retest",
-      workerName: "Operator",
+      ...verificationProvenance,
       scope: "Patient Portal API",
       checks: ["Primary query path"],
       actor,
@@ -931,7 +955,7 @@ describe("VerificationService", () => {
           findingId: base.id,
           remediationId: "remediation-2",
           method: "Second independent retest",
-          workerName: "Another operator",
+          ...verificationProvenance,
           scope: "Patient Portal API",
           checks: ["Secondary query path"],
           actor,
@@ -957,7 +981,7 @@ describe("VerificationService", () => {
           findingId: base.id,
           remediationId: "remediation-2",
           method: "Independent manual retest",
-          workerName: "Operator",
+          ...verificationProvenance,
           scope: "Patient Portal API",
           checks: ["Primary query path", "Primary query path"],
           actor,
@@ -979,12 +1003,26 @@ describe("VerificationService", () => {
       findingId: base.id,
       remediationId: "remediation-2",
       method: "Independent manual retest",
-      workerName: "Operator",
+      ...verificationProvenance,
       scope: "Patient Portal API",
       checks: ["Primary query path"],
       actor,
     });
 
+    expectDomainError(
+      () =>
+        service.recordVerificationCheck({
+          organizationId: ORG,
+          verificationId: "verification-2",
+          sequence: 1,
+          name: "Primary query path",
+          status: "Passed",
+          message: "Unassigned principal result",
+          actor: { actorType: "operator", actorId: "different-user" },
+        }),
+      "VERIFICATION_PRINCIPAL_MISMATCH",
+      403,
+    );
     const recorded = service.recordVerificationCheck({
       organizationId: ORG,
       verificationId: "verification-2",
@@ -1023,7 +1061,7 @@ describe("VerificationService", () => {
       findingId: base.id,
       remediationId: "remediation-2",
       method: "Independent manual retest",
-      workerName: "Operator",
+      ...verificationProvenance,
       scope: "Patient Portal API",
       checks: ["Secondary query path"],
       actor,
@@ -1082,7 +1120,7 @@ describe("VerificationService", () => {
         findingId: base.id,
         remediationId: "remediation-2",
         method: "Independent manual retest",
-        workerName: "Operator",
+        ...verificationProvenance,
         scope: "Patient Portal API",
         checks: ["Required check"],
         actor,
@@ -1130,7 +1168,7 @@ describe("VerificationService", () => {
       remediationId: "remediation-1",
       status: "Failed",
       method: "Independent manual retest",
-      workerName: "Operator",
+      ...persistedVerificationProvenance,
       scope: "Patient Portal API",
       resultSummary: "Secondary query path remains vulnerable",
       startedAt: "2026-08-12T00:00:00.000Z",
@@ -1165,7 +1203,7 @@ describe("VerificationService", () => {
       findingId: base.id,
       remediationId: "remediation-2",
       method: "Independent manual retest",
-      workerName: "Operator",
+      ...verificationProvenance,
       scope: "Patient Portal API",
       checks: ["Primary query path", "Secondary query path"],
       actor,
@@ -1268,7 +1306,7 @@ describe("DashboardService", () => {
       remediationId: "remediation-1",
       status: "Failed",
       method: "Retest",
-      workerName: "Operator",
+      ...persistedVerificationProvenance,
       scope: "API",
       resultSummary: "Still vulnerable",
       startedAt: "2026-08-19T10:00:00.000Z",
