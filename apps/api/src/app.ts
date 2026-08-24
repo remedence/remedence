@@ -25,6 +25,7 @@ import { createDashboardRouter } from "./routes/dashboard.js";
 import { createEvidenceRouter } from "./routes/evidence.js";
 import { createFindingsRouter } from "./routes/findings.js";
 import { createImportsRouter } from "./routes/imports.js";
+import { createOnboardingRouter } from "./routes/onboarding.js";
 import { createRemediationsRouter } from "./routes/remediations.js";
 import { createReportsRouter } from "./routes/reports.js";
 import { createVerificationsRouter } from "./routes/verifications.js";
@@ -156,7 +157,10 @@ export function createApp(
     app.use(
       "/api/v1",
       establishLocalPrincipal(
-        dependencies.localOrganizationId ?? DEFAULT_LOCAL_ORGANIZATION_ID,
+        () =>
+          dependencies.workspace?.status().organization?.id ??
+          dependencies.localOrganizationId ??
+          DEFAULT_LOCAL_ORGANIZATION_ID,
       ),
     );
   }
@@ -175,6 +179,7 @@ export function createApp(
   app.use("/api/v1", createEvidenceRouter(dependencies));
   app.use("/api/v1", createFindingsRouter(dependencies));
   app.use("/api/v1", createImportsRouter(dependencies));
+  app.use("/api/v1", createOnboardingRouter(dependencies));
   app.use("/api/v1", createRemediationsRouter(dependencies));
   app.use("/api/v1", createReportsRouter(dependencies));
   app.use("/api/v1", createVerificationsRouter(dependencies));

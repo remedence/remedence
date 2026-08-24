@@ -82,6 +82,7 @@ function startApi(port: number, dataDirectory: string): ChildProcess {
       NODE_ENV: "production",
       REMEDENCE_API_PORT: String(port),
       REMEDENCE_DATA_DIR: dataDirectory,
+      REMEDENCE_WORKSPACE_MODE: "demo",
     },
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true,

@@ -173,6 +173,7 @@ test.describe("Task 17 accessibility and browser regression pre-flight", () => {
     await page.goto("/");
 
     const skipLink = page.getByRole("link", { name: "Skip to main content" });
+    await expect(skipLink).toBeAttached();
     await page.keyboard.press("Tab");
     await expect(skipLink).toBeFocused();
     await expect(skipLink).toBeVisible();
@@ -180,6 +181,7 @@ test.describe("Task 17 accessibility and browser regression pre-flight", () => {
     await expect(page.locator("#workspace-main")).toBeFocused();
 
     await page.reload();
+    await expect(skipLink).toBeAttached();
     await page.keyboard.press("Tab");
     await expect(skipLink).toBeFocused();
 

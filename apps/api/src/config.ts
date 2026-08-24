@@ -21,6 +21,7 @@ export interface ApiConfig {
   webDirectory: string;
   allowedMutationOrigins: readonly string[];
   authentication: AuthenticationConfig;
+  workspaceMode: "empty" | "demo";
 }
 
 const PORT_ERROR =
@@ -34,6 +35,18 @@ const AUTH_URL_ERROR =
   "BETTER_AUTH_URL must be an explicit HTTPS origin, or an HTTP 127.0.0.1 origin for local testing.";
 const AUTH_SECRET_ERROR =
   "BETTER_AUTH_SECRET or every BETTER_AUTH_SECRETS value must contain at least 32 characters when authentication is required.";
+const WORKSPACE_MODE_ERROR =
+  'REMEDENCE_WORKSPACE_MODE must be either "empty" or "demo".';
+
+export function resolveWorkspaceMode(
+  value = process.env.REMEDENCE_WORKSPACE_MODE,
+): "empty" | "demo" {
+  const mode = value ?? "empty";
+  if (mode !== "empty" && mode !== "demo") {
+    throw new Error(WORKSPACE_MODE_ERROR);
+  }
+  return mode;
+}
 
 export interface AuthenticationEnvironment {
   mode?: string | undefined;
@@ -184,5 +197,6 @@ export function getApiConfig(): ApiConfig {
       secret: process.env.BETTER_AUTH_SECRET,
       secrets: process.env.BETTER_AUTH_SECRETS,
     }),
+    workspaceMode: resolveWorkspaceMode(),
   };
 }

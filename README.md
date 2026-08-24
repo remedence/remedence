@@ -120,6 +120,7 @@ Environment controls:
 - `REMEDENCE_DATA_DIR` overrides the data directory. The default is `./data` relative to the process working directory.
 - `NODE_ENV=production` also enables production web serving when the compiled server is started directly instead of through `bun run start`.
 - `REMEDENCE_AUTH_MODE=required` enables Better Auth and rejects anonymous `/api/v1` access. It also requires an explicit `BETTER_AUTH_URL` and at least 32 characters of secret material in `BETTER_AUTH_SECRET` or every versioned `BETTER_AUTH_SECRETS` value. Public account creation remains disabled.
+- `REMEDENCE_WORKSPACE_MODE=empty` is the default and starts at first-run onboarding without sample records. Set it to `demo` only when Harborline sample data should be installed automatically for a disposable demonstration.
 
 The one-time initial-owner workflow is `bun run auth:bootstrap --name <name> --email <email>`. It requires `REMEDENCE_BOOTSTRAP_PASSWORD` through secure environment injection and refuses to run after any user exists. See the authentication documentation before using it.
 
@@ -127,7 +128,7 @@ Operational probes are `GET /livez` for process liveness and `GET /readyz` for d
 
 ## Database lifecycle
 
-The API opens `${REMEDENCE_DATA_DIR}/remedence.db`, applies repository migrations, and applies the Harborline demo seed only when the local organization data is absent. Existing organization data is not overwritten by a later seed attempt.
+The API opens `${REMEDENCE_DATA_DIR}/remedence.db` and applies repository migrations. A new default installation stays empty until the onboarding screen creates a named organization or the operator explicitly chooses Harborline demo data. Existing organization data is never overwritten by a later seed attempt.
 
 Explicit maintenance commands:
 

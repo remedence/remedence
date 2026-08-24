@@ -136,6 +136,7 @@ describe("Better Auth persistence", () => {
     const dependencies = createDependencies({
       databasePath: join(directory, "remedence.db"),
       authentication: { mode: "required", baseURL },
+      workspaceMode: "demo",
       log: () => undefined,
     });
     dependencySets.push(dependencies);

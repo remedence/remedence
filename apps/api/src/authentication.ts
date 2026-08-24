@@ -80,7 +80,9 @@ export function organizationIdFrom(response: ExpressResponse): string {
   return principal.organizationId;
 }
 
-export function establishLocalPrincipal(organizationId: string) {
+export function establishLocalPrincipal(
+  organizationId: string | (() => string),
+) {
   return function localPrincipal(
     _request: ExpressRequest,
     response: ExpressResponse,
@@ -91,7 +93,10 @@ export function establishLocalPrincipal(organizationId: string) {
       sessionId: "local-workspace",
       name: "Local workspace",
       email: "",
-      organizationId,
+      organizationId:
+        typeof organizationId === "function"
+          ? organizationId()
+          : organizationId,
       role: "Owner",
     } satisfies AuthenticatedPrincipal;
     next();

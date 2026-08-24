@@ -90,6 +90,7 @@ describe("live SLA evaluation", () => {
     const dependencies = createDependencies({
       databasePath: join(temporaryDirectory, "remedence.db"),
       clock: { now: () => now },
+      workspaceMode: "demo",
       log: () => undefined,
     });
     dependencySets.push(dependencies);

@@ -97,7 +97,10 @@ open SQLite database
 apply migrations
       |
       v
-apply Harborline seed only if local organization data is absent
+load the configured first-run mode
+      |
+      v
+empty onboarding or explicit Harborline demo choice
       |
       v
 create repositories + core services

@@ -1,5 +1,7 @@
 # Persistent failed-first verification demo
 
+Set `REMEDENCE_WORKSPACE_MODE=demo` before first startup, or choose **Harborline demo data** on the first-run screen. Demo data is never installed implicitly by the default empty mode.
+
 The flagship Remedence local-v1 story is deliberately a failed first verification. It demonstrates the product rule in persisted application state:
 
 **PATCHED != VERIFIED FIXED**

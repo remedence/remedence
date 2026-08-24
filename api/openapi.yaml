@@ -11,6 +11,7 @@ servers:
   - url: /api/v1
     description: Relative Remedence API v1 namespace
 tags:
+  - name: Onboarding
   - name: Dashboard
   - name: Companies
   - name: Assets
@@ -24,6 +25,43 @@ tags:
   - name: Webhooks
   - name: Integrations
 paths:
+  /onboarding:
+    get:
+      tags: [Onboarding]
+      operationId: getOnboardingStatus
+      summary: Read the first-run workspace state
+      responses:
+        "200":
+          description: Current workspace initialization state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OnboardingStatus"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags: [Onboarding]
+      operationId: initializeWorkspace
+      summary: Initialize an empty workspace or explicitly install demo data
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InitializeWorkspaceRequest"
+      responses:
+        "201":
+          description: Workspace initialized exactly once.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OnboardingStatus"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /dashboard:
     get:
       tags: [Dashboard]
@@ -743,6 +781,53 @@ components:
           schema:
             $ref: "#/components/schemas/Problem"
   schemas:
+    WorkspaceOrganization:
+      type: object
+      additionalProperties: false
+      required: [id, name, slug]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+    OnboardingStatus:
+      type: object
+      additionalProperties: false
+      required: [initialized, mode, organization]
+      properties:
+        initialized:
+          type: boolean
+        mode:
+          type: [string, "null"]
+          enum: [empty, demo, null]
+        organization:
+          oneOf:
+            - $ref: "#/components/schemas/WorkspaceOrganization"
+            - type: "null"
+    InitializeWorkspaceRequest:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [mode, organization_name, organization_slug]
+          properties:
+            mode:
+              const: empty
+            organization_name:
+              type: string
+              minLength: 1
+              maxLength: 160
+            organization_slug:
+              type: string
+              pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+              maxLength: 80
+        - type: object
+          additionalProperties: false
+          required: [mode]
+          properties:
+            mode:
+              const: demo
     Severity:
       type: string
       enum: [Critical, High, Medium, Low, Info]

@@ -81,6 +81,7 @@ beforeEach(() => {
 
   const dependencies = createDependencies({
     databasePath: join(temporaryDirectory, "data", "remedence.db"),
+    workspaceMode: "demo",
     log: () => undefined,
   });
   fixture = {

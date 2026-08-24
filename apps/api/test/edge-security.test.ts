@@ -19,6 +19,7 @@ function fixture() {
   const dependencies = createDependencies({
     databasePath: join(directory, "remedence.db"),
     referenceTime: "2026-08-20T12:00:00.000Z",
+    workspaceMode: "demo",
     log: () => undefined,
   });
   dependencySets.push(dependencies);

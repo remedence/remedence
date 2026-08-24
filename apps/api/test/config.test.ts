@@ -7,6 +7,7 @@ import {
   resolveApiPort,
   resolveAuthenticationConfig,
   resolveDevelopmentOrigin,
+  resolveWorkspaceMode,
 } from "../src/config.js";
 
 describe("local API configuration", () => {
@@ -17,6 +18,14 @@ describe("local API configuration", () => {
   it("uses the approved default port and accepts a bounded override", () => {
     expect(resolveApiPort(undefined)).toBe(DEFAULT_API_PORT);
     expect(resolveApiPort("5500")).toBe(5500);
+  });
+
+  it("starts empty unless demo data is explicitly requested", () => {
+    expect(resolveWorkspaceMode(undefined)).toBe("empty");
+    expect(resolveWorkspaceMode("demo")).toBe("demo");
+    expect(() => resolveWorkspaceMode("automatic")).toThrow(
+      'REMEDENCE_WORKSPACE_MODE must be either "empty" or "demo".',
+    );
   });
 
   it("enables built web serving for explicit production mode or a package-manager start", () => {

@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import type { components } from "../lib/api/schema";
+import { useWorkspace } from "../features/onboarding/OnboardingGate";
 
 export type PageName =
   | "Dashboard"
@@ -73,6 +74,7 @@ export function AppShell({
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const workspace = useWorkspace();
   const notifications = dashboard?.notifications ?? [];
   const unreadNotificationCount = notifications.filter(
     (notification) => notification.status === "attention",
@@ -198,9 +200,11 @@ export function AppShell({
             <select
               aria-label="Organization"
               name="workspaceOrganization"
-              defaultValue="Harborline Technology Group"
+              defaultValue={workspace?.id ?? "local-workspace"}
             >
-              <option>Harborline Technology Group</option>
+              <option value={workspace?.id ?? "local-workspace"}>
+                {workspace?.name ?? "Local workspace"}
+              </option>
             </select>
             <ChevronDown aria-hidden="true" />
           </label>

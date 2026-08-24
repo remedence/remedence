@@ -4,6 +4,24 @@
  */
 
 export interface paths {
+    "/onboarding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read the first-run workspace state */
+        get: operations["getOnboardingStatus"];
+        put?: never;
+        /** Initialize an empty workspace or explicitly install demo data */
+        post: operations["initializeWorkspace"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/dashboard": {
         parameters: {
             query?: never;
@@ -376,6 +394,26 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        WorkspaceOrganization: {
+            id: string;
+            name: string;
+            slug: string;
+        };
+        OnboardingStatus: {
+            initialized: boolean;
+            /** @enum {string|null} */
+            mode: "empty" | "demo" | null;
+            organization: components["schemas"]["WorkspaceOrganization"] | null;
+        };
+        InitializeWorkspaceRequest: {
+            /** @constant */
+            mode: "empty";
+            organization_name: string;
+            organization_slug: string;
+        } | {
+            /** @constant */
+            mode: "demo";
+        };
         /** @enum {string} */
         Severity: "Critical" | "High" | "Medium" | "Low" | "Info";
         /** @enum {string} */
@@ -788,6 +826,54 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    getOnboardingStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current workspace initialization state. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingStatus"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    initializeWorkspace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InitializeWorkspaceRequest"];
+            };
+        };
+        responses: {
+            /** @description Workspace initialized exactly once. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingStatus"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            409: components["responses"]["Conflict"];
+            500: components["responses"]["InternalError"];
+        };
+    };
     getDashboard: {
         parameters: {
             query?: {
