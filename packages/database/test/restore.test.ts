@@ -57,7 +57,7 @@ describe("SQLite restore", () => {
       readOnly: true,
     });
     try {
-      expect(restored.schemaVersion).toBe(4);
+      expect(restored.schemaVersion).toBe(5);
       expect(
         createRepositorySet(restored, { referenceTime })
           .companies.list("org-harborline")

@@ -15,11 +15,13 @@ import {
 import {
   applyMigrations,
   createRepositorySet,
+  createRateLimitStore,
   createUnitOfWork,
   getDatabaseConnection,
   openRemedenceDatabase,
   seedHarborline,
   type RemedenceDatabase,
+  type RateLimitStore,
 } from "@remedence/database";
 import { hashEvidenceMetadata } from "@remedence/evidence";
 import {
@@ -45,6 +47,7 @@ export interface ApiDependencies {
     reports: ReportService;
   };
   repositories: RepositorySet;
+  rateLimit?: RateLimitStore;
   localOrganizationId: string;
   workspace: {
     status: () => {
@@ -167,6 +170,7 @@ export function createDependencies(
         reports: new ReportService({ unitOfWork, clock, idGenerator }),
       },
       repositories,
+      rateLimit: createRateLimitStore(database),
       localOrganizationId,
       workspace: {
         status: workspaceStatus,

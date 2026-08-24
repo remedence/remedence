@@ -8,6 +8,7 @@ import {
   type ApiDependencies,
 } from "./dependencies.js";
 import {
+  authenticatedPrincipalFrom,
   establishLocalPrincipal,
   requireAuthenticatedPrincipal,
 } from "./authentication.js";
@@ -95,7 +96,15 @@ export function createApp(
   app.use(createRequestContext(dependencies.log));
   app.use(setSecurityHeaders);
   app.use(createSameOriginGuard(options.allowedMutationOrigins));
-  app.use(createRateLimit(options.rateLimit ?? DEFAULT_RATE_LIMIT));
+  if (dependencies.rateLimit) {
+    app.use(
+      createRateLimit(
+        options.rateLimit ?? DEFAULT_RATE_LIMIT,
+        dependencies.rateLimit,
+        (request) => `edge:${request.socket.remoteAddress ?? "unknown"}`,
+      ),
+    );
+  }
   app.get("/api/auth/remedence-status", async (request, response, next) => {
     try {
       if (!dependencies.authentication) {
@@ -161,6 +170,21 @@ export function createApp(
           dependencies.workspace?.status().organization?.id ??
           dependencies.localOrganizationId ??
           DEFAULT_LOCAL_ORGANIZATION_ID,
+      ),
+    );
+  }
+
+  if (dependencies.rateLimit) {
+    app.use(
+      createRateLimit(
+        options.rateLimit ?? DEFAULT_RATE_LIMIT,
+        dependencies.rateLimit,
+        (request, response) => {
+          const principal = authenticatedPrincipalFrom(response);
+          return principal
+            ? `tenant:${principal.organizationId}`
+            : `public:${request.socket.remoteAddress ?? "unknown"}`;
+        },
       ),
     );
   }

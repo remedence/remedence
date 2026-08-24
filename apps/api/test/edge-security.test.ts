@@ -149,4 +149,34 @@ describe("local HTTP edge security", () => {
     now = 11_000;
     await request(app).get("/api/v1/dashboard").expect(200);
   });
+
+  it("preserves request budgets across API dependency restarts", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "remedence-rate-restart-"));
+    temporaryDirectories.push(directory);
+    const databasePath = join(directory, "remedence.db");
+    const options = {
+      rateLimit: { maxRequests: 2, windowMs: 10_000, now: () => 1_000 },
+    };
+    const first = createDependencies({
+      databasePath,
+      workspaceMode: "demo",
+      log: () => undefined,
+    });
+    dependencySets.push(first);
+    await request(createApp(first, options))
+      .get("/api/v1/dashboard")
+      .expect(200);
+    closeDependencies(first);
+
+    const second = createDependencies({
+      databasePath,
+      workspaceMode: "demo",
+      log: () => undefined,
+    });
+    dependencySets.push(second);
+    const app = createApp(second, options);
+    const lastAllowed = await request(app).get("/api/v1/dashboard").expect(200);
+    expect(lastAllowed.headers["ratelimit-remaining"]).toBe("0");
+    await request(app).get("/api/v1/dashboard").expect(429);
+  });
 });

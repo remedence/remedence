@@ -53,7 +53,7 @@ Remedence supports a loopback local-workspace mode and a required-authentication
 
 The server host remains fixed to loopback rather than accepting an environment-controlled bind address. Required mode currently provides tenant membership isolation and authenticated audit actors, but invitation, recovery, enforced MFA, federated identity, and complete role authorization remain separate gates.
 
-The local HTTP process also applies same-origin mutation checks, browser security headers, no-store API caching, bounded JSON payloads, a process-local request-rate budget, safe Problem responses, and server connection/request timeouts. These are local defense-in-depth controls, not a claim of public-edge readiness. See [`http-edge-security.md`](http-edge-security.md).
+The local HTTP process also applies same-origin mutation checks, browser security headers, no-store API caching, bounded JSON payloads, database-coordinated client and tenant request budgets, safe Problem responses, and server connection/request timeouts. These are local defense-in-depth controls, not a claim of public-edge readiness. See [`http-edge-security.md`](http-edge-security.md).
 
 `/livez` reports only process liveness. Each `/readyz` request executes a live database query, reports database/schema readiness, and returns `503` on dependency degradation; `/healthz` remains its compatibility alias. Structured request logs contain request ID, method, route path without query parameters, status, and duration; application payloads and local database paths are not logged by that middleware.
 

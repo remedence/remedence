@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
+import type { RateLimitStore } from "@remedence/database";
 
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
@@ -8,10 +9,7 @@ export interface RateLimitOptions {
   now?: () => number;
 }
 
-interface RateWindow {
-  count: number;
-  resetAt: number;
-}
+export type RateLimitKey = (request: Request, response: Response) => string;
 
 function requestOrigin(request: Request): string {
   const host = request.get("host");
@@ -87,7 +85,12 @@ export function createSameOriginGuard(allowedOrigins: readonly string[] = []) {
   };
 }
 
-export function createRateLimit(options: RateLimitOptions) {
+export function createRateLimit(
+  options: RateLimitOptions,
+  store: RateLimitStore,
+  keyFor: RateLimitKey = (request) =>
+    `client:${request.socket.remoteAddress ?? "unknown"}`,
+) {
   if (!Number.isInteger(options.maxRequests) || options.maxRequests < 1) {
     throw new Error("Rate limit maxRequests must be a positive integer.");
   }
@@ -95,7 +98,6 @@ export function createRateLimit(options: RateLimitOptions) {
     throw new Error("Rate limit windowMs must be a positive integer.");
   }
 
-  const windows = new Map<string, RateWindow>();
   const now = options.now ?? Date.now;
 
   return function rateLimit(
@@ -109,14 +111,11 @@ export function createRateLimit(options: RateLimitOptions) {
     }
 
     const currentTime = now();
-    const key = request.socket.remoteAddress ?? "unknown";
-    let window = windows.get(key);
-    if (!window || currentTime >= window.resetAt) {
-      window = { count: 0, resetAt: currentTime + options.windowMs };
-      windows.set(key, window);
-    }
-
-    window.count += 1;
+    const window = store.consume(
+      keyFor(request, response),
+      currentTime,
+      options.windowMs,
+    );
     const remaining = Math.max(0, options.maxRequests - window.count);
     response.setHeader("RateLimit-Limit", String(options.maxRequests));
     response.setHeader("RateLimit-Remaining", String(remaining));
