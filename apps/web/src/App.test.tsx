@@ -494,6 +494,34 @@ describe("Remedence API-backed read models", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("persists live refresh and density preferences from Settings", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(jsonResponse(dashboardFixture)),
+    );
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "Settings" }));
+    await user.selectOptions(
+      screen.getByLabelText("Live data refresh interval"),
+      "30",
+    );
+    await user.selectOptions(
+      screen.getByLabelText("Display density"),
+      "compact",
+    );
+
+    expect(document.documentElement.dataset.density).toBe("compact");
+    expect(
+      window.localStorage.getItem("remedence.workspace-preferences.v1"),
+    ).toBe(JSON.stringify({ refreshSeconds: 30, density: "compact" }));
+    expect(screen.getByRole("link", { name: "Export data" })).toHaveAttribute(
+      "href",
+      "/api/v1/privacy/export",
+    );
+  });
+
   describe("persistent mutation workflows", () => {
     it("imports a normalized finding through the typed API and reloads persisted dashboard truth", async () => {
       const importedFinding = {

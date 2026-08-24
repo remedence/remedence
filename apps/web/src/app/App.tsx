@@ -1,8 +1,10 @@
 import {
+  Download,
   FileCheck2,
   FileText,
   FolderCheck,
   Gauge,
+  LockKeyhole,
   Plug,
   RefreshCw,
   SlidersHorizontal,
@@ -38,6 +40,11 @@ import { useApiQuery } from "../lib/api/useApiQuery";
 import { useApiMutation } from "../lib/api/useApiMutation";
 import { DialogLayer } from "../lib/dialogs/DialogLayer";
 import { resolveFindingAction } from "../lib/findings/action";
+import {
+  useWorkspacePreferences,
+  type DisplayDensity,
+  type RefreshSeconds,
+} from "../features/preferences/workspace-preferences";
 import "../app.css";
 
 type DashboardSnapshot = components["schemas"]["DashboardSnapshot"];
@@ -166,6 +173,7 @@ function timestamp(value: string | null | undefined): string {
 }
 
 export default function App() {
+  const [preferences] = useWorkspacePreferences();
   const [page, setPage] = useState<PageName>("Dashboard");
   const [filters, setFilters] = useState<FindingFilters>(filtersFromLocation);
   const [activeFindingKey, setActiveFindingKey] = useState("");
@@ -190,6 +198,13 @@ export default function App() {
       filters.sort,
     ],
   );
+
+  useEffect(() => {
+    document.documentElement.dataset.density = preferences.density;
+    return () => {
+      delete document.documentElement.dataset.density;
+    };
+  }, [preferences.density]);
 
   useEffect(() => {
     const handlePopState = () => setFilters(filtersFromLocation());
@@ -550,8 +565,6 @@ function SecondaryPage({
   onOpenFinding: (findingKey: string, trigger: HTMLButtonElement) => void;
   onGenerateReport: (trigger: HTMLButtonElement) => void;
 }) {
-  const authentication = useAuthentication();
-
   if (page === "Companies") {
     return (
       <ScaffoldPage
@@ -735,82 +748,202 @@ function SecondaryPage({
 
   if (page === "Integrations") return <IntegrationsPage />;
 
-  if (page === "Settings") {
-    return (
-      <ScaffoldPage
-        title="Settings"
-        copy="Workspace controls describe the current local security and verification boundary."
-      >
-        <div className="setting-list">
-          <div>
-            <SlidersHorizontal aria-hidden="true" />
-            <div>
-              <strong>Verification policy</strong>
-              <p>
-                Require an independent pass before a finding can reach Verified
-                fixed.
-              </p>
-            </div>
-            <span>Required</span>
-          </div>
-          <div>
-            <FolderCheck aria-hidden="true" />
-            <div>
-              <strong>Evidence retention</strong>
-              <p>
-                Keep failed verification history and locked evidence with
-                closure records.
-              </p>
-            </div>
-            <span>Enabled</span>
-          </div>
-          <div>
-            <RefreshCw aria-hidden="true" />
-            <div>
-              <strong>API boundary</strong>
-              <p>Browser reads use the same-origin local API under /api/v1.</p>
-            </div>
-            <span>Local</span>
-          </div>
-        </div>
-      </ScaffoldPage>
-    );
-  }
+  if (page === "Settings") return <SettingsPage />;
+  if (page === "Help") return <HelpPage />;
+  return <AccountPage />;
+}
 
-  if (page === "Help") {
-    return (
-      <ScaffoldPage
-        title="Help"
-        copy="Use the public architecture documentation and canonical OpenAPI contract."
-      >
-        <div className="resource-actions">
-          <a
-            className="button secondary"
-            href="https://github.com/remedence/remedence/tree/main/docs"
-            target="_blank"
-            rel="noreferrer"
+function SettingsPage() {
+  const [preferences, savePreferences] = useWorkspacePreferences();
+  return (
+    <ScaffoldPage
+      title="Settings"
+      copy="Personal workspace preferences and tenant data controls."
+    >
+      <div className="setting-list interactive-settings">
+        <label>
+          <RefreshCw aria-hidden="true" />
+          <span>
+            <strong>Live data refresh</strong>
+            <small>Refresh visible API views and revalidate on focus.</small>
+          </span>
+          <select
+            aria-label="Live data refresh interval"
+            value={preferences.refreshSeconds}
+            onChange={(event) =>
+              savePreferences({
+                ...preferences,
+                refreshSeconds: Number(event.target.value) as RefreshSeconds,
+              })
+            }
           >
-            <FileText aria-hidden="true" />
-            Read architecture docs
-          </a>
-          <a
-            className="button secondary"
-            href="https://github.com/remedence/remedence/blob/main/api/openapi.yaml"
-            target="_blank"
-            rel="noreferrer"
+            <option value={15}>Every 15 seconds</option>
+            <option value={30}>Every 30 seconds</option>
+            <option value={60}>Every minute</option>
+            <option value={0}>Focus only</option>
+          </select>
+        </label>
+        <label>
+          <SlidersHorizontal aria-hidden="true" />
+          <span>
+            <strong>Display density</strong>
+            <small>Choose the row spacing used on this browser.</small>
+          </span>
+          <select
+            aria-label="Display density"
+            value={preferences.density}
+            onChange={(event) =>
+              savePreferences({
+                ...preferences,
+                density: event.target.value as DisplayDensity,
+              })
+            }
           >
-            <Gauge aria-hidden="true" />
-            View OpenAPI contract
+            <option value="comfortable">Comfortable</option>
+            <option value="compact">Compact</option>
+          </select>
+        </label>
+        <div>
+          <FolderCheck aria-hidden="true" />
+          <span>
+            <strong>Tenant data export</strong>
+            <small>
+              Download records and integrity-checked evidence artifacts.
+            </small>
+          </span>
+          <a className="button secondary" href="/api/v1/privacy/export">
+            Export data
           </a>
         </div>
-      </ScaffoldPage>
-    );
-  }
+      </div>
+    </ScaffoldPage>
+  );
+}
 
+async function downloadSupportDiagnostics(): Promise<void> {
+  const [readiness, authentication] = await Promise.all([
+    fetch("/readyz", { headers: { accept: "application/json" } }),
+    fetch("/api/auth/remedence-status", {
+      credentials: "include",
+      headers: { accept: "application/json" },
+    }),
+  ]);
+  const authenticationBody = authentication.ok
+    ? ((await authentication.json()) as Record<string, unknown>)
+    : null;
+  const bundle = {
+    generated_at: new Date().toISOString(),
+    location: window.location.origin,
+    user_agent: navigator.userAgent,
+    readiness: readiness.ok
+      ? await readiness.json()
+      : { status: readiness.status },
+    authentication: authenticationBody
+      ? {
+          mode: authenticationBody.mode,
+          authenticated: authenticationBody.authenticated,
+          mfa: authenticationBody.mfa,
+          password_reset_enabled: authenticationBody.password_reset_enabled,
+          federation_protocols: authenticationBody.federation_protocols,
+        }
+      : { status: authentication.status },
+  };
+  const url = URL.createObjectURL(
+    new Blob([JSON.stringify(bundle, null, 2)], { type: "application/json" }),
+  );
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `remedence-support-${Date.now()}.json`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function HelpPage() {
+  const [status, setStatus] = useState("");
+  async function download() {
+    try {
+      setStatus("Preparing safe diagnostics…");
+      await downloadSupportDiagnostics();
+      setStatus("Support diagnostics downloaded.");
+    } catch {
+      setStatus("Support diagnostics could not be downloaded.");
+    }
+  }
+  return (
+    <ScaffoldPage
+      title="Help"
+      copy="Troubleshoot locally, package safe diagnostics, or open a support issue."
+    >
+      <div className="resource-actions">
+        <button
+          className="button primary"
+          type="button"
+          onClick={() => void download()}
+        >
+          <Download aria-hidden="true" />
+          Download diagnostics
+        </button>
+        <a
+          className="button secondary"
+          href="https://github.com/remedence/remedence/issues/new/choose"
+          target="_blank"
+          rel="noreferrer"
+        >
+          <FileText aria-hidden="true" />
+          Report an issue
+        </a>
+        <a
+          className="button secondary"
+          href="https://github.com/remedence/remedence/tree/main/docs"
+          target="_blank"
+          rel="noreferrer"
+        >
+          <Gauge aria-hidden="true" />
+          Read operator docs
+        </a>
+      </div>
+      {status ? (
+        <p className="support-status" role="status">
+          {status}
+        </p>
+      ) : null}
+    </ScaffoldPage>
+  );
+}
+
+function AccountPage() {
+  const authentication = useAuthentication();
+  const [message, setMessage] = useState("");
+  async function changePassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    const currentPassword = String(data.get("currentPassword") ?? "");
+    const newPassword = String(data.get("newPassword") ?? "");
+    const confirmation = String(data.get("confirmPassword") ?? "");
+    if (newPassword !== confirmation) {
+      setMessage("New password confirmation does not match.");
+      return;
+    }
+    const problem = await authentication.changePassword(
+      currentPassword,
+      newPassword,
+    );
+    setMessage(problem ?? "Password changed and other sessions revoked.");
+    if (!problem) form.reset();
+  }
+  async function disableMfa(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const password = String(new FormData(form).get("mfaPassword") ?? "");
+    const problem = await authentication.disableMfa(password);
+    setMessage(problem ?? "MFA disabled for this account.");
+    if (!problem) form.reset();
+  }
   return (
     <ScaffoldPage
       title="Account"
-      copy="Current local workspace identity and organization context."
+      copy="Identity, session, and account security controls."
     >
       <div className="account-panel">
         <div className="account-avatar">
@@ -820,15 +953,69 @@ function SecondaryPage({
                 .slice(0, 2)
                 .map((part) => part[0]?.toLocaleUpperCase("en-US"))
                 .join("")
-            : "HO"}
+            : "LO"}
         </div>
         <div>
-          <h2>{authentication.user?.name ?? "Harborline Operator"}</h2>
+          <h2>{authentication.user?.name ?? "Local workspace operator"}</h2>
           <p>
-            {authentication.user?.email ??
-              "Harborline Technology Group · Local workspace operator"}
+            {authentication.user?.email ?? "Loopback-only trusted operator"}
           </p>
-          {authentication.mode === "required" ? (
+          <small>
+            {authentication.mode === "required"
+              ? `MFA ${authentication.mfa.enrolled ? "enrolled" : "not enrolled"}`
+              : "Account controls activate when required authentication is configured."}
+          </small>
+        </div>
+      </div>
+      {authentication.mode === "required" ? (
+        <div className="account-security-grid">
+          <form
+            className="workflow-form"
+            onSubmit={(event) => void changePassword(event)}
+          >
+            <div className="form-heading">
+              <LockKeyhole aria-hidden="true" />
+              <div>
+                <strong>Change password</strong>
+                <small>Other sessions will be revoked.</small>
+              </div>
+            </div>
+            <label>
+              <span>Current password</span>
+              <input
+                name="currentPassword"
+                type="password"
+                autoComplete="current-password"
+                required
+              />
+            </label>
+            <label>
+              <span>New password</span>
+              <input
+                name="newPassword"
+                type="password"
+                minLength={12}
+                autoComplete="new-password"
+                required
+              />
+            </label>
+            <label>
+              <span>Confirm new password</span>
+              <input
+                name="confirmPassword"
+                type="password"
+                minLength={12}
+                autoComplete="new-password"
+                required
+              />
+            </label>
+            <button className="button primary" type="submit">
+              Change password
+            </button>
+          </form>
+          <div className="account-actions">
+            <strong>Session controls</strong>
+            <p>Sign out this browser without changing organization data.</p>
             <button
               type="button"
               className="button secondary"
@@ -836,13 +1023,30 @@ function SecondaryPage({
             >
               Sign out
             </button>
-          ) : (
-            <small>
-              Local v1 does not claim a connected production identity provider.
-            </small>
-          )}
+            {authentication.mfa.enrolled && !authentication.mfa.required ? (
+              <form onSubmit={(event) => void disableMfa(event)}>
+                <label>
+                  <span>Current password</span>
+                  <input
+                    name="mfaPassword"
+                    type="password"
+                    autoComplete="current-password"
+                    required
+                  />
+                </label>
+                <button type="submit" className="button secondary">
+                  Disable MFA
+                </button>
+              </form>
+            ) : null}
+          </div>
         </div>
-      </div>
+      ) : null}
+      {message ? (
+        <p className="account-message" role="status">
+          {message}
+        </p>
+      ) : null}
     </ScaffoldPage>
   );
 }

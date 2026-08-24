@@ -28,6 +28,11 @@ interface AuthenticationStatus {
 
 interface AuthenticationContextValue extends AuthenticationStatus {
   signOut: () => Promise<void>;
+  changePassword: (
+    currentPassword: string,
+    newPassword: string,
+  ) => Promise<string | null>;
+  disableMfa: (password: string) => Promise<string | null>;
 }
 
 const authClient = createAuthClient({
@@ -42,6 +47,8 @@ const AuthenticationContext = createContext<AuthenticationContextValue>({
   password_reset_enabled: false,
   federation_protocols: [],
   signOut: async () => undefined,
+  changePassword: async () => "Account controls are unavailable.",
+  disableMfa: async () => "Account controls are unavailable.",
 });
 
 function isAuthenticationStatus(body: unknown): body is AuthenticationStatus {
@@ -121,6 +128,30 @@ export function AuthenticationGate({ children }: { children: ReactNode }) {
     await reload();
   }, [reload]);
 
+  const changePassword = useCallback(
+    async (currentPassword: string, newPassword: string) => {
+      const result = await authClient.changePassword({
+        currentPassword,
+        newPassword,
+        revokeOtherSessions: true,
+      });
+      return result.error
+        ? "Password change failed. Check the current password and requirements."
+        : null;
+    },
+    [],
+  );
+
+  const disableMfa = useCallback(
+    async (password: string) => {
+      const result = await authClient.twoFactor.disable({ password });
+      if (result.error) return "MFA could not be disabled.";
+      await reload();
+      return null;
+    },
+    [reload],
+  );
+
   if (problem) {
     return (
       <AuthCard title="Unable to verify your session">
@@ -172,7 +203,9 @@ export function AuthenticationGate({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthenticationContext.Provider value={{ ...status, signOut }}>
+    <AuthenticationContext.Provider
+      value={{ ...status, signOut, changePassword, disableMfa }}
+    >
       {children}
     </AuthenticationContext.Provider>
   );

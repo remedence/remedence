@@ -1870,6 +1870,43 @@ p {
   font-size: 12px;
 }
 
+.interactive-settings > label,
+.interactive-settings > div {
+  min-height: 78px;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) minmax(150px, auto);
+  align-items: center;
+  gap: 18px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--divider);
+}
+
+.interactive-settings label > span,
+.interactive-settings div > span {
+  color: var(--text-primary);
+}
+
+.interactive-settings strong,
+.interactive-settings small {
+  display: block;
+}
+
+.interactive-settings small {
+  margin-top: 3px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.interactive-settings select {
+  min-width: 160px;
+  min-height: 38px;
+  border: 1px solid var(--divider-strong);
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--text-primary);
+  padding: 0 10px;
+}
+
 .timeline {
   margin-bottom: 24px;
 }
@@ -1979,6 +2016,14 @@ p {
   padding: 22px 18px;
 }
 
+.support-status,
+.account-message {
+  margin: 0;
+  padding: 0 18px 20px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
 .account-panel {
   display: flex;
   align-items: center;
@@ -2010,6 +2055,74 @@ p {
 
 .account-panel small {
   color: var(--text-muted);
+}
+
+.account-security-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 0.7fr);
+  border-top: 1px solid var(--divider);
+}
+
+.account-security-grid .workflow-form {
+  border-right: 1px solid var(--divider);
+}
+
+.form-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.form-heading svg {
+  width: 18px;
+  color: var(--accent);
+}
+
+.form-heading small {
+  display: block;
+  margin-top: 3px;
+  color: var(--text-muted);
+}
+
+.account-actions {
+  padding: 22px 18px;
+}
+
+.account-actions p {
+  margin: 5px 0 14px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.account-actions form {
+  display: grid;
+  gap: 10px;
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--divider);
+}
+
+.account-actions label {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.account-actions input {
+  min-height: 38px;
+  border: 1px solid var(--divider-strong);
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--text-primary);
+  padding: 0 10px;
+}
+
+[data-density="compact"] .simple-rows > div,
+[data-density="compact"] .integration-list > div,
+[data-density="compact"] .setting-list > div,
+[data-density="compact"] .interactive-settings > label {
+  min-height: 52px;
+  padding-block: 8px;
 }
 
 @keyframes drawer-in {
@@ -2452,6 +2565,30 @@ p {
   .integration-list svg,
   .setting-list svg {
     display: none;
+  }
+
+  .interactive-settings > label,
+  .interactive-settings > div {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .interactive-settings svg {
+    display: none;
+  }
+
+  .interactive-settings select,
+  .interactive-settings .button {
+    width: 100%;
+  }
+
+  .account-security-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .account-security-grid .workflow-form {
+    border-right: 0;
+    border-bottom: 1px solid var(--divider);
   }
 }
 

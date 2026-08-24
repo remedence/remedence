@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { DependencyList } from "react";
+import {
+  readWorkspacePreferences,
+  WORKSPACE_PREFERENCES_EVENT,
+} from "../../features/preferences/workspace-preferences";
 import { problemFromUnknown, type ApiProblem } from "./problems";
 
 export interface QueryState<T> {
@@ -33,6 +37,9 @@ export function useApiQuery<T>(
     status: "idle",
   });
   const [reloadVersion, setReloadVersion] = useState(0);
+  const [refreshSeconds, setRefreshSeconds] = useState(
+    () => readWorkspacePreferences().refreshSeconds,
+  );
   const loaderRef = useRef(loader);
   const dependenciesRef = useRef<DependencyList | undefined>(undefined);
   const dependencyVersionRef = useRef(0);
@@ -48,6 +55,40 @@ export function useApiQuery<T>(
   const reload = useCallback(() => {
     setReloadVersion((version) => version + 1);
   }, []);
+
+  useEffect(() => {
+    const refreshPreferences = () =>
+      setRefreshSeconds(readWorkspacePreferences().refreshSeconds);
+    window.addEventListener("storage", refreshPreferences);
+    window.addEventListener(WORKSPACE_PREFERENCES_EVENT, refreshPreferences);
+    return () => {
+      window.removeEventListener("storage", refreshPreferences);
+      window.removeEventListener(
+        WORKSPACE_PREFERENCES_EVENT,
+        refreshPreferences,
+      );
+    };
+  }, []);
+
+  useEffect(() => {
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") reload();
+    };
+    const refreshOnFocus = () => reload();
+    window.addEventListener("focus", refreshOnFocus);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    const timer =
+      refreshSeconds > 0
+        ? window.setInterval(() => {
+            if (document.visibilityState === "visible") reload();
+          }, refreshSeconds * 1_000)
+        : undefined;
+    return () => {
+      window.removeEventListener("focus", refreshOnFocus);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+      if (timer !== undefined) window.clearInterval(timer);
+    };
+  }, [refreshSeconds, reload]);
 
   useEffect(() => {
     const controller = new AbortController();

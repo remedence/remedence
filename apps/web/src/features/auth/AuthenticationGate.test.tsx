@@ -1,17 +1,21 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AuthenticationGate } from "./AuthenticationGate";
+import { AuthenticationGate, useAuthentication } from "./AuthenticationGate";
 
 const authMocks = vi.hoisted(() => ({
   signInEmail: vi.fn(),
   signOut: vi.fn(),
+  changePassword: vi.fn(),
+  disableMfa: vi.fn(),
 }));
 
 vi.mock("better-auth/client", () => ({
   createAuthClient: () => ({
     signIn: { email: authMocks.signInEmail },
     signOut: authMocks.signOut,
+    changePassword: authMocks.changePassword,
+    twoFactor: { disable: authMocks.disableMfa },
   }),
 }));
 
@@ -136,6 +140,57 @@ describe("AuthenticationGate", () => {
       email: "owner@example.com",
       password: "correct-horse-battery-staple",
       rememberMe: false,
+    });
+  });
+
+  it("exposes a password change that revokes other sessions", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        statusResponse({
+          mode: "required",
+          authenticated: true,
+          user: {
+            id: "user-owner",
+            name: "Initial Owner",
+            email: "owner@example.com",
+          },
+        }),
+      ),
+    );
+    authMocks.changePassword.mockResolvedValue({ data: {}, error: null });
+    const user = userEvent.setup();
+
+    function AccountHarness() {
+      const authentication = useAuthentication();
+      return (
+        <button
+          type="button"
+          onClick={() =>
+            void authentication.changePassword(
+              "current-password",
+              "new-secure-password",
+            )
+          }
+        >
+          Change password
+        </button>
+      );
+    }
+
+    render(
+      <AuthenticationGate>
+        <AccountHarness />
+      </AuthenticationGate>,
+    );
+    await user.click(
+      await screen.findByRole("button", { name: "Change password" }),
+    );
+
+    expect(authMocks.changePassword).toHaveBeenCalledWith({
+      currentPassword: "current-password",
+      newPassword: "new-secure-password",
+      revokeOtherSessions: true,
     });
   });
 });
