@@ -775,10 +775,10 @@ paths:
       operationId: listWebhooks
       summary: List local webhook registrations
       description: >-
-        Local v1 does not deliver outbound webhooks and exposes no webhook mutation endpoint.
+        Lists signed inbound scanner webhook registrations without credential material.
       responses:
         "200":
-          description: Local registrations. The v1 implementation returns an empty list.
+          description: Tenant-scoped inbound webhook registrations.
           headers:
             X-Request-ID:
               $ref: "#/components/headers/RequestId"
@@ -794,8 +794,7 @@ paths:
     get:
       tags: [Integrations]
       operationId: listIntegrations
-      summary: List local integration capability states
-      description: Local v1 records no credentials and provides no managed connector execution.
+      summary: List tenant integration connections
       responses:
         "200":
           description: Integration capability states.
@@ -808,6 +807,129 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/IntegrationState"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags: [Integrations]
+      operationId: createIntegration
+      summary: Configure a provider connection with encrypted credentials
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateIntegrationRequest"
+      responses:
+        "201":
+          description: Integration connection created; credentials are never returned.
+          headers:
+            ETag:
+              $ref: "#/components/headers/EntityTag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IntegrationState"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /integrations/{connectionId}/disable:
+    parameters:
+      - $ref: "#/components/parameters/IntegrationConnectionId"
+      - $ref: "#/components/parameters/IfMatch"
+      - $ref: "#/components/parameters/IdempotencyKey"
+    post:
+      tags: [Integrations]
+      operationId: disableIntegration
+      summary: Disable a provider connection
+      responses:
+        "200":
+          description: Disabled connection.
+          headers:
+            ETag:
+              $ref: "#/components/headers/EntityTag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IntegrationState"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /integrations/{connectionId}/deliveries:
+    parameters:
+      - $ref: "#/components/parameters/IntegrationConnectionId"
+    get:
+      tags: [Integrations]
+      operationId: listIntegrationDeliveries
+      summary: List recent durable delivery attempts
+      responses:
+        "200":
+          description: Recent deliveries, newest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/IntegrationDelivery"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags: [Integrations]
+      operationId: enqueueIntegrationDelivery
+      summary: Enqueue an idempotent provider delivery
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateIntegrationDeliveryRequest"
+      responses:
+        "202":
+          description: Delivery queued, or the existing delivery for the event key returned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IntegrationDelivery"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /integration-deliveries/{deliveryId}/retry:
+    parameters:
+      - $ref: "#/components/parameters/IntegrationDeliveryId"
+      - $ref: "#/components/parameters/IdempotencyKey"
+    post:
+      tags: [Integrations]
+      operationId: retryIntegrationDelivery
+      summary: Requeue a dead-letter provider delivery
+      responses:
+        "200":
+          description: Delivery returned to the durable queue.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IntegrationDelivery"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
         "500":
           $ref: "#/components/responses/InternalError"
 components:
@@ -880,6 +1002,22 @@ components:
         maxLength: 100
     VerificationJobId:
       name: jobId
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 100
+    IntegrationConnectionId:
+      name: connectionId
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 100
+    IntegrationDeliveryId:
+      name: deliveryId
       in: path
       required: true
       schema:
@@ -2181,25 +2319,148 @@ components:
     WebhookRegistration:
       type: object
       additionalProperties: false
-      required: [id, status]
+      required: [id, status, path]
       properties:
         id:
           type: string
         status:
           type: string
-          enum: [Disabled]
+          enum: [Active, Disabled]
+        path:
+          type: string
     IntegrationState:
       type: object
       additionalProperties: false
-      required: [id, name, status]
+      required:
+        [
+          id,
+          provider,
+          name,
+          status,
+          configuration,
+          credentials_configured,
+          version,
+          created_at,
+          updated_at,
+        ]
       properties:
         id:
           type: string
+        provider:
+          type: string
+          enum: [generic-webhook, github-issues, scanner-webhook]
         name:
           type: string
         status:
           type: string
-          enum: [Not configured]
+          enum: [Active, Disabled]
+        configuration:
+          type: object
+          additionalProperties: true
+        credentials_configured:
+          type: boolean
+        version:
+          type: integer
+          minimum: 1
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    CreateIntegrationRequest:
+      type: object
+      additionalProperties: false
+      required: [provider, name, configuration, credentials]
+      properties:
+        provider:
+          type: string
+          enum: [generic-webhook, github-issues, scanner-webhook]
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        configuration:
+          type: object
+          additionalProperties: true
+        credentials:
+          type: object
+          additionalProperties:
+            type: string
+    CreateIntegrationDeliveryRequest:
+      type: object
+      additionalProperties: false
+      required: [event_key, event_type, payload]
+      properties:
+        event_key:
+          type: string
+          minLength: 1
+          maxLength: 200
+        event_type:
+          type: string
+          minLength: 1
+          maxLength: 100
+        payload:
+          type: object
+          additionalProperties: true
+        max_attempts:
+          type: integer
+          minimum: 1
+          maximum: 20
+    IntegrationDelivery:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - connection_id
+        - event_key
+        - event_type
+        - status
+        - attempt
+        - max_attempts
+        - available_at
+        - response_status
+        - response_digest
+        - last_error
+        - created_at
+        - updated_at
+        - completed_at
+      properties:
+        id:
+          type: string
+        connection_id:
+          type: string
+        event_key:
+          type: string
+        event_type:
+          type: string
+        status:
+          type: string
+          enum: [Queued, Running, Succeeded, Dead letter, Cancelled]
+        attempt:
+          type: integer
+          minimum: 0
+        max_attempts:
+          type: integer
+          minimum: 1
+        available_at:
+          type: string
+          format: date-time
+        response_status:
+          type: [integer, "null"]
+        response_digest:
+          type: [string, "null"]
+        last_error:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: [string, "null"]
+          format: date-time
     ProblemFieldError:
       type: object
       additionalProperties: false

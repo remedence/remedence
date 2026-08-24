@@ -490,7 +490,7 @@ export interface paths {
         };
         /**
          * List local webhook registrations
-         * @description Local v1 does not deliver outbound webhooks and exposes no webhook mutation endpoint.
+         * @description Lists signed inbound scanner webhook registrations without credential material.
          */
         get: operations["listWebhooks"];
         put?: never;
@@ -508,13 +508,77 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * List local integration capability states
-         * @description Local v1 records no credentials and provides no managed connector execution.
-         */
+        /** List tenant integration connections */
         get: operations["listIntegrations"];
         put?: never;
-        post?: never;
+        /** Configure a provider connection with encrypted credentials */
+        post: operations["createIntegration"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/integrations/{connectionId}/disable": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required strong ETag returned for the target resource. Omission returns 428. */
+                "If-Match"?: components["parameters"]["IfMatch"];
+                /** @description Optional tenant- and principal-scoped replay key. Reusing the key for the same request replays its successful response for 24 hours; changing the operation or payload returns 409. */
+                "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                connectionId: components["parameters"]["IntegrationConnectionId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Disable a provider connection */
+        post: operations["disableIntegration"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/integrations/{connectionId}/deliveries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                connectionId: components["parameters"]["IntegrationConnectionId"];
+            };
+            cookie?: never;
+        };
+        /** List recent durable delivery attempts */
+        get: operations["listIntegrationDeliveries"];
+        put?: never;
+        /** Enqueue an idempotent provider delivery */
+        post: operations["enqueueIntegrationDelivery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/integration-deliveries/{deliveryId}/retry": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant- and principal-scoped replay key. Reusing the key for the same request replays its successful response for 24 hours; changing the operation or payload returns 409. */
+                "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                deliveryId: components["parameters"]["IntegrationDeliveryId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Requeue a dead-letter provider delivery */
+        post: operations["retryIntegrationDelivery"];
         delete?: never;
         options?: never;
         head?: never;
@@ -932,13 +996,65 @@ export interface components {
         WebhookRegistration: {
             id: string;
             /** @enum {string} */
-            status: "Disabled";
+            status: "Active" | "Disabled";
+            path: string;
         };
         IntegrationState: {
             id: string;
+            /** @enum {string} */
+            provider: "generic-webhook" | "github-issues" | "scanner-webhook";
             name: string;
             /** @enum {string} */
-            status: "Not configured";
+            status: "Active" | "Disabled";
+            configuration: {
+                [key: string]: unknown;
+            };
+            credentials_configured: boolean;
+            version: number;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        CreateIntegrationRequest: {
+            /** @enum {string} */
+            provider: "generic-webhook" | "github-issues" | "scanner-webhook";
+            name: string;
+            configuration: {
+                [key: string]: unknown;
+            };
+            credentials: {
+                [key: string]: string;
+            };
+        };
+        CreateIntegrationDeliveryRequest: {
+            event_key: string;
+            event_type: string;
+            payload: {
+                [key: string]: unknown;
+            };
+            max_attempts?: number;
+        };
+        IntegrationDelivery: {
+            id: string;
+            connection_id: string;
+            event_key: string;
+            event_type: string;
+            /** @enum {string} */
+            status: "Queued" | "Running" | "Succeeded" | "Dead letter" | "Cancelled";
+            attempt: number;
+            max_attempts: number;
+            /** Format: date-time */
+            available_at: string;
+            response_status: number | null;
+            response_digest: string | null;
+            last_error: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+            /** Format: date-time */
+            completed_at: string | null;
         };
         ProblemFieldError: {
             path: string;
@@ -1065,6 +1181,8 @@ export interface components {
         RemediationId: string;
         VerificationId: string;
         VerificationJobId: string;
+        IntegrationConnectionId: string;
+        IntegrationDeliveryId: string;
         EvidenceId: string;
         ReportId: string;
         Search: string;
@@ -1874,7 +1992,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Local registrations. The v1 implementation returns an empty list. */
+            /** @description Tenant-scoped inbound webhook registrations. */
             200: {
                 headers: {
                     "X-Request-ID": components["headers"]["RequestId"];
@@ -1906,6 +2024,154 @@ export interface operations {
                     "application/json": components["schemas"]["IntegrationState"][];
                 };
             };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    createIntegration: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant- and principal-scoped replay key. Reusing the key for the same request replays its successful response for 24 hours; changing the operation or payload returns 409. */
+                "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateIntegrationRequest"];
+            };
+        };
+        responses: {
+            /** @description Integration connection created; credentials are never returned. */
+            201: {
+                headers: {
+                    ETag: components["headers"]["EntityTag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntegrationState"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    disableIntegration: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required strong ETag returned for the target resource. Omission returns 428. */
+                "If-Match"?: components["parameters"]["IfMatch"];
+                /** @description Optional tenant- and principal-scoped replay key. Reusing the key for the same request replays its successful response for 24 hours; changing the operation or payload returns 409. */
+                "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                connectionId: components["parameters"]["IntegrationConnectionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Disabled connection. */
+            200: {
+                headers: {
+                    ETag: components["headers"]["EntityTag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntegrationState"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+            412: components["responses"]["PreconditionFailed"];
+            428: components["responses"]["PreconditionRequired"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listIntegrationDeliveries: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                connectionId: components["parameters"]["IntegrationConnectionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Recent deliveries, newest first. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntegrationDelivery"][];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    enqueueIntegrationDelivery: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant- and principal-scoped replay key. Reusing the key for the same request replays its successful response for 24 hours; changing the operation or payload returns 409. */
+                "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                connectionId: components["parameters"]["IntegrationConnectionId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateIntegrationDeliveryRequest"];
+            };
+        };
+        responses: {
+            /** @description Delivery queued, or the existing delivery for the event key returned. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntegrationDelivery"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    retryIntegrationDelivery: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant- and principal-scoped replay key. Reusing the key for the same request replays its successful response for 24 hours; changing the operation or payload returns 409. */
+                "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                deliveryId: components["parameters"]["IntegrationDeliveryId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Delivery returned to the durable queue. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntegrationDelivery"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
             500: components["responses"]["InternalError"];
         };
     };

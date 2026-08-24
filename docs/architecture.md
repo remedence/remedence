@@ -272,4 +272,5 @@ Managed worker fleet scheduling, regional capacity, and cross-tool attestation p
 - `api/openapi.yaml` is the canonical REST contract.
 - generated TypeScript contracts keep browser code aligned with that API boundary.
 - `scripts/dev.mjs` owns process-safe local development supervision.
-- `workers/verification` documents the separately deployable isolated execution process; managed integrations remain a future boundary.
+- `workers/verification` documents the separately deployable isolated execution process.
+- `packages/database/src/integration-store.ts` owns tenant-scoped integration connections, inbound event deduplication, and leased delivery state. `apps/api/src/integration-runtime.ts` owns AES-GCM credential protection and the generic HTTPS/GitHub provider boundary; provider response bytes are reduced to a digest before persistence.

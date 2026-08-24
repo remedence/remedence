@@ -8,7 +8,7 @@ import {
   SlidersHorizontal,
   X,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { AppShell, type PageName } from "./AppShell";
 import { DashboardPage } from "../features/dashboard/DashboardPage";
 import { EvidencePage } from "../features/evidence/EvidencePage";
@@ -35,6 +35,7 @@ import { api } from "../lib/api/client";
 import { ApiProblemError, problemFromResponse } from "../lib/api/problems";
 import type { components, operations } from "../lib/api/schema";
 import { useApiQuery } from "../lib/api/useApiQuery";
+import { useApiMutation } from "../lib/api/useApiMutation";
 import { DialogLayer } from "../lib/dialogs/DialogLayer";
 import { resolveFindingAction } from "../lib/findings/action";
 import "../app.css";
@@ -851,11 +852,118 @@ function IntegrationsPage() {
     (signal) => loadIntegrations(signal),
     [],
   );
+  const [provider, setProvider] =
+    useState<IntegrationState["provider"]>("generic-webhook");
+  const [name, setName] = useState("");
+  const [target, setTarget] = useState("");
+  const [secret, setSecret] = useState("");
+  const create = useApiMutation<
+    operations["createIntegration"]["requestBody"]["content"]["application/json"],
+    IntegrationState
+  >(async (body, signal) => {
+    const { data, error, response } = await api.POST("/integrations", {
+      body,
+      signal,
+    });
+    if (data !== undefined) return data;
+    throw new ApiProblemError(problemFromResponse(error, response));
+  });
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const configuration =
+      provider === "generic-webhook"
+        ? { url: target.trim() }
+        : provider === "github-issues"
+          ? { repository: target.trim() }
+          : {};
+    const credentials: Record<string, string> =
+      provider === "generic-webhook"
+        ? { signing_secret: secret }
+        : provider === "github-issues"
+          ? { token: secret }
+          : { webhook_secret: secret };
+    const result = await create.mutate({
+      provider,
+      name: name.trim(),
+      configuration,
+      credentials,
+    });
+    if (!result) return;
+    setName("");
+    setTarget("");
+    setSecret("");
+    integrations.reload();
+  }
   return (
     <ScaffoldPage
       title="Integrations"
-      copy="Integration capability states are read from the local API."
+      copy="Configure encrypted provider connections and inspect their operational state."
     >
+      <form className="workflow-form" onSubmit={(event) => void submit(event)}>
+        <label>
+          <span>Provider</span>
+          <select
+            aria-label="Integration provider"
+            value={provider}
+            onChange={(event) =>
+              setProvider(event.target.value as IntegrationState["provider"])
+            }
+          >
+            <option value="generic-webhook">Signed HTTPS webhook</option>
+            <option value="github-issues">GitHub issues</option>
+            <option value="scanner-webhook">Inbound scanner webhook</option>
+          </select>
+        </label>
+        <label>
+          <span>Connection name</span>
+          <input
+            name="integrationName"
+            required
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+          />
+        </label>
+        {provider !== "scanner-webhook" ? (
+          <label>
+            <span>
+              {provider === "github-issues"
+                ? "Repository (owner/name)"
+                : "HTTPS endpoint"}
+            </span>
+            <input
+              name="integrationTarget"
+              required
+              value={target}
+              onChange={(event) => setTarget(event.target.value)}
+            />
+          </label>
+        ) : null}
+        <label>
+          <span>
+            {provider === "github-issues" ? "Access token" : "Signing secret"}
+          </span>
+          <input
+            name="integrationSecret"
+            type="password"
+            minLength={provider === "github-issues" ? 20 : 32}
+            required
+            autoComplete="new-password"
+            value={secret}
+            onChange={(event) => setSecret(event.target.value)}
+          />
+        </label>
+        {create.status === "error" && create.problem ? (
+          <ProblemState problem={create.problem} onRetry={create.reset} />
+        ) : null}
+        <button
+          className="button primary"
+          type="submit"
+          disabled={create.status === "pending"}
+        >
+          {create.status === "pending" ? "Saving…" : "Add integration"}
+        </button>
+      </form>
       {integrations.status === "loading" || integrations.status === "idle" ? (
         <LoadingState />
       ) : integrations.status === "error" && integrations.problem ? (
@@ -870,7 +978,7 @@ function IntegrationsPage() {
               <Plug aria-hidden="true" />
               <div>
                 <strong>{integration.name}</strong>
-                <small>Capability state returned by the local API</small>
+                <small>{integration.provider} · credentials encrypted</small>
               </div>
               <span>{integration.status}</span>
             </div>

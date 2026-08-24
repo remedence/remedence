@@ -10,6 +10,7 @@
     "build": "tsc -b",
     "test": "vitest run",
     "worker": "node --enable-source-maps dist/verification-worker.js",
+    "worker:integrations": "node --enable-source-maps dist/integration-worker.js",
     "typecheck": "tsc -b --pretty false"
   },
   "dependencies": {

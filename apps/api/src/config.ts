@@ -2,6 +2,10 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readFileSync } from "node:fs";
 import type { VerificationExecutionProfile } from "@remedence/verification";
+import {
+  parseIntegrationKeyring,
+  type IntegrationKeyring,
+} from "./integration-runtime.js";
 
 export const API_HOST = "127.0.0.1";
 export const DEFAULT_API_PORT = 43_180;
@@ -41,6 +45,7 @@ export interface ApiConfig {
   workspaceMode: "empty" | "demo";
   evidence: EvidenceSecurityConfig;
   verificationProfiles: readonly VerificationExecutionProfile[];
+  integrationKeyring?: IntegrationKeyring;
 }
 
 const PORT_ERROR =
@@ -64,6 +69,26 @@ const EVIDENCE_SECURITY_ERROR =
   "Hosted mode requires REMEDENCE_EVIDENCE_SIGNING_KEY (32+ characters) and a ClamAV scanner host/port.";
 const VERIFICATION_PROFILES_ERROR =
   "Hosted mode requires a valid REMEDENCE_VERIFICATION_PROFILES_PATH with digest-pinned, network-isolated profiles.";
+const INTEGRATION_KEYS_ERROR =
+  "Hosted mode requires REMEDENCE_INTEGRATION_ENCRYPTION_KEYS with versioned 32-byte base64 keys.";
+
+export function resolveIntegrationKeyring(
+  authentication: AuthenticationConfig,
+  value: string | undefined,
+): IntegrationKeyring | undefined {
+  const hosted =
+    authentication.mode === "required" &&
+    authentication.baseURL.startsWith("https://");
+  if (!value?.trim()) {
+    if (hosted) throw new Error(INTEGRATION_KEYS_ERROR);
+    return undefined;
+  }
+  try {
+    return parseIntegrationKeyring(value);
+  } catch {
+    throw new Error(INTEGRATION_KEYS_ERROR);
+  }
+}
 
 export function resolveVerificationProfiles(
   authentication: AuthenticationConfig,
@@ -365,6 +390,10 @@ export function getApiConfig(): ApiConfig {
     passwordResetWebhookToken:
       process.env.REMEDENCE_PASSWORD_RESET_WEBHOOK_TOKEN,
   });
+  const integrationKeyring = resolveIntegrationKeyring(
+    authentication,
+    process.env.REMEDENCE_INTEGRATION_ENCRYPTION_KEYS,
+  );
   return {
     host: API_HOST,
     port: resolveApiPort(),
@@ -392,6 +421,7 @@ export function getApiConfig(): ApiConfig {
       authentication,
       process.env.REMEDENCE_VERIFICATION_PROFILES_PATH,
     ),
+    ...(integrationKeyring ? { integrationKeyring } : {}),
     workspaceMode: resolveWorkspaceMode(),
   };
 }

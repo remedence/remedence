@@ -46,6 +46,12 @@ const requiredOperations = [
   "getReport",
   "downloadReport",
   "listAuditEvents",
+  "listIntegrations",
+  "createIntegration",
+  "disableIntegration",
+  "listIntegrationDeliveries",
+  "enqueueIntegrationDelivery",
+  "retryIntegrationDelivery",
 ] as const;
 
 const requiredPaths = [
@@ -72,6 +78,8 @@ const mutationSchemas = [
   "CreateEvidenceItem",
   "CompleteVerificationRequest",
   "CreateReportRequest",
+  "CreateIntegrationRequest",
+  "CreateIntegrationDeliveryRequest",
 ] as const;
 
 const mutationPaths = [
@@ -86,6 +94,10 @@ const mutationPaths = [
   "/verification-jobs/{jobId}/retry",
   "/evidence/artifacts",
   "/reports",
+  "/integrations",
+  "/integrations/{connectionId}/disable",
+  "/integrations/{connectionId}/deliveries",
+  "/integration-deliveries/{deliveryId}/retry",
 ] as const;
 
 describe("OpenAPI contract", () => {
@@ -131,7 +143,7 @@ describe("OpenAPI contract", () => {
     }
   });
 
-  it("keeps outbound webhook delivery outside local v1", () => {
+  it("exposes inbound webhook registrations without a secret mutation route", () => {
     expect(document.paths?.["/webhooks"]?.get?.operationId).toBe(
       "listWebhooks",
     );

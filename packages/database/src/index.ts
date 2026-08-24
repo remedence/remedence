@@ -33,6 +33,15 @@ export { seedHarborline, type HarborlineSeedRuntime } from "./seed.js";
 export { runTransaction } from "./transaction.js";
 export { createVerificationJobQueue } from "./verification-job-queue.js";
 export {
+  createIntegrationStore,
+  type IntegrationConnection,
+  type IntegrationDelivery,
+  type IntegrationDeliveryStatus,
+  type IntegrationProvider,
+  type IntegrationStore,
+  type ProtectedIntegrationCredential,
+} from "./integration-store.js";
+export {
   createRepositorySet,
   createUnitOfWork,
   type RepositorySetOptions,

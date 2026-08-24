@@ -11,11 +11,34 @@ import {
   resolveAuthenticationConfig,
   resolveDevelopmentOrigin,
   resolveEvidenceSecurityConfig,
+  resolveIntegrationKeyring,
   resolveVerificationProfiles,
   resolveWorkspaceMode,
 } from "../src/config.js";
 
 describe("local API configuration", () => {
+  it("requires versioned integration encryption keys in hosted mode", () => {
+    const hosted = {
+      mode: "required" as const,
+      baseURL: "https://remedence.example",
+    };
+    expect(() => resolveIntegrationKeyring(hosted, undefined)).toThrow(
+      "Hosted mode requires REMEDENCE_INTEGRATION_ENCRYPTION_KEYS",
+    );
+    expect(
+      resolveIntegrationKeyring({ mode: "local" }, undefined),
+    ).toBeUndefined();
+    const keyring = resolveIntegrationKeyring(
+      hosted,
+      `2:${Buffer.alloc(32, 2).toString("base64")},1:${Buffer.alloc(32, 1).toString("base64")}`,
+    );
+    expect(keyring?.activeVersion).toBe(2);
+    expect(keyring?.keys.get(1)).toEqual(Buffer.alloc(32, 1));
+    expect(() => resolveIntegrationKeyring(hosted, "1:not-base64")).toThrow(
+      "Hosted mode requires REMEDENCE_INTEGRATION_ENCRYPTION_KEYS",
+    );
+  });
+
   it("requires safe digest-pinned verification profiles in hosted mode", () => {
     const hosted = {
       mode: "required" as const,

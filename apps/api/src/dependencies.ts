@@ -15,6 +15,7 @@ import {
 import {
   applyMigrations,
   createIdempotencyStore,
+  createIntegrationStore,
   createRepositorySet,
   createRateLimitStore,
   createUnitOfWork,
@@ -24,6 +25,7 @@ import {
   seedHarborline,
   type RemedenceDatabase,
   type IdempotencyStore,
+  type IntegrationStore,
   type RateLimitStore,
 } from "@remedence/database";
 import type {
@@ -45,6 +47,11 @@ import {
   type RemedenceAuthentication,
 } from "./authentication.js";
 import type { AuthenticationConfig, EvidenceSecurityConfig } from "./config.js";
+import {
+  IntegrationCredentialProtector,
+  parseIntegrationKeyring,
+  type IntegrationKeyring,
+} from "./integration-runtime.js";
 
 export const DEFAULT_LOCAL_ORGANIZATION_ID = "org-harborline";
 export const EMPTY_LOCAL_ORGANIZATION_ID = "org-local-workspace";
@@ -69,6 +76,10 @@ export interface ApiDependencies {
     queue: VerificationJobQueue;
     profiles: ReadonlyMap<string, VerificationExecutionProfile>;
     queuedOnly: boolean;
+  };
+  integrations: {
+    store: IntegrationStore;
+    credentials: IntegrationCredentialProtector;
   };
   runAtomically?: <T>(operation: () => T) => T;
   evidenceProtection: {
@@ -110,6 +121,7 @@ export interface ApiDependencyConfig {
   workspaceMode?: "empty" | "demo";
   evidence?: EvidenceSecurityConfig;
   verificationProfiles?: readonly VerificationExecutionProfile[];
+  integrationKeyring?: IntegrationKeyring;
   evidenceObjectStore?: EvidenceObjectStore;
   malwareScanner?: MalwareScanner;
 }
@@ -143,6 +155,17 @@ function localSigningKey(databasePath: string): string {
   const key = readFileSync(path, "utf8").trim();
   if (key.length < 32) throw new Error("Evidence signing key is invalid.");
   return key;
+}
+
+function localIntegrationKeyring(databasePath: string): IntegrationKeyring {
+  const path = join(dirname(databasePath), "integration-encryption.key");
+  if (!existsSync(path)) {
+    writeFileSync(path, `1:${randomBytes(32).toString("base64")}`, {
+      flag: "wx",
+      mode: 0o600,
+    });
+  }
+  return parseIntegrationKeyring(readFileSync(path, "utf8").trim());
 }
 
 export function createDependencies(
@@ -235,6 +258,13 @@ export function createDependencies(
       repositories,
       rateLimit: createRateLimitStore(database),
       idempotency: createIdempotencyStore(database),
+      integrations: {
+        store: createIntegrationStore(database),
+        credentials: new IntegrationCredentialProtector(
+          config.integrationKeyring ??
+            localIntegrationKeyring(config.databasePath),
+        ),
+      },
       verificationExecution: {
         queue: createVerificationJobQueue(database),
         profiles: new Map(
