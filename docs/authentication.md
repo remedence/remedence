@@ -16,6 +16,16 @@ The default `REMEDENCE_AUTH_MODE=local` behavior preserves the current loopback-
 - mutation audit events use the authenticated Better Auth user ID instead of the local-workspace actor; and
 - public email/password sign-up is disabled by default.
 
+## Initial owner
+
+Provision the first owner only while the application is stopped and the Better Auth user table is empty. Supply `REMEDENCE_AUTH_MODE`, `BETTER_AUTH_URL`, Better Auth secret material, the data directory, and `REMEDENCE_BOOTSTRAP_PASSWORD` through the deployment's secret-injection mechanism, then run:
+
+```text
+bun run auth:bootstrap --name <owner-name> --email <owner-email>
+```
+
+The password is never accepted as a command-line argument and is removed from the bootstrap process environment before database work begins. Provisioning refuses to run after any user exists, hashes the credential through Better Auth, and deletes the bootstrap-created session so the owner must perform a normal sign-in. Remove `REMEDENCE_BOOTSTRAP_PASSWORD` from the deployment environment immediately after the command exits.
+
 Sessions expire after eight hours and are eligible for refresh after one hour. Cookie session caching is disabled so revocation is checked against durable session state. HTTPS configurations force secure cookies. Password reset is configured to revoke other sessions. The two-factor plugin and schema are present, but enrollment and recovery interfaces are not yet exposed.
 
 ## Secret rotation
@@ -24,4 +34,4 @@ Prefer `BETTER_AUTH_SECRETS` for non-destructive rotation. The first entry is th
 
 ## Not yet production-complete
 
-Required-authentication mode is an implemented security foundation, not a supported production release. There is not yet an owner-bootstrap command, invitation flow, sign-in UI, password-recovery delivery, enforced MFA policy, organization membership/RBAC mapping, OIDC/SAML configuration, or production secrets manager. Until those interfaces and their tests exist, public sign-up remains closed and the release model remains local beta.
+Required-authentication mode is an implemented security foundation, not a supported production release. There is not yet an invitation flow, sign-in UI, password-recovery delivery, enforced MFA policy, organization membership/RBAC mapping, OIDC/SAML configuration, or production secrets manager. Until those interfaces and their tests exist, public sign-up remains closed and the release model remains local beta.

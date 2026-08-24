@@ -11,7 +11,10 @@ import {
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createApp } from "../src/app.js";
-import { createAuthentication } from "../src/authentication.js";
+import {
+  createAuthentication,
+  provisionInitialOwner,
+} from "../src/authentication.js";
 import {
   closeDependencies,
   createDependencies,
@@ -72,6 +75,44 @@ function signUpRequest(email: string): Request {
 }
 
 describe("Better Auth persistence", () => {
+  it("provisions exactly one owner without retaining a bootstrap session", async () => {
+    const database = openMigratedDatabase();
+    const owner = await provisionInitialOwner(
+      database,
+      { mode: "required", baseURL },
+      {
+        name: " Initial Owner ",
+        email: "OWNER@EXAMPLE.COM",
+        password: "correct-horse-battery-staple",
+      },
+    );
+
+    expect(owner.email).toBe("owner@example.com");
+    const connection = getDatabaseConnection(database);
+    expect(
+      connection.prepare('SELECT COUNT(*) AS count FROM "user"').get(),
+    ).toMatchObject({ count: 1 });
+    expect(
+      connection.prepare('SELECT COUNT(*) AS count FROM "session"').get(),
+    ).toMatchObject({ count: 0 });
+    const account = connection
+      .prepare('SELECT password FROM "account" WHERE "userId" = ?')
+      .get(owner.userId) as { password: string };
+    expect(account.password).not.toContain("correct-horse-battery-staple");
+
+    await expect(
+      provisionInitialOwner(
+        database,
+        { mode: "required", baseURL },
+        {
+          name: "Second Owner",
+          email: "second@example.com",
+          password: "another-correct-battery-staple",
+        },
+      ),
+    ).rejects.toThrow("Initial owner bootstrap requires an empty user table.");
+  });
+
   it("mounts auth before JSON parsing and rejects anonymous product access", async () => {
     const directory = mkdtempSync(join(tmpdir(), "remedence-auth-app-"));
     temporaryDirectories.push(directory);

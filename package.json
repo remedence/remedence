@@ -34,6 +34,7 @@
     "db:seed": "node scripts/db-seed.mjs",
     "db:backup": "node scripts/db-backup.mjs",
     "db:restore": "node scripts/db-restore.mjs",
+    "auth:bootstrap": "bun run --filter @remedence/api build && node scripts/auth-bootstrap.mjs",
     "check": "bun run format:check && bun run lint && bun run typecheck && bun run test:contract && bun run test && bun run build && bun run check:generated-api && bun run e2e"
   },
   "engines": {
