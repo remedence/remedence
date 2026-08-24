@@ -257,17 +257,9 @@ Outside systems can evolve independently. A scanner can produce a finding; a cod
 
 Existing pre-migration records are explicitly marked `legacy-assertion` / `legacy-untrusted`; migration does not claim they acquired trusted provenance retroactively. Local mode uses a server-owned local verification-process principal distinct from the local workspace actor.
 
-### Planned
+Isolated profile-bound runs use `verification_jobs` and `verification_execution_receipts`. The API principal cannot submit their checks or completion. The separate worker claims an owner lease, executes a digest-pinned Docker profile under restrictive sandbox controls, and atomically adopts check outcomes, finding state, receipt evidence, and job completion. Signed receipts bind worker, profile, image digest, command digest, attempt, timing, exit/timeout state, and output hash. Infrastructure failures retry and then dead-letter without certifying the finding.
 
-The current schema does not yet contain first-class fields for:
-
-- independently signed worker execution receipts,
-- signed verification artifact bundles,
-- cross-tool attestation/orchestration policy.
-
-Production verifier execution remains blocked on an isolated worker runtime and independently signed receipts. Principal independence and patch provenance are enforced by the current API and schema.
-
-Those belong to a later milestone. Documentation and UI must not claim they exist until the persistent schema and contracts actually support them.
+Managed worker fleet scheduling, regional capacity, and cross-tool attestation policy remain deployment milestones rather than current hosted-service claims.
 
 ## Monorepo boundaries
 
@@ -276,8 +268,8 @@ Those belong to a later milestone. Documentation and UI must not claim they exis
 - `packages/core` owns shared domain entities, state rules, and application services.
 - `packages/database` owns SQLite persistence, migrations, seeding, and backup adapters.
 - `packages/evidence` owns evidence hashing/provenance logic.
-- `packages/verification` owns verification contracts.
+- `packages/verification` owns verification queue, worker, sandbox, and signed-receipt contracts.
 - `api/openapi.yaml` is the canonical REST contract.
 - generated TypeScript contracts keep browser code aligned with that API boundary.
 - `scripts/dev.mjs` owns process-safe local development supervision.
-- Isolated `workers/verification` execution and managed integrations remain future boundaries rather than implemented runtime claims.
+- `workers/verification` documents the separately deployable isolated execution process; managed integrations remain a future boundary.

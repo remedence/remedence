@@ -158,7 +158,7 @@ describe("Task 17 restart persistence", () => {
       schema_version: number;
     }>(baseUrl, "/healthz");
     expect(healthA.response.status).toBe(200);
-    expect(healthA.body.schema_version).toBe(8);
+    expect(healthA.body.schema_version).toBe(9);
 
     const imported = await jsonRequest<{
       finding: {
@@ -320,7 +320,7 @@ describe("Task 17 restart persistence", () => {
     expect(healthB.body).toEqual({
       status: "ok",
       database: "ready",
-      schema_version: 8,
+      schema_version: 9,
     });
 
     const afterRestart = await jsonRequest<typeof beforeRestart.body>(

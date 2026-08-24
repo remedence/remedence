@@ -22,6 +22,12 @@ export type EvidenceHasher = (input: EvidenceHashInput) => string;
 
 export interface VerificationEvidenceInput extends EvidenceHashInput {
   artifactId?: string;
+  trustedAttestation?: {
+    contentHash: string;
+    manifestHash: string;
+    signature: string;
+    attestedBy: string;
+  };
 }
 
 export type EvidenceManifestSigner = (manifest: Record<string, unknown>) => {
@@ -40,7 +46,7 @@ export interface VerificationServiceDependencies {
 export interface TrustedVerifierPrincipal {
   principalId: string;
   displayName: string;
-  credentialType: "session" | "local-process";
+  credentialType: "session" | "local-process" | "worker-profile";
 }
 
 export interface StartVerificationInput {
@@ -54,6 +60,7 @@ export interface StartVerificationInput {
   verifier: TrustedVerifierPrincipal;
   checks: string[];
   actor: MutationActor;
+  executionSource?: string;
   expectedFindingVersion?: number;
 }
 
@@ -74,6 +81,14 @@ export interface CompleteVerificationInput {
   result: "Passed" | "Failed";
   summary: string;
   evidence: VerificationEvidenceInput[];
+  actor: MutationActor;
+  expectedVersion?: number;
+}
+
+export interface CancelVerificationInput {
+  organizationId: string;
+  verificationId: string;
+  reason: string;
   actor: MutationActor;
   expectedVersion?: number;
 }
@@ -261,7 +276,7 @@ export class VerificationService {
         workerName,
         verifierPrincipalId,
         credentialType: input.verifier.credentialType,
-        executionSource: "authenticated-api",
+        executionSource: input.executionSource?.trim() || "authenticated-api",
         sourceRevision,
         patchDigest,
         scope: requireText(
@@ -303,13 +318,63 @@ export class VerificationService {
           remediator_principal_id: remediation.remediatorPrincipalId,
           verifier_principal_id: verifierPrincipalId,
           credential_type: input.verifier.credentialType,
-          execution_source: "authenticated-api",
+          execution_source: run.executionSource,
           source_revision: sourceRevision,
           patch_digest: patchDigest,
         },
         occurredAt: now,
       });
       return run;
+    });
+  }
+
+  cancelVerification(input: CancelVerificationInput): VerificationRun {
+    return this.dependencies.unitOfWork.run((repositories) => {
+      const run = repositories.verifications.getById(
+        input.organizationId,
+        input.verificationId,
+      );
+      if (!run) {
+        throw new DomainError(
+          "VERIFICATION_NOT_FOUND",
+          404,
+          "Verification run was not found.",
+        );
+      }
+      assertExpectedVersion(run.version, input.expectedVersion);
+      requireRunning(run);
+      const reason = requireText(
+        input.reason,
+        "VERIFICATION_CANCELLATION_REASON_REQUIRED",
+        "Verification cancellation requires a reason.",
+      );
+      const now = this.dependencies.clock.now();
+      repositories.verifications.complete(
+        input.organizationId,
+        run.id,
+        "Cancelled",
+        reason,
+        now,
+      );
+      repositories.auditEvents.append({
+        organizationId: input.organizationId,
+        actorType: input.actor.actorType,
+        actorId: input.actor.actorId,
+        action: "verification.cancelled",
+        entityType: "verification",
+        entityId: run.id,
+        details: { finding_id: run.findingId, reason },
+        occurredAt: now,
+      });
+      return (
+        repositories.verifications.getById(input.organizationId, run.id) ?? {
+          ...run,
+          status: "Cancelled",
+          resultSummary: reason,
+          completedAt: now,
+          version: run.version + 1,
+        }
+      );
     });
   }
 
@@ -569,7 +634,28 @@ export class VerificationService {
               item.artifactId,
             )
           : undefined;
-        if (this.dependencies.signEvidenceManifest && !artifact) {
+        const attestation = item.trustedAttestation;
+        const trustedWorkerAttestation = Boolean(
+          run.credentialType === "worker-profile" &&
+          input.actor.actorType === "local_worker" &&
+          attestation &&
+          /^[0-9a-f]{64}$/.test(attestation.contentHash) &&
+          /^[0-9a-f]{64}$/.test(attestation.manifestHash) &&
+          /^[0-9a-f]{64}$/.test(attestation.signature) &&
+          attestation.attestedBy.trim(),
+        );
+        if (attestation && !trustedWorkerAttestation) {
+          throw new DomainError(
+            "UNTRUSTED_WORKER_ATTESTATION",
+            403,
+            "Only the assigned isolated worker may submit signed execution attestation.",
+          );
+        }
+        if (
+          this.dependencies.signEvidenceManifest &&
+          !artifact &&
+          !trustedWorkerAttestation
+        ) {
           throw new DomainError(
             "EVIDENCE_ARTIFACT_REQUIRED",
             409,
@@ -612,6 +698,7 @@ export class VerificationService {
           : undefined;
         const contentHash =
           artifact?.contentHash ??
+          attestation?.contentHash ??
           this.dependencies.hashEvidence({
             kind,
             label,
@@ -635,9 +722,12 @@ export class VerificationService {
           sourceReference,
           contentHash,
           artifactId: artifact?.id ?? null,
-          manifestHash: signed?.manifestHash ?? null,
-          manifestSignature: signed?.signature ?? null,
-          attestedBy: artifact?.scanner ?? null,
+          manifestHash:
+            signed?.manifestHash ?? attestation?.manifestHash ?? null,
+          manifestSignature:
+            signed?.signature ?? attestation?.signature ?? null,
+          attestedBy:
+            artifact?.scanner ?? attestation?.attestedBy.trim() ?? null,
           metadata: cloneMetadata(item.metadata),
           createdAt: now,
           lockedAt: now,

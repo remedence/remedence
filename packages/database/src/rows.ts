@@ -46,6 +46,7 @@ const VERIFICATION_CHECK_STATUSES = [
 const VERIFICATION_CREDENTIAL_TYPES = [
   "session",
   "local-process",
+  "worker-profile",
   "legacy-assertion",
 ] as const;
 const REPORT_STATUSES = ["Draft", "Ready"] as const;

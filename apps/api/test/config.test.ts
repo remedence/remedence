@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   API_HOST,
   DEFAULT_API_PORT,
@@ -8,10 +11,50 @@ import {
   resolveAuthenticationConfig,
   resolveDevelopmentOrigin,
   resolveEvidenceSecurityConfig,
+  resolveVerificationProfiles,
   resolveWorkspaceMode,
 } from "../src/config.js";
 
 describe("local API configuration", () => {
+  it("requires safe digest-pinned verification profiles in hosted mode", () => {
+    const hosted = {
+      mode: "required" as const,
+      baseURL: "https://remedence.example",
+    };
+    expect(() => resolveVerificationProfiles(hosted, undefined)).toThrow(
+      "Hosted mode requires a valid REMEDENCE_VERIFICATION_PROFILES_PATH",
+    );
+    expect(resolveVerificationProfiles({ mode: "local" }, undefined)).toEqual(
+      [],
+    );
+
+    const directory = mkdtempSync(join(tmpdir(), "remedence-profiles-"));
+    try {
+      const path = join(directory, "profiles.json");
+      const profile = {
+        id: "authorization-regression",
+        image: `registry.example/verifier@sha256:${"a".repeat(64)}`,
+        command: ["/opt/remedence/verify"],
+        timeoutSeconds: 60,
+        maxAttempts: 3,
+        memoryMegabytes: 256,
+        cpuCount: 1,
+        network: "none",
+      };
+      writeFileSync(path, JSON.stringify([profile]));
+      expect(resolveVerificationProfiles(hosted, path)).toEqual([profile]);
+      writeFileSync(
+        path,
+        JSON.stringify([{ ...profile, image: "verifier:latest" }]),
+      );
+      expect(() => resolveVerificationProfiles(hosted, path)).toThrow(
+        "Hosted mode requires a valid REMEDENCE_VERIFICATION_PROFILES_PATH",
+      );
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
   it("requires ClamAV and a manifest key for hosted evidence", () => {
     const authentication = {
       mode: "required" as const,

@@ -14,6 +14,10 @@ import type {
   VerificationCompletion,
   VerificationRun,
 } from "@remedence/core";
+import type {
+  VerificationExecutionReceipt,
+  VerificationJob,
+} from "@remedence/verification";
 
 export function toCompany(company: Company) {
   return {
@@ -117,6 +121,39 @@ export function toVerificationWithChecks(
   };
 }
 
+export function toVerificationJob(
+  job: VerificationJob,
+  receipts: readonly VerificationExecutionReceipt[] = [],
+) {
+  return {
+    id: job.id,
+    verification_id: job.verificationId,
+    profile_id: job.profileId,
+    status: job.status,
+    attempt: job.attempt,
+    max_attempts: job.maxAttempts,
+    timeout_seconds: job.timeoutSeconds,
+    available_at: job.availableAt,
+    cancellation_requested: job.cancellationRequested,
+    last_error: job.lastError,
+    created_at: job.createdAt,
+    updated_at: job.updatedAt,
+    receipts: receipts.map((receipt) => ({
+      attempt: receipt.attempt,
+      worker_id: receipt.workerId,
+      profile_id: receipt.profileId,
+      image_digest: receipt.imageDigest,
+      command_digest: receipt.commandDigest,
+      started_at: receipt.startedAt,
+      completed_at: receipt.completedAt,
+      exit_code: receipt.exitCode,
+      timed_out: receipt.timedOut,
+      output_hash: receipt.outputHash,
+      signature: receipt.signature,
+    })),
+  };
+}
+
 export function toEvidence(item: EvidenceItem) {
   return {
     id: item.id,
@@ -195,12 +232,19 @@ export function toAuditEventPage(page: CursorPage<AuditEvent>) {
   };
 }
 
-export function toFindingDetail(detail: FindingDetail) {
+export function toFindingDetail(
+  detail: FindingDetail,
+  verificationJob?: (verificationId: string) => VerificationJob | undefined,
+) {
   return {
     finding: toFinding(detail.finding),
     company: toCompany(detail.company),
     remediations: detail.remediations.map(toRemediation),
-    verifications: detail.verifications.map(toVerificationWithChecks),
+    verifications: detail.verifications.map((verification) => {
+      const shaped = toVerificationWithChecks(verification);
+      const job = verificationJob?.(verification.id);
+      return job ? { ...shaped, job: toVerificationJob(job) } : shaped;
+    }),
     evidence: detail.evidence.map(toEvidence),
     audit_events: detail.auditEvents.map(toAuditEvent),
   };

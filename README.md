@@ -36,7 +36,7 @@ A remediation can move a finding to **Awaiting verification**. It cannot move th
 
 Remedence is not intended to replace every scanner, code-remediation agent, RMM, CI security product, offensive-security tool, or future verification provider. Those systems can be upstream sources of findings, remediation records, or verification inputs.
 
-Remedence local v1 does **not** provide autonomous patch generation, hosted SaaS authentication, production multi-user RBAC, managed vendor integrations, or a hosted verification worker fleet.
+Remedence local v1 does **not** provide autonomous patch generation, a supported hosted SaaS deployment, managed vendor integrations, or a managed verification worker fleet. The repository does provide required-authentication mode and a separately deployable isolated verification worker, but those components do not by themselves satisfy every production release gate.
 
 The supported release model is defined in [`docs/release-model.md`](docs/release-model.md). The current `0.x` product is local beta only; supported self-hosted and hosted multi-tenant modes remain gated future targets.
 
@@ -49,6 +49,7 @@ Authentication implementation status and its fail-closed activation requirements
 - Normalized findings and company/customer read models.
 - Persistent remediation records and state transitions.
 - Persistent verification runs and checks, including retained failed verification history.
+- Durable isolated verification jobs with leases, cancellation, bounded retries, dead letters, digest-pinned Docker profiles, and signed execution receipts.
 - **Verified fixed** only after a persisted verification passes.
 - Locked evidence metadata with source reference, SHA-256 content hash, timestamps, and verification linkage.
 - Append-only audit events.
@@ -61,9 +62,7 @@ Authentication implementation status and its fail-closed activation requirements
 
 ## Planned, not implemented
 
-The current schema has remediation `owner`/`reference` fields and verification `worker_name`/`method`/`scope` fields, plus generic audit actor metadata. It does **not** yet model first-class remediator identity versus verifier identity, an explicit `independent_from_remediator` assertion, patch/commit/PR provenance as structured fields, or external verifier credentials. Those provenance boundaries are a later milestone and should not be inferred from the current schema.
-
-Other planned work includes MSP multi-tenancy with authorization, hosted verification execution, managed integrations, and cross-tool orchestration.
+Remaining release work includes a supported production database adapter, managed integrations, reproducible deployment and rollback, privacy/offboarding lifecycle, and hosted control-plane operations. See [`docs/release-model.md`](docs/release-model.md) for the authoritative gates.
 
 ## Security and trust boundary
 

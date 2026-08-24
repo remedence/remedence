@@ -12,6 +12,7 @@
   "references": [
     { "path": "../../packages/core" },
     { "path": "../../packages/database" },
-    { "path": "../../packages/evidence" }
+    { "path": "../../packages/evidence" },
+    { "path": "../../packages/verification" }
   ]
 }

@@ -40,7 +40,7 @@ async function expectHealthy(): Promise<void> {
   expect(response.body).toEqual({
     status: "ok",
     database: "ready",
-    schema_version: 8,
+    schema_version: 9,
   });
 }
 

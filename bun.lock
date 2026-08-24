@@ -32,6 +32,7 @@
         "@remedence/core": "0.1.0",
         "@remedence/database": "0.1.0",
         "@remedence/evidence": "0.1.0",
+        "@remedence/verification": "0.1.0",
         "better-auth": "1.7.1",
         "express": "5.2.1",
         "express-openapi-validator": "5.6.2",
@@ -68,6 +69,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@remedence/core": "0.1.0",
+        "@remedence/verification": "0.1.0",
       },
     },
     "packages/evidence": {

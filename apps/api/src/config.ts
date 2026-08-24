@@ -1,5 +1,7 @@
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
+import type { VerificationExecutionProfile } from "@remedence/verification";
 
 export const API_HOST = "127.0.0.1";
 export const DEFAULT_API_PORT = 43_180;
@@ -38,6 +40,7 @@ export interface ApiConfig {
   authentication: AuthenticationConfig;
   workspaceMode: "empty" | "demo";
   evidence: EvidenceSecurityConfig;
+  verificationProfiles: readonly VerificationExecutionProfile[];
 }
 
 const PORT_ERROR =
@@ -59,6 +62,66 @@ const WORKSPACE_MODE_ERROR =
   'REMEDENCE_WORKSPACE_MODE must be either "empty" or "demo".';
 const EVIDENCE_SECURITY_ERROR =
   "Hosted mode requires REMEDENCE_EVIDENCE_SIGNING_KEY (32+ characters) and a ClamAV scanner host/port.";
+const VERIFICATION_PROFILES_ERROR =
+  "Hosted mode requires a valid REMEDENCE_VERIFICATION_PROFILES_PATH with digest-pinned, network-isolated profiles.";
+
+export function resolveVerificationProfiles(
+  authentication: AuthenticationConfig,
+  path: string | undefined,
+): readonly VerificationExecutionProfile[] {
+  const hosted =
+    authentication.mode === "required" &&
+    authentication.baseURL.startsWith("https://");
+  if (!path?.trim()) {
+    if (hosted) throw new Error(VERIFICATION_PROFILES_ERROR);
+    return [];
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(readFileSync(resolve(path), "utf8"));
+  } catch {
+    throw new Error(VERIFICATION_PROFILES_ERROR);
+  }
+  if (!Array.isArray(parsed) || parsed.length === 0) {
+    throw new Error(VERIFICATION_PROFILES_ERROR);
+  }
+  const ids = new Set<string>();
+  const profiles: VerificationExecutionProfile[] = [];
+  for (const value of parsed) {
+    const profile = value as Partial<VerificationExecutionProfile>;
+    if (
+      typeof profile.id !== "string" ||
+      !/^[a-z0-9][a-z0-9-]{2,63}$/.test(profile.id) ||
+      ids.has(profile.id) ||
+      typeof profile.image !== "string" ||
+      !/^.+@sha256:[0-9a-f]{64}$/.test(profile.image) ||
+      !Array.isArray(profile.command) ||
+      profile.command.length === 0 ||
+      !profile.command.every(
+        (item) => typeof item === "string" && item.length > 0,
+      ) ||
+      !Number.isInteger(profile.timeoutSeconds) ||
+      profile.timeoutSeconds! < 1 ||
+      profile.timeoutSeconds! > 3600 ||
+      !Number.isInteger(profile.maxAttempts) ||
+      profile.maxAttempts! < 1 ||
+      profile.maxAttempts! > 10 ||
+      !Number.isInteger(profile.memoryMegabytes) ||
+      profile.memoryMegabytes! < 64 ||
+      profile.memoryMegabytes! > 16_384 ||
+      typeof profile.cpuCount !== "number" ||
+      !Number.isFinite(profile.cpuCount) ||
+      profile.cpuCount < 0.1 ||
+      profile.cpuCount > 16 ||
+      profile.network !== "none"
+    ) {
+      throw new Error(VERIFICATION_PROFILES_ERROR);
+    }
+    ids.add(profile.id);
+    profiles.push(profile as VerificationExecutionProfile);
+  }
+  return profiles;
+}
 
 export function resolveEvidenceSecurityConfig(
   authentication: AuthenticationConfig,
@@ -325,6 +388,10 @@ export function getApiConfig(): ApiConfig {
         ? { scannerPort: process.env.REMEDENCE_CLAMAV_PORT }
         : {}),
     }),
+    verificationProfiles: resolveVerificationProfiles(
+      authentication,
+      process.env.REMEDENCE_VERIFICATION_PROFILES_PATH,
+    ),
     workspaceMode: resolveWorkspaceMode(),
   };
 }

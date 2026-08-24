@@ -31,6 +31,8 @@ type CompleteVerificationRequest =
   operations["completeVerification"]["requestBody"]["content"]["application/json"];
 type CreateEvidenceItem = components["schemas"]["CreateEvidenceItem"];
 type EvidenceArtifact = components["schemas"]["EvidenceArtifact"];
+type VerificationProfile = components["schemas"]["VerificationProfile"];
+type VerificationJob = components["schemas"]["VerificationJob"];
 
 interface VerificationDrawerProps {
   finding: DashboardFinding;
@@ -45,6 +47,16 @@ async function loadFindingDetail(
 ): Promise<FindingDetail> {
   const { data, error, response } = await api.GET("/findings/{findingId}", {
     params: { path: { findingId: findingKey } },
+    signal,
+  });
+  if (data !== undefined) return data;
+  throw new ApiProblemError(problemFromResponse(error, response));
+}
+
+async function loadVerificationProfiles(
+  signal: AbortSignal,
+): Promise<VerificationProfile[]> {
+  const { data, error, response } = await api.GET("/verification-profiles", {
     signal,
   });
   if (data !== undefined) return data;
@@ -107,6 +119,8 @@ export function VerificationDrawer({
   const [sourceRevision, setSourceRevision] = useState("");
   const [patchDigest, setPatchDigest] = useState("");
   const [expectedChecks, setExpectedChecks] = useState("");
+  const [profileId, setProfileId] = useState("");
+  const [workerJob, setWorkerJob] = useState<VerificationJob>();
   const [resultSummary, setResultSummary] = useState("");
   const [evidenceKind, setEvidenceKind] = useState("verification-artifact");
   const [evidenceLabel, setEvidenceLabel] = useState("");
@@ -123,6 +137,10 @@ export function VerificationDrawer({
   const detail = useApiQuery<FindingDetail>(
     (signal) => loadFindingDetail(finding.finding_key, signal),
     [finding.finding_key],
+  );
+  const profiles = useApiQuery<VerificationProfile[]>(
+    loadVerificationProfiles,
+    [],
   );
   const completedRemediation = latestCompletedRemediation(detail.data);
   const persistedRunning = latestRunningVerification(detail.data);
@@ -203,11 +221,42 @@ export function VerificationDrawer({
       source_revision: sourceRevision.trim(),
       patch_digest: patchDigest.trim().toLocaleLowerCase("en-US"),
       checks,
+      ...(profileId ? { profile_id: profileId } : {}),
     });
     if (!result) return;
+    setWorkerJob(result.job);
     detail.reload();
     onPersistedChange(`Verification ${result.verification.id} created.`);
   }
+
+  const persistedWorkerJob = persistedRunning?.job;
+  const activeWorkerJob = workerJob ?? persistedWorkerJob;
+  useEffect(() => {
+    if (
+      !activeWorkerJob ||
+      !["Queued", "Running"].includes(activeWorkerJob.status)
+    ) {
+      return;
+    }
+    let disposed = false;
+    const poll = async () => {
+      const { data } = await api.GET("/verification-jobs/{jobId}", {
+        params: { path: { jobId: activeWorkerJob.id } },
+      });
+      if (disposed || !data) return;
+      setWorkerJob(data);
+      if (!["Queued", "Running"].includes(data.status)) {
+        detail.reload();
+        onPersistedChange(`Verification worker job ${data.status}.`);
+      }
+    };
+    const timer = window.setInterval(() => void poll(), 1500);
+    void poll();
+    return () => {
+      disposed = true;
+      window.clearInterval(timer);
+    };
+  }, [activeWorkerJob?.id, activeWorkerJob?.status]);
 
   async function completeFailed(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -329,6 +378,8 @@ export function VerificationDrawer({
         ? createMutation.data
         : undefined));
   const checks = running?.checks ?? [];
+  const workerManaged =
+    running?.verification.credential_type === "worker-profile";
   const hasFailedCheck = checks.some((check) => check.status === "Failed");
   const allChecksPassed =
     checks.length > 0 && checks.every((check) => check.status === "Passed");
@@ -429,10 +480,37 @@ export function VerificationDrawer({
           <section aria-labelledby="create-verification-title">
             <h3 id="create-verification-title">Create verification</h3>
             <p className="workflow-copy">
-              Your authenticated identity is bound to this run. Record the
-              method, immutable patch provenance, scope, and required checks.
+              {profiles.data?.length
+                ? "Select an approved isolated execution profile and record immutable patch provenance, scope, and required checks."
+                : "Your authenticated identity is bound to this local run. Record the method, immutable patch provenance, scope, and required checks."}
             </p>
+            {profiles.status === "error" && profiles.problem ? (
+              <ProblemState
+                problem={profiles.problem}
+                onRetry={profiles.reload}
+              />
+            ) : null}
             <form className="workflow-form" onSubmit={createVerification}>
+              {profiles.data?.length ? (
+                <label>
+                  <span>Execution profile</span>
+                  <select
+                    aria-label="Execution profile"
+                    name="verificationProfile"
+                    required
+                    value={profileId}
+                    onChange={(event) => setProfileId(event.target.value)}
+                  >
+                    <option value="">Select approved profile</option>
+                    {profiles.data.map((profile) => (
+                      <option key={profile.id} value={profile.id}>
+                        {profile.id} · {profile.timeout_seconds}s ·{" "}
+                        {profile.max_attempts} attempts
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
               <label>
                 <span>Verification method</span>
                 <input
@@ -523,7 +601,10 @@ export function VerificationDrawer({
                   type="submit"
                   className="button primary"
                   disabled={
-                    createMutation.status === "pending" || !completedRemediation
+                    createMutation.status === "pending" ||
+                    !completedRemediation ||
+                    profiles.status === "loading" ||
+                    profiles.status === "error"
                   }
                 >
                   Create verification
@@ -555,23 +636,42 @@ export function VerificationDrawer({
               </div>
             </dl>
             <div className="verification-check-stack">
-              {checks.map((check) => (
-                <VerificationCheckForm
-                  key={`${check.id}:${check.status}:${check.message}`}
-                  check={check}
-                  verificationId={running.verification.id}
-                  verificationVersion={running.verification.version}
-                  onRecorded={() => detail.reload()}
-                  onPendingChange={(pending) =>
-                    setCheckPending(check.id, pending)
-                  }
-                />
-              ))}
+              {workerManaged ? (
+                <article className="history-record" aria-live="polite">
+                  <div>
+                    <strong>
+                      Worker job {activeWorkerJob?.status ?? "Queued"}
+                    </strong>
+                    <span className="mono">{activeWorkerJob?.id}</span>
+                  </div>
+                  <p>
+                    Attempt {activeWorkerJob?.attempt ?? 0} of{" "}
+                    {activeWorkerJob?.max_attempts ?? 0}. Results can only be
+                    adopted with a signed isolated-worker receipt.
+                  </p>
+                  {activeWorkerJob?.last_error ? (
+                    <small>{activeWorkerJob.last_error}</small>
+                  ) : null}
+                </article>
+              ) : (
+                checks.map((check) => (
+                  <VerificationCheckForm
+                    key={`${check.id}:${check.status}:${check.message}`}
+                    check={check}
+                    verificationId={running.verification.id}
+                    verificationVersion={running.verification.version}
+                    onRecorded={() => detail.reload()}
+                    onPendingChange={(pending) =>
+                      setCheckPending(check.id, pending)
+                    }
+                  />
+                ))
+              )}
             </div>
           </section>
         ) : null}
 
-        {running && hasFailedCheck ? (
+        {running && !workerManaged && hasFailedCheck ? (
           <section aria-labelledby="failed-completion-title">
             <h3 id="failed-completion-title">Complete Failed</h3>
             <p className="workflow-copy">
@@ -621,7 +721,7 @@ export function VerificationDrawer({
           </section>
         ) : null}
 
-        {running && allChecksPassed ? (
+        {running && !workerManaged && allChecksPassed ? (
           <section aria-labelledby="passed-completion-title">
             <h3 id="passed-completion-title">Complete Passed</h3>
             <p className="workflow-copy">

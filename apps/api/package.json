@@ -9,6 +9,7 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc -b",
     "test": "vitest run",
+    "worker": "node --enable-source-maps dist/verification-worker.js",
     "typecheck": "tsc -b --pretty false"
   },
   "dependencies": {
@@ -16,6 +17,7 @@
     "@remedence/core": "0.1.0",
     "@remedence/database": "0.1.0",
     "@remedence/evidence": "0.1.0",
+    "@remedence/verification": "0.1.0",
     "better-auth": "1.7.1",
     "express": "5.2.1",
     "express-openapi-validator": "5.6.2",

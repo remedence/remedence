@@ -38,6 +38,8 @@ function titleFor(status: number): string {
       return "Precondition Required";
     case 429:
       return "Too Many Requests";
+    case 503:
+      return "Service Unavailable";
     default:
       return "Internal Server Error";
   }

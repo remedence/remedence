@@ -39,7 +39,14 @@ export function createFindingsRouter(dependencies: ApiDependencies): Router {
         detail.finding.id,
         detail.finding.version,
       );
-      response.json(toFindingDetail(detail));
+      response.json(
+        toFindingDetail(detail, (verificationId) =>
+          dependencies.verificationExecution?.queue.getByVerification(
+            detail.finding.organizationId,
+            verificationId,
+          ),
+        ),
+      );
     } catch (error) {
       next(error);
     }

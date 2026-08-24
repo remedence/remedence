@@ -11,6 +11,7 @@
     "typecheck": "tsc -b --pretty false"
   },
   "dependencies": {
-    "@remedence/core": "0.1.0"
+    "@remedence/core": "0.1.0",
+    "@remedence/verification": "0.1.0"
   }
 }

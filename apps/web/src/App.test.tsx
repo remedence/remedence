@@ -922,6 +922,12 @@ describe("Remedence API-backed read models", () => {
             }
             if (
               request.method === "GET" &&
+              url.pathname === "/api/v1/verification-profiles"
+            ) {
+              return jsonResponse([]);
+            }
+            if (
+              request.method === "GET" &&
               url.pathname === "/api/v1/findings/SEC-5001"
             ) {
               return jsonResponse(detail());
@@ -1214,6 +1220,12 @@ describe("Remedence API-backed read models", () => {
               url.pathname === "/api/v1/dashboard"
             ) {
               return jsonResponse(dashboardForState());
+            }
+            if (
+              request.method === "GET" &&
+              url.pathname === "/api/v1/verification-profiles"
+            ) {
+              return jsonResponse([]);
             }
             if (
               request.method === "GET" &&

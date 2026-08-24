@@ -76,7 +76,8 @@ export interface VerificationRun {
   method: string;
   workerName: string;
   verifierPrincipalId: string;
-  credentialType: "session" | "local-process" | "legacy-assertion";
+  credentialType:
+    "session" | "local-process" | "worker-profile" | "legacy-assertion";
   executionSource: string;
   sourceRevision: string;
   patchDigest: string;

@@ -1,10 +1,25 @@
 import { getDatabaseConnection, type RemedenceDatabase } from "./database.js";
 
+let savepointSequence = 0;
+
 export function runTransaction<T>(
   database: RemedenceDatabase,
   operation: () => T,
 ): T {
   const connection = getDatabaseConnection(database);
+  if (connection.isTransaction) {
+    const savepoint = `remedence_nested_${++savepointSequence}`;
+    connection.exec(`SAVEPOINT ${savepoint}`);
+    try {
+      const result = operation();
+      connection.exec(`RELEASE SAVEPOINT ${savepoint}`);
+      return result;
+    } catch (error) {
+      connection.exec(`ROLLBACK TO SAVEPOINT ${savepoint}`);
+      connection.exec(`RELEASE SAVEPOINT ${savepoint}`);
+      throw error;
+    }
+  }
   connection.exec("BEGIN IMMEDIATE");
 
   try {

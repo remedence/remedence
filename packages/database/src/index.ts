@@ -31,6 +31,7 @@ export { createReportRepository } from "./repositories/report-repository.js";
 export { createVerificationRepository } from "./repositories/verification-repository.js";
 export { seedHarborline, type HarborlineSeedRuntime } from "./seed.js";
 export { runTransaction } from "./transaction.js";
+export { createVerificationJobQueue } from "./verification-job-queue.js";
 export {
   createRepositorySet,
   createUnitOfWork,

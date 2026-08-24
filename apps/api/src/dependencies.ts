@@ -18,6 +18,7 @@ import {
   createRepositorySet,
   createRateLimitStore,
   createUnitOfWork,
+  createVerificationJobQueue,
   getDatabaseConnection,
   openRemedenceDatabase,
   seedHarborline,
@@ -25,6 +26,11 @@ import {
   type IdempotencyStore,
   type RateLimitStore,
 } from "@remedence/database";
+import type {
+  VerificationExecutionProfile,
+  VerificationJobQueue,
+} from "@remedence/verification";
+import { runTransaction } from "@remedence/database";
 import {
   ClamAvMalwareScanner,
   hashEvidenceMetadata,
@@ -59,6 +65,12 @@ export interface ApiDependencies {
   repositories: RepositorySet;
   rateLimit?: RateLimitStore;
   idempotency?: IdempotencyStore;
+  verificationExecution?: {
+    queue: VerificationJobQueue;
+    profiles: ReadonlyMap<string, VerificationExecutionProfile>;
+    queuedOnly: boolean;
+  };
+  runAtomically?: <T>(operation: () => T) => T;
   evidenceProtection: {
     objectStore: EvidenceObjectStore;
     scanner: MalwareScanner;
@@ -97,6 +109,7 @@ export interface ApiDependencyConfig {
   localOrganizationId?: string;
   workspaceMode?: "empty" | "demo";
   evidence?: EvidenceSecurityConfig;
+  verificationProfiles?: readonly VerificationExecutionProfile[];
   evidenceObjectStore?: EvidenceObjectStore;
   malwareScanner?: MalwareScanner;
 }
@@ -222,6 +235,19 @@ export function createDependencies(
       repositories,
       rateLimit: createRateLimitStore(database),
       idempotency: createIdempotencyStore(database),
+      verificationExecution: {
+        queue: createVerificationJobQueue(database),
+        profiles: new Map(
+          (config.verificationProfiles ?? []).map((profile) => [
+            profile.id,
+            profile,
+          ]),
+        ),
+        queuedOnly:
+          config.authentication?.mode === "required" &&
+          config.authentication.baseURL.startsWith("https://"),
+      },
+      runAtomically: (operation) => runTransaction(database, operation),
       evidenceProtection: {
         objectStore: evidenceObjectStore,
         scanner: malwareScanner,

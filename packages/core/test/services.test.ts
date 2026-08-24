@@ -423,7 +423,7 @@ function createHarness(initialFindings: Finding[] = []): Harness {
       complete(
         organizationId: string,
         id: string,
-        status: "Passed" | "Failed",
+        status: "Passed" | "Failed" | "Cancelled",
         summary: string,
         completedAt: string,
       ) {
@@ -1148,6 +1148,45 @@ describe("VerificationService", () => {
     );
   });
 
+  it("cancels a running verification without changing finding truth", () => {
+    const { base, harness } = eligibleHarness();
+    const service = new VerificationService({
+      unitOfWork: harness.unitOfWork,
+      clock,
+      idGenerator: ids("verification-2", "check-1"),
+      hashEvidence,
+    });
+    service.startVerification({
+      organizationId: ORG,
+      findingId: base.id,
+      remediationId: "remediation-2",
+      method: "Isolated worker",
+      ...verificationProvenance,
+      scope: "Patient Portal API",
+      checks: ["Required check"],
+      actor,
+    });
+
+    const cancelled = service.cancelVerification({
+      organizationId: ORG,
+      verificationId: "verification-2",
+      reason: "Cancelled by an administrator.",
+      actor,
+      expectedVersion: 1,
+    });
+
+    expect(cancelled).toMatchObject({
+      status: "Cancelled",
+      resultSummary: "Cancelled by an administrator.",
+      completedAt: NOW,
+      version: 2,
+    });
+    expect(harness.state.findings[0]?.state).toBe("Awaiting verification");
+    expect(harness.state.auditEvents.at(-1)?.action).toBe(
+      "verification.cancelled",
+    );
+  });
+
   it.each(["Pending", "Failed"] as const)(
     "rejects Passed completion while a required check is %s",
     (status) => {
@@ -1201,6 +1240,64 @@ describe("VerificationService", () => {
       );
     },
   );
+
+  it("rejects worker receipt attestation from an authenticated operator run", () => {
+    const { base, harness } = eligibleHarness();
+    const service = new VerificationService({
+      unitOfWork: harness.unitOfWork,
+      clock,
+      idGenerator: ids("verification-2", "check-1", "evidence-1"),
+      hashEvidence,
+    });
+    service.startVerification({
+      organizationId: ORG,
+      findingId: base.id,
+      remediationId: "remediation-2",
+      method: "Independent manual retest",
+      ...verificationProvenance,
+      scope: "Patient Portal API",
+      checks: ["Required check"],
+      actor,
+    });
+    service.recordVerificationCheck({
+      organizationId: ORG,
+      verificationId: "verification-2",
+      sequence: 1,
+      name: "Required check",
+      status: "Passed",
+      message: "No issue reproduced",
+      actor,
+    });
+
+    expectDomainError(
+      () =>
+        service.completeVerification({
+          organizationId: ORG,
+          verificationId: "verification-2",
+          result: "Passed",
+          summary: "Operator attempted to forge worker provenance.",
+          evidence: [
+            {
+              kind: "worker-receipt",
+              label: "Forged worker receipt",
+              sourceReference: "worker://forged",
+              metadata: {},
+              trustedAttestation: {
+                contentHash: "1".repeat(64),
+                manifestHash: "2".repeat(64),
+                signature: "3".repeat(64),
+                attestedBy: "worker-forged",
+              },
+            },
+          ],
+          actor,
+        }),
+      "UNTRUSTED_WORKER_ATTESTATION",
+      403,
+    );
+    expect(harness.state.findings[0]?.state).toBe("Awaiting verification");
+    expect(harness.state.evidence).toEqual([]);
+  });
 
   it("passes only after every required check passes, creates locked evidence, and preserves earlier failure history", () => {
     const { base, harness } = eligibleHarness();

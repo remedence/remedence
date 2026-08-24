@@ -197,9 +197,89 @@ export interface paths {
         put?: never;
         /**
          * Start a principal-bound independent verification run
-         * @description Verifier identity and credential class come from the server-established principal. The caller supplies source revision and patch digest provenance, but cannot override verifier identity. This endpoint does not execute commands or fetch arbitrary URLs.
+         * @description Hosted runs bind verifier identity to an administrator-approved execution profile and atomically enqueue an isolated job. Local development may omit profile_id and record a principal-bound manual run.
          */
         post: operations["createVerification"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/verification-profiles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List approved isolated execution profiles */
+        get: operations["listVerificationProfiles"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/verification-jobs/{jobId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["VerificationJobId"];
+            };
+            cookie?: never;
+        };
+        /** Read queued execution, retry, cancellation, and receipt state */
+        get: operations["getVerificationJob"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/verification-jobs/{jobId}/cancel": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant- and principal-scoped replay key. Reusing the key for the same request replays its successful response for 24 hours; changing the operation or payload returns 409. */
+                "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                jobId: components["parameters"]["VerificationJobId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Request cancellation of a queued or running isolated execution */
+        post: operations["cancelVerificationJob"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/verification-jobs/{jobId}/retry": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant- and principal-scoped replay key. Reusing the key for the same request replays its successful response for 24 hours; changing the operation or payload returns 409. */
+                "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                jobId: components["parameters"]["VerificationJobId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Requeue a dead-letter isolated execution after operator review */
+        post: operations["retryVerificationJob"];
         delete?: never;
         options?: never;
         head?: never;
@@ -573,7 +653,7 @@ export interface components {
             method: string;
             worker_name: string;
             /** @enum {string} */
-            credential_type: "session" | "local-process" | "legacy-assertion";
+            credential_type: "session" | "local-process" | "worker-profile" | "legacy-assertion";
             execution_source: string;
             source_revision: string;
             patch_digest: string;
@@ -600,6 +680,48 @@ export interface components {
         VerificationWithChecks: {
             verification: components["schemas"]["VerificationRun"];
             checks: components["schemas"]["VerificationCheck"][];
+            job?: components["schemas"]["VerificationJob"];
+        };
+        VerificationProfile: {
+            id: string;
+            timeout_seconds: number;
+            max_attempts: number;
+            /** @enum {string} */
+            network: "none";
+        };
+        VerificationExecutionReceipt: {
+            attempt: number;
+            worker_id: string;
+            profile_id: string;
+            image_digest: string;
+            command_digest: string;
+            /** Format: date-time */
+            started_at: string;
+            /** Format: date-time */
+            completed_at: string;
+            exit_code: number | null;
+            timed_out: boolean;
+            output_hash: string;
+            signature: string;
+        };
+        VerificationJob: {
+            id: string;
+            verification_id: string;
+            profile_id: string;
+            /** @enum {string} */
+            status: "Queued" | "Running" | "Succeeded" | "Failed" | "Cancelled" | "Dead letter";
+            attempt: number;
+            max_attempts: number;
+            timeout_seconds: number;
+            /** Format: date-time */
+            available_at: string;
+            cancellation_requested: boolean;
+            last_error: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+            receipts: components["schemas"]["VerificationExecutionReceipt"][];
         };
         EvidenceItem: {
             id: string;
@@ -766,6 +888,7 @@ export interface components {
             patch_digest: string;
             scope: string;
             checks: string[];
+            profile_id?: string;
         };
         CreateVerificationCheckRequest: {
             sequence: number;
@@ -837,6 +960,16 @@ export interface components {
     responses: {
         /** @description Request validation failed. */
         BadRequest: {
+            headers: {
+                "X-Request-ID": components["headers"]["RequestId"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /** @description The authenticated principal is not authorized for this operation. */
+        Forbidden: {
             headers: {
                 "X-Request-ID": components["headers"]["RequestId"];
                 [name: string]: unknown;
@@ -931,6 +1064,7 @@ export interface components {
         FindingId: string;
         RemediationId: string;
         VerificationId: string;
+        VerificationJobId: string;
         EvidenceId: string;
         ReportId: string;
         Search: string;
@@ -1234,6 +1368,7 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             412: components["responses"]["PreconditionFailed"];
@@ -1319,6 +1454,110 @@ export interface operations {
             413: components["responses"]["RequestTooLarge"];
             428: components["responses"]["PreconditionRequired"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    listVerificationProfiles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Safe profile metadata without image commands or secrets. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VerificationProfile"][];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getVerificationJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["VerificationJobId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Tenant-scoped verification job and signed receipts. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VerificationJob"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    cancelVerificationJob: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant- and principal-scoped replay key. Reusing the key for the same request replays its successful response for 24 hours; changing the operation or payload returns 409. */
+                "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                jobId: components["parameters"]["VerificationJobId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cancellation persisted or requested at the worker lease boundary. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VerificationJob"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    retryVerificationJob: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant- and principal-scoped replay key. Reusing the key for the same request replays its successful response for 24 hours; changing the operation or payload returns 409. */
+                "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                jobId: components["parameters"]["VerificationJobId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Dead-letter job returned to the durable queue with prior receipts retained. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VerificationJob"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            500: components["responses"]["InternalError"];
         };
     };
     createVerificationCheck: {
@@ -1353,6 +1592,7 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             412: components["responses"]["PreconditionFailed"];
@@ -1393,6 +1633,7 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             412: components["responses"]["PreconditionFailed"];

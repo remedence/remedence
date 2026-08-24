@@ -269,6 +269,8 @@ paths:
                 $ref: "#/components/schemas/Remediation"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
@@ -331,10 +333,9 @@ paths:
         - $ref: "#/components/parameters/IfMatch"
         - $ref: "#/components/parameters/IdempotencyKey"
       description: >-
-        Verifier identity and credential class come from the server-established
-        principal. The caller supplies source revision and patch digest provenance,
-        but cannot override verifier identity. This endpoint does not execute commands
-        or fetch arbitrary URLs.
+        Hosted runs bind verifier identity to an administrator-approved execution
+        profile and atomically enqueue an isolated job. Local development may omit
+        profile_id and record a principal-bound manual run.
       requestBody:
         required: true
         content:
@@ -370,6 +371,88 @@ paths:
           $ref: "#/components/responses/RequestTooLarge"
         "500":
           $ref: "#/components/responses/InternalError"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /verification-profiles:
+    get:
+      tags: [Verifications]
+      operationId: listVerificationProfiles
+      summary: List approved isolated execution profiles
+      responses:
+        "200":
+          description: Safe profile metadata without image commands or secrets.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VerificationProfile"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /verification-jobs/{jobId}:
+    parameters:
+      - $ref: "#/components/parameters/VerificationJobId"
+    get:
+      tags: [Verifications]
+      operationId: getVerificationJob
+      summary: Read queued execution, retry, cancellation, and receipt state
+      responses:
+        "200":
+          description: Tenant-scoped verification job and signed receipts.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerificationJob"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /verification-jobs/{jobId}/cancel:
+    parameters:
+      - $ref: "#/components/parameters/VerificationJobId"
+      - $ref: "#/components/parameters/IdempotencyKey"
+    post:
+      tags: [Verifications]
+      operationId: cancelVerificationJob
+      summary: Request cancellation of a queued or running isolated execution
+      responses:
+        "200":
+          description: Cancellation persisted or requested at the worker lease boundary.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerificationJob"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /verification-jobs/{jobId}/retry:
+    parameters:
+      - $ref: "#/components/parameters/VerificationJobId"
+      - $ref: "#/components/parameters/IdempotencyKey"
+    post:
+      tags: [Verifications]
+      operationId: retryVerificationJob
+      summary: Requeue a dead-letter isolated execution after operator review
+      responses:
+        "200":
+          description: Dead-letter job returned to the durable queue with prior receipts retained.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerificationJob"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /verifications/{verificationId}/checks:
     parameters:
       - $ref: "#/components/parameters/VerificationId"
@@ -399,6 +482,8 @@ paths:
                 $ref: "#/components/schemas/VerificationCheck"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
@@ -443,6 +528,8 @@ paths:
                 $ref: "#/components/schemas/VerificationCompletion"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
@@ -791,6 +878,14 @@ components:
         type: string
         minLength: 1
         maxLength: 100
+    VerificationJobId:
+      name: jobId
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 100
     EvidenceId:
       name: evidenceId
       in: path
@@ -867,6 +962,15 @@ components:
   responses:
     BadRequest:
       description: Request validation failed.
+      headers:
+        X-Request-ID:
+          $ref: "#/components/headers/RequestId"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Forbidden:
+      description: The authenticated principal is not authorized for this operation.
       headers:
         X-Request-ID:
           $ref: "#/components/headers/RequestId"
@@ -1273,7 +1377,7 @@ components:
           type: string
         credential_type:
           type: string
-          enum: [session, local-process, legacy-assertion]
+          enum: [session, local-process, worker-profile, legacy-assertion]
         execution_source:
           type: string
         source_revision:
@@ -1330,6 +1434,124 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/VerificationCheck"
+        job:
+          $ref: "#/components/schemas/VerificationJob"
+    VerificationProfile:
+      type: object
+      additionalProperties: false
+      required: [id, timeout_seconds, max_attempts, network]
+      properties:
+        id:
+          type: string
+        timeout_seconds:
+          type: integer
+          minimum: 1
+          maximum: 3600
+        max_attempts:
+          type: integer
+          minimum: 1
+          maximum: 10
+        network:
+          type: string
+          enum: [none]
+    VerificationExecutionReceipt:
+      type: object
+      additionalProperties: false
+      required:
+        - attempt
+        - worker_id
+        - profile_id
+        - image_digest
+        - command_digest
+        - started_at
+        - completed_at
+        - exit_code
+        - timed_out
+        - output_hash
+        - signature
+      properties:
+        attempt:
+          type: integer
+          minimum: 1
+        worker_id:
+          type: string
+        profile_id:
+          type: string
+        image_digest:
+          type: string
+          pattern: "^sha256:[0-9a-f]{64}$"
+        command_digest:
+          type: string
+          pattern: "^[0-9a-f]{64}$"
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+        exit_code:
+          type: [integer, "null"]
+        timed_out:
+          type: boolean
+        output_hash:
+          type: string
+          pattern: "^[0-9a-f]{64}$"
+        signature:
+          type: string
+          pattern: "^[0-9a-f]{64}$"
+    VerificationJob:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - verification_id
+        - profile_id
+        - status
+        - attempt
+        - max_attempts
+        - timeout_seconds
+        - available_at
+        - cancellation_requested
+        - last_error
+        - created_at
+        - updated_at
+        - receipts
+      properties:
+        id:
+          type: string
+        verification_id:
+          type: string
+        profile_id:
+          type: string
+        status:
+          type: string
+          enum: [Queued, Running, Succeeded, Failed, Cancelled, Dead letter]
+        attempt:
+          type: integer
+          minimum: 0
+        max_attempts:
+          type: integer
+          minimum: 1
+        timeout_seconds:
+          type: integer
+          minimum: 1
+        available_at:
+          type: string
+          format: date-time
+        cancellation_requested:
+          type: boolean
+        last_error:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        receipts:
+          type: array
+          items:
+            $ref: "#/components/schemas/VerificationExecutionReceipt"
     EvidenceItem:
       type: object
       additionalProperties: false
@@ -1844,6 +2066,11 @@ components:
             type: string
             minLength: 1
             maxLength: 300
+        profile_id:
+          type: string
+          minLength: 3
+          maxLength: 64
+          pattern: "^[a-z0-9][a-z0-9-]+$"
     CreateVerificationCheckRequest:
       type: object
       additionalProperties: false

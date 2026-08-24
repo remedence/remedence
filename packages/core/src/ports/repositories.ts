@@ -106,7 +106,7 @@ export interface VerificationRepository {
   complete(
     organizationId: string,
     id: string,
-    status: "Passed" | "Failed",
+    status: "Passed" | "Failed" | "Cancelled",
     summary: string,
     completedAt: string,
   ): void;
