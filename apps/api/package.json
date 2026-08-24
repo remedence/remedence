@@ -12,6 +12,7 @@
     "typecheck": "tsc -b --pretty false"
   },
   "dependencies": {
+    "@better-auth/sso": "1.7.1",
     "@remedence/core": "0.1.0",
     "@remedence/database": "0.1.0",
     "@remedence/evidence": "0.1.0",

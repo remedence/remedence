@@ -11,6 +11,7 @@ import {
   authenticatedPrincipalFrom,
   establishLocalPrincipal,
   requireAuthenticatedPrincipal,
+  requirePrincipalRole,
 } from "./authentication.js";
 import {
   createRateLimit,
@@ -108,7 +109,14 @@ export function createApp(
   app.get("/api/auth/remedence-status", async (request, response, next) => {
     try {
       if (!dependencies.authentication) {
-        response.json({ mode: "local", authenticated: true, user: null });
+        response.json({
+          mode: "local",
+          authenticated: true,
+          user: null,
+          mfa: { required: false, enrolled: false },
+          password_reset_enabled: false,
+          federation_protocols: [],
+        });
         return;
       }
       const session = await dependencies.authentication.getSession(
@@ -124,12 +132,28 @@ export function createApp(
               email: session.user.email,
             }
           : null,
+        mfa: {
+          required: dependencies.authentication.requireMfa,
+          enrolled: session?.user.twoFactorEnabled === true,
+        },
+        password_reset_enabled:
+          dependencies.authentication.passwordResetEnabled,
+        federation_protocols: dependencies.authentication.federationProtocols,
       });
     } catch (error) {
       next(error);
     }
   });
   if (dependencies.authentication) {
+    app.use(
+      [
+        "/api/auth/sso/register",
+        "/api/auth/sso/update-provider",
+        "/api/auth/sso/delete-provider",
+      ],
+      requireAuthenticatedPrincipal(dependencies.authentication),
+      requirePrincipalRole(["Owner", "Administrator"]),
+    );
     app.all("/api/auth/*splat", toNodeHandler(dependencies.authentication));
   }
   app.use(

@@ -119,7 +119,7 @@ Environment controls:
 - `REMEDENCE_API_PORT` overrides the loopback port with an integer from 1024 through 65535.
 - `REMEDENCE_DATA_DIR` overrides the data directory. The default is `./data` relative to the process working directory.
 - `NODE_ENV=production` also enables production web serving when the compiled server is started directly instead of through `bun run start`.
-- `REMEDENCE_AUTH_MODE=required` enables Better Auth and rejects anonymous `/api/v1` access. It also requires an explicit `BETTER_AUTH_URL` and at least 32 characters of secret material in `BETTER_AUTH_SECRET` or every versioned `BETTER_AUTH_SECRETS` value. Public account creation remains disabled.
+- `REMEDENCE_AUTH_MODE=required` enables Better Auth and rejects anonymous `/api/v1` access. It requires an explicit `BETTER_AUTH_URL` and at least 32 characters of secret material in `BETTER_AUTH_SECRET` or every versioned `BETTER_AUTH_SECRETS` value. HTTPS deployments also require `REMEDENCE_PASSWORD_RESET_WEBHOOK_URL` plus `REMEDENCE_PASSWORD_RESET_WEBHOOK_TOKEN`, and enforce MFA unless `REMEDENCE_REQUIRE_MFA=false` is explicitly set. Public account creation remains disabled; OIDC and SAML provider management is restricted to Owners and Administrators.
 - `REMEDENCE_WORKSPACE_MODE=empty` is the default and starts at first-run onboarding without sample records. Set it to `demo` only when Harborline sample data should be installed automatically for a disposable demonstration.
 
 The one-time initial-owner workflow is `bun run auth:bootstrap --name <name> --email <email>`. It requires `REMEDENCE_BOOTSTRAP_PASSWORD` through secure environment injection and refuses to run after any user exists. See the authentication documentation before using it.

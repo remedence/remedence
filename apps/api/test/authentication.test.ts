@@ -10,10 +10,11 @@ import {
   type RemedenceDatabase,
 } from "@remedence/database";
 import request from "supertest";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "../src/app.js";
 import {
   createAuthentication,
+  createAuthenticationOptions,
   provisionInitialOwner,
 } from "../src/authentication.js";
 import {
@@ -38,6 +39,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.restoreAllMocks();
   if (previousSecret === undefined) delete process.env.BETTER_AUTH_SECRET;
   else process.env.BETTER_AUTH_SECRET = previousSecret;
   for (const dependencies of dependencySets.splice(0)) {
@@ -56,7 +58,7 @@ function openMigratedDatabase(): RemedenceDatabase {
     path: join(directory, "remedence.db"),
   });
   databases.push(database);
-  expect(applyMigrations(database, migrationsDirectory)).toBe(5);
+  expect(applyMigrations(database, migrationsDirectory)).toBe(6);
   return database;
 }
 
@@ -76,6 +78,56 @@ function signUpRequest(email: string): Request {
 }
 
 describe("Better Auth persistence", () => {
+  it("delivers password reset links through the configured authenticated webhook", async () => {
+    const delivery = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(null, { status: 202 }));
+    const options = createAuthenticationOptions(
+      getDatabaseConnection(openMigratedDatabase()),
+      {
+        mode: "required",
+        baseURL,
+        passwordResetDelivery: {
+          webhookURL: "https://mailer.example/reset",
+          bearerToken: "delivery-test-token-00000000000000000000",
+        },
+      },
+    );
+    const send = options.emailAndPassword?.sendResetPassword;
+    expect(send).toBeTypeOf("function");
+
+    await send!(
+      {
+        user: {
+          id: "user-owner",
+          name: "Initial Owner",
+          email: "owner@example.com",
+          emailVerified: true,
+          image: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+        url: `${baseURL}/?token=one-time-value`,
+        token: "one-time-value",
+      },
+      new Request(baseURL),
+    );
+
+    expect(delivery).toHaveBeenCalledOnce();
+    const [url, requestOptions] = delivery.mock.calls[0]!;
+    expect(url).toBe("https://mailer.example/reset");
+    expect(requestOptions?.headers).toMatchObject({
+      authorization: "Bearer delivery-test-token-00000000000000000000",
+      "content-type": "application/json",
+    });
+    expect(JSON.parse(String(requestOptions?.body))).toEqual({
+      template: "password-reset",
+      recipient: { email: "owner@example.com", name: "Initial Owner" },
+      action_url: `${baseURL}/?token=one-time-value`,
+      expires_in_seconds: 1800,
+    });
+  });
+
   it("provisions exactly one owner without retaining a bootstrap session", async () => {
     const database = openMigratedDatabase();
     seedHarborline(database, {
@@ -148,7 +200,14 @@ describe("Better Auth persistence", () => {
     await request(app).get("/livez").expect(200);
     expect(
       (await request(app).get("/api/auth/remedence-status").expect(200)).body,
-    ).toEqual({ mode: "required", authenticated: false, user: null });
+    ).toEqual({
+      mode: "required",
+      authenticated: false,
+      user: null,
+      mfa: { required: false, enrolled: false },
+      password_reset_enabled: false,
+      federation_protocols: ["oidc", "saml"],
+    });
     const protectedResponse = await request(app)
       .get("/api/v1/companies")
       .expect(401);

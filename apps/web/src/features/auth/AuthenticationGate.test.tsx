@@ -16,10 +16,18 @@ vi.mock("better-auth/client", () => ({
 }));
 
 function statusResponse(body: unknown): Response {
-  return new Response(JSON.stringify(body), {
-    status: 200,
-    headers: { "content-type": "application/json" },
-  });
+  return new Response(
+    JSON.stringify({
+      mfa: { required: false, enrolled: false },
+      password_reset_enabled: false,
+      federation_protocols: [],
+      ...(body as Record<string, unknown>),
+    }),
+    {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    },
+  );
 }
 
 afterEach(() => {

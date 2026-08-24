@@ -10,7 +10,18 @@ export const DEFAULT_WEB_DIRECTORY = fileURLToPath(
 );
 
 export type AuthenticationConfig =
-  { mode: "local" } | { mode: "required"; baseURL: string };
+  | { mode: "local" }
+  | {
+      mode: "required";
+      baseURL: string;
+      requireMfa?: boolean;
+      passwordResetDelivery?: PasswordResetDeliveryConfig | null;
+    };
+
+export interface PasswordResetDeliveryConfig {
+  webhookURL: string;
+  bearerToken: string;
+}
 
 export interface ApiConfig {
   host: typeof API_HOST;
@@ -35,6 +46,10 @@ const AUTH_URL_ERROR =
   "BETTER_AUTH_URL must be an explicit HTTPS origin, or an HTTP 127.0.0.1 origin for local testing.";
 const AUTH_SECRET_ERROR =
   "BETTER_AUTH_SECRET or every BETTER_AUTH_SECRETS value must contain at least 32 characters when authentication is required.";
+const AUTH_MFA_ERROR =
+  'REMEDENCE_REQUIRE_MFA must be either "true" or "false".';
+const PASSWORD_RESET_DELIVERY_ERROR =
+  "REMEDENCE_PASSWORD_RESET_WEBHOOK_URL must be HTTPS and REMEDENCE_PASSWORD_RESET_WEBHOOK_TOKEN must contain at least 32 characters.";
 const WORKSPACE_MODE_ERROR =
   'REMEDENCE_WORKSPACE_MODE must be either "empty" or "demo".';
 
@@ -53,6 +68,43 @@ export interface AuthenticationEnvironment {
   baseURL?: string | undefined;
   secret?: string | undefined;
   secrets?: string | undefined;
+  requireMfa?: string | undefined;
+  passwordResetWebhookURL?: string | undefined;
+  passwordResetWebhookToken?: string | undefined;
+}
+
+function resolveBoolean(
+  value: string | undefined,
+  defaultValue: boolean,
+  errorMessage: string,
+): boolean {
+  if (value === undefined) return defaultValue;
+  if (value === "true") return true;
+  if (value === "false") return false;
+  throw new Error(errorMessage);
+}
+
+function resolvePasswordResetDelivery(
+  webhookURL: string | undefined,
+  bearerToken: string | undefined,
+  requireDelivery: boolean,
+): PasswordResetDeliveryConfig | null {
+  if (!webhookURL && !bearerToken && !requireDelivery) return null;
+  let parsed: URL;
+  try {
+    parsed = new URL(webhookURL ?? "");
+  } catch {
+    throw new Error(PASSWORD_RESET_DELIVERY_ERROR);
+  }
+  if (
+    parsed.protocol !== "https:" ||
+    parsed.username !== "" ||
+    parsed.password !== "" ||
+    (bearerToken?.length ?? 0) < 32
+  ) {
+    throw new Error(PASSWORD_RESET_DELIVERY_ERROR);
+  }
+  return { webhookURL: parsed.href, bearerToken: bearerToken! };
 }
 
 function hasValidAuthenticationSecret(
@@ -87,6 +139,9 @@ export function resolveAuthenticationConfig({
   baseURL,
   secret,
   secrets,
+  requireMfa,
+  passwordResetWebhookURL,
+  passwordResetWebhookToken,
 }: AuthenticationEnvironment): AuthenticationConfig {
   const resolvedMode = mode ?? "local";
   if (resolvedMode === "local") return { mode: "local" };
@@ -120,7 +175,16 @@ export function resolveAuthenticationConfig({
     throw new Error(AUTH_URL_ERROR);
   }
 
-  return { mode: "required", baseURL: parsed.origin };
+  return {
+    mode: "required",
+    baseURL: parsed.origin,
+    requireMfa: resolveBoolean(requireMfa, isSecureOrigin, AUTH_MFA_ERROR),
+    passwordResetDelivery: resolvePasswordResetDelivery(
+      passwordResetWebhookURL,
+      passwordResetWebhookToken,
+      isSecureOrigin,
+    ),
+  };
 }
 
 export function resolveDevelopmentOrigin(
@@ -196,6 +260,10 @@ export function getApiConfig(): ApiConfig {
       baseURL: process.env.BETTER_AUTH_URL,
       secret: process.env.BETTER_AUTH_SECRET,
       secrets: process.env.BETTER_AUTH_SECRETS,
+      requireMfa: process.env.REMEDENCE_REQUIRE_MFA,
+      passwordResetWebhookURL: process.env.REMEDENCE_PASSWORD_RESET_WEBHOOK_URL,
+      passwordResetWebhookToken:
+        process.env.REMEDENCE_PASSWORD_RESET_WEBHOOK_TOKEN,
     }),
     workspaceMode: resolveWorkspaceMode(),
   };

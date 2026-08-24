@@ -2,6 +2,7 @@ import { betterAuth } from "better-auth";
 import type { BetterAuthOptions } from "better-auth/minimal";
 import { fromNodeHeaders } from "better-auth/node";
 import { twoFactor } from "better-auth/plugins";
+import { sso } from "@better-auth/sso";
 import type { DatabaseSync } from "node:sqlite";
 import type { MutationActor, TrustedVerifierPrincipal } from "@remedence/core";
 import type {
@@ -36,6 +37,7 @@ export interface AuthenticationSession {
     name: string;
     email: string;
     emailVerified: boolean;
+    twoFactorEnabled?: boolean;
   };
   session: {
     id: string;
@@ -48,6 +50,9 @@ export interface RemedenceAuthentication {
   handler: (request: globalThis.Request) => Promise<globalThis.Response>;
   getSession: (headers: Headers) => Promise<AuthenticationSession | null>;
   getPrincipal: (headers: Headers) => Promise<AuthenticatedPrincipal | null>;
+  requireMfa: boolean;
+  passwordResetEnabled: boolean;
+  federationProtocols: readonly ["oidc", "saml"];
 }
 
 export interface AuthenticatedPrincipal {
@@ -157,6 +162,15 @@ export function requireAuthenticatedPrincipal(
         );
         return;
       }
+      if (authentication.requireMfa && session.user.twoFactorEnabled !== true) {
+        next(
+          Object.assign(new Error("Multi-factor authentication is required."), {
+            status: 403,
+            code: "MFA_ENROLLMENT_REQUIRED",
+          }),
+        );
+        return;
+      }
       if (!principal) {
         next(
           Object.assign(
@@ -177,11 +191,74 @@ export function requireAuthenticatedPrincipal(
   };
 }
 
+export function requirePrincipalRole(
+  allowedRoles: readonly AuthenticatedPrincipal["role"][],
+) {
+  return function roleRequired(
+    _request: ExpressRequest,
+    response: ExpressResponse,
+    next: NextFunction,
+  ): void {
+    const principal = authenticatedPrincipalFrom(response);
+    if (!principal || !allowedRoles.includes(principal.role)) {
+      next(
+        Object.assign(
+          new Error("This action requires an administrative role."),
+          {
+            status: 403,
+            code: "ADMINISTRATOR_ROLE_REQUIRED",
+          },
+        ),
+      );
+      return;
+    }
+    next();
+  };
+}
+
 export function createAuthenticationOptions(
   database: DatabaseSync,
   config: Extract<AuthenticationConfig, { mode: "required" }>,
   options: AuthenticationOptions = {},
 ): BetterAuthOptions {
+  const sendResetPassword = config.passwordResetDelivery
+    ? async ({
+        user,
+        url,
+      }: {
+        user: { email: string; name: string };
+        url: string;
+      }) => {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10_000);
+        try {
+          const delivery = await fetch(
+            config.passwordResetDelivery!.webhookURL,
+            {
+              method: "POST",
+              headers: {
+                authorization: `Bearer ${config.passwordResetDelivery!.bearerToken}`,
+                "content-type": "application/json",
+              },
+              body: JSON.stringify({
+                template: "password-reset",
+                recipient: { email: user.email, name: user.name },
+                action_url: url,
+                expires_in_seconds: 1800,
+              }),
+              signal: controller.signal,
+            },
+          );
+          if (!delivery.ok) {
+            throw new Error(
+              `Password reset delivery failed with status ${delivery.status}.`,
+            );
+          }
+        } finally {
+          clearTimeout(timeout);
+        }
+      }
+    : undefined;
   return {
     appName: "Remedence",
     baseURL: config.baseURL,
@@ -191,6 +268,8 @@ export function createAuthenticationOptions(
       enabled: true,
       disableSignUp: !(options.allowPublicSignUp ?? false),
       revokeSessionsOnPasswordReset: true,
+      resetPasswordTokenExpiresIn: 30 * 60,
+      ...(sendResetPassword ? { sendResetPassword } : {}),
     },
     session: {
       expiresIn: 8 * 60 * 60,
@@ -201,7 +280,27 @@ export function createAuthenticationOptions(
       database: { joins: true },
       useSecureCookies: config.baseURL.startsWith("https://"),
     },
-    plugins: [twoFactor({ issuer: "Remedence" })],
+    plugins: [
+      twoFactor({
+        issuer: "Remedence",
+        accountLockout: {
+          enabled: true,
+          maxFailedAttempts: 5,
+          durationSeconds: 900,
+        },
+        trustDeviceMaxAge: 12 * 60 * 60,
+      }),
+      sso({
+        disableImplicitSignUp: true,
+        domainVerification: { enabled: true },
+        saml: {
+          enableInResponseToValidation: true,
+          allowIdpInitiated: false,
+          requireTimestamps: true,
+          algorithms: { onDeprecated: "reject" },
+        },
+      }),
+    ],
   };
 }
 
@@ -223,6 +322,9 @@ export function createAuthentication(
   return {
     handler: authentication.handler,
     getSession: (headers) => authentication.api.getSession({ headers }),
+    requireMfa: config.requireMfa ?? false,
+    passwordResetEnabled: Boolean(config.passwordResetDelivery),
+    federationProtocols: ["oidc", "saml"],
     getPrincipal: async (headers) => {
       const session = await authentication.api.getSession({ headers });
       if (!session) return null;

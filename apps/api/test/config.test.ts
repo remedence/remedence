@@ -93,15 +93,30 @@ describe("local API configuration", () => {
         mode: "required",
         baseURL: "https://remedence.example",
         secrets: `2:${"b".repeat(32)},1:${"a".repeat(32)}`,
+        passwordResetWebhookURL: "https://mailer.example/reset",
+        passwordResetWebhookToken: "c".repeat(32),
       }),
-    ).toEqual({ mode: "required", baseURL: "https://remedence.example" });
+    ).toEqual({
+      mode: "required",
+      baseURL: "https://remedence.example",
+      requireMfa: true,
+      passwordResetDelivery: {
+        webhookURL: "https://mailer.example/reset",
+        bearerToken: "c".repeat(32),
+      },
+    });
     expect(
       resolveAuthenticationConfig({
         mode: "required",
         baseURL: "http://127.0.0.1:43180",
         secret: "a".repeat(32),
       }),
-    ).toEqual({ mode: "required", baseURL: "http://127.0.0.1:43180" });
+    ).toEqual({
+      mode: "required",
+      baseURL: "http://127.0.0.1:43180",
+      requireMfa: false,
+      passwordResetDelivery: null,
+    });
   });
 
   it.each([
@@ -129,6 +144,39 @@ describe("local API configuration", () => {
       );
     },
   );
+
+  it.each(["1", "yes", "TRUE", ""])(
+    "rejects an invalid MFA policy %j",
+    (requireMfa) => {
+      expect(() =>
+        resolveAuthenticationConfig({
+          mode: "required",
+          baseURL: "http://127.0.0.1:43180",
+          secret: "a".repeat(32),
+          requireMfa,
+        }),
+      ).toThrow('REMEDENCE_REQUIRE_MFA must be either "true" or "false".');
+    },
+  );
+
+  it("requires authenticated HTTPS password-reset delivery in production", () => {
+    expect(() =>
+      resolveAuthenticationConfig({
+        mode: "required",
+        baseURL: "https://remedence.example",
+        secret: "a".repeat(32),
+      }),
+    ).toThrow("REMEDENCE_PASSWORD_RESET_WEBHOOK_URL must be HTTPS");
+    expect(() =>
+      resolveAuthenticationConfig({
+        mode: "required",
+        baseURL: "https://remedence.example",
+        secret: "a".repeat(32),
+        passwordResetWebhookURL: "http://mailer.example/reset",
+        passwordResetWebhookToken: "b".repeat(32),
+      }),
+    ).toThrow("REMEDENCE_PASSWORD_RESET_WEBHOOK_URL must be HTTPS");
+  });
 
   it.each([
     "http://remedence.example",
