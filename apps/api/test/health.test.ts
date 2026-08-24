@@ -78,6 +78,28 @@ describe("GET /healthz", () => {
       user: null,
     });
   });
+
+  it("keeps liveness up but fails readiness after database loss", async () => {
+    const temporaryDirectory = mkdtempSync(join(tmpdir(), "remedence-down-"));
+    temporaryDirectories.push(temporaryDirectory);
+    const dependencies = createDependencies({
+      databasePath: join(temporaryDirectory, "remedence.db"),
+      log: () => undefined,
+    });
+    dependencySets.push(dependencies);
+    const app = createApp(dependencies);
+
+    closeDependencies(dependencies);
+
+    await request(app).get("/livez").expect(200, { status: "ok" });
+    const ready = await request(app).get("/readyz").expect(503);
+    expect(ready.body).toEqual({
+      status: "degraded",
+      database: "degraded",
+      schema_version: 4,
+    });
+    expect(JSON.stringify(ready.body)).not.toMatch(/[A-Z]:\\|\/home\//);
+  });
 });
 
 describe("live SLA evaluation", () => {

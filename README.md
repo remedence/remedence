@@ -124,7 +124,7 @@ Environment controls:
 
 The one-time initial-owner workflow is `bun run auth:bootstrap --name <name> --email <email>`. It requires `REMEDENCE_BOOTSTRAP_PASSWORD` through secure environment injection and refuses to run after any user exists. See the authentication documentation before using it.
 
-Operational probes are `GET /livez` for process liveness and `GET /readyz` for database/schema readiness. `GET /healthz` remains a compatibility alias for readiness. Probe responses are non-cacheable and do not expose local paths.
+Operational probes are `GET /livez` for process liveness and `GET /readyz` for live database/schema readiness. Each readiness request executes a database query and returns `503` with `database: "degraded"` when the dependency is not responsive. `GET /healthz` remains a compatibility alias for readiness. Probe responses are non-cacheable and do not expose local paths.
 
 ## Database lifecycle
 

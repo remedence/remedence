@@ -59,7 +59,7 @@ export interface ApiDependencies {
     }) => { id: string; name: string; slug: string };
   };
   health: () => {
-    database: "ready";
+    database: "ready" | "degraded";
     schemaVersion: number;
   };
   log: (entry: Record<string, unknown>) => void;
@@ -117,6 +117,9 @@ export function createDependencies(
     const repositories = createRepositorySet(database, { referenceTime });
     const unitOfWork = createUnitOfWork(database, { referenceTime });
     const idGenerator = config.idGenerator ?? uuidGenerator();
+    const databaseProbe = getDatabaseConnection(database).prepare(
+      "SELECT 1 AS responsive",
+    );
 
     const localOrganizationId =
       config.localOrganizationId ??
@@ -195,10 +198,20 @@ export function createDependencies(
           return workspaceStatus().organization!;
         },
       },
-      health: () => ({
-        database: "ready",
-        schemaVersion: database.schemaVersion,
-      }),
+      health: () => {
+        try {
+          const result = databaseProbe.get() as { responsive?: unknown };
+          return {
+            database: result.responsive === 1 ? "ready" : "degraded",
+            schemaVersion: database.schemaVersion,
+          };
+        } catch {
+          return {
+            database: "degraded",
+            schemaVersion: database.schemaVersion,
+          };
+        }
+      },
       log: config.log ?? structuredConsoleLog,
     };
 

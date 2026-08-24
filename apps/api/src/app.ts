@@ -139,8 +139,8 @@ export function createApp(
     response: express.Response,
   ) => {
     const health = dependencies.health();
-    response.json({
-      status: "ok",
+    response.status(health.database === "ready" ? 200 : 503).json({
+      status: health.database === "ready" ? "ok" : "degraded",
       database: health.database,
       schema_version: health.schemaVersion,
     });
