@@ -9,6 +9,7 @@ artifacts/
 .env
 .env.*
 !.env.example
+!deploy/.env.production.example
 
 data/
 *.db
