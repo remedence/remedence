@@ -2,7 +2,7 @@ import { AlertCircle, X } from "lucide-react";
 import { useEffect, useRef, useState, type RefObject } from "react";
 import type { DashboardFinding } from "../findings/FindingQueue";
 import { LoadingState, ProblemState } from "../shared/AsyncState";
-import { api } from "../../lib/api/client";
+import { api, entityTag } from "../../lib/api/client";
 import { ApiProblemError, problemFromResponse } from "../../lib/api/problems";
 import type { components, operations } from "../../lib/api/schema";
 import { useApiMutation } from "../../lib/api/useApiMutation";
@@ -79,6 +79,13 @@ export function RemediationPanel({
   const startMutation = useApiMutation<StartRequest, Remediation>(
     async (body, signal) => {
       const { data, error, response } = await api.POST("/remediations", {
+        headers: {
+          "If-Match": entityTag(
+            "finding",
+            detail.data?.finding.id ?? finding.id,
+            detail.data?.finding.version ?? finding.version,
+          ),
+        },
         body,
         signal,
       });
@@ -100,6 +107,13 @@ export function RemediationPanel({
         "/remediations/{remediationId}/complete",
         {
           params: { path: { remediationId: activeRemediation.id } },
+          headers: {
+            "If-Match": entityTag(
+              "remediation",
+              activeRemediation.id,
+              activeRemediation.version,
+            ),
+          },
           body,
           signal,
         },

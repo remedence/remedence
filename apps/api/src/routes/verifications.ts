@@ -6,6 +6,7 @@ import {
   verificationActorFrom,
 } from "../authentication.js";
 import type { ApiDependencies } from "../dependencies.js";
+import { requireIfMatch, setEntityTag } from "../entity-tag.js";
 import {
   toVerificationCheck,
   toVerificationCompletion,
@@ -63,6 +64,11 @@ export function createVerificationsRouter(
           verifier: trustedVerifierFrom(response),
           checks: body.checks,
           actor: verificationActorFrom(response),
+          expectedFindingVersion: requireIfMatch(
+            request,
+            "finding",
+            body.finding_id,
+          ),
         },
       );
       const checks = dependencies.repositories.verifications.listChecks(
@@ -72,6 +78,12 @@ export function createVerificationsRouter(
 
       response.location(
         `/api/v1/verifications/${encodeURIComponent(verification.id)}`,
+      );
+      setEntityTag(
+        response,
+        "verification",
+        verification.id,
+        verification.version,
       );
       response.status(201).json(
         toVerificationWithChecks({
@@ -98,7 +110,19 @@ export function createVerificationsRouter(
             status: body.status,
             message: body.message,
             actor: verificationActorFrom(response),
+            expectedVersion: requireIfMatch(
+              request,
+              "verification",
+              request.params.verificationId ?? "",
+            ),
           });
+        const updated = dependencies.repositories.verifications.getById(
+          organizationIdFrom(response),
+          request.params.verificationId ?? "",
+        );
+        if (updated) {
+          setEntityTag(response, "verification", updated.id, updated.version);
+        }
         response.status(201).json(toVerificationCheck(check));
       } catch (error) {
         next(error);
@@ -125,7 +149,18 @@ export function createVerificationsRouter(
               metadata: item.metadata,
             })),
             actor: verificationActorFrom(response),
+            expectedVersion: requireIfMatch(
+              request,
+              "verification",
+              request.params.verificationId ?? "",
+            ),
           });
+        setEntityTag(
+          response,
+          "verification",
+          completion.verification.id,
+          completion.verification.version,
+        );
         response.json(toVerificationCompletion(completion));
       } catch (error) {
         next(error);

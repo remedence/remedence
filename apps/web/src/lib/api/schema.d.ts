@@ -165,7 +165,10 @@ export interface paths {
     "/remediations/{remediationId}/complete": {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Required strong ETag returned for the target resource. Omission returns 428. */
+                "If-Match"?: components["parameters"]["IfMatch"];
+            };
             path: {
                 remediationId: components["parameters"]["RemediationId"];
             };
@@ -204,7 +207,10 @@ export interface paths {
     "/verifications/{verificationId}/checks": {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Required strong ETag returned for the target resource. Omission returns 428. */
+                "If-Match"?: components["parameters"]["IfMatch"];
+            };
             path: {
                 verificationId: components["parameters"]["VerificationId"];
             };
@@ -223,7 +229,10 @@ export interface paths {
     "/verifications/{verificationId}/complete": {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Required strong ETag returned for the target resource. Omission returns 428. */
+                "If-Match"?: components["parameters"]["IfMatch"];
+            };
             path: {
                 verificationId: components["parameters"]["VerificationId"];
             };
@@ -472,6 +481,7 @@ export interface components {
             created_at: string;
             /** Format: date-time */
             updated_at: string;
+            version: number;
         };
         AssetSummary: {
             company_id: string;
@@ -498,6 +508,7 @@ export interface components {
             created_at: string;
             /** Format: date-time */
             updated_at: string;
+            version: number;
         };
         DashboardFinding: {
             id: string;
@@ -520,6 +531,7 @@ export interface components {
             created_at: string;
             /** Format: date-time */
             updated_at: string;
+            version: number;
             company_name: string;
             sla_breached: boolean;
             priority_bucket: number;
@@ -545,6 +557,7 @@ export interface components {
             created_at: string;
             /** Format: date-time */
             updated_at: string;
+            version: number;
         };
         VerificationRun: {
             id: string;
@@ -566,6 +579,7 @@ export interface components {
             completed_at: string | null;
             /** Format: date-time */
             created_at: string;
+            version: number;
         };
         VerificationCheck: {
             id: string;
@@ -845,6 +859,24 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
+        /** @description The supplied entity ETag is stale or targets another resource. */
+        PreconditionFailed: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /** @description The mutation requires If-Match with the current entity ETag. */
+        PreconditionRequired: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
         /** @description JSON request body exceeds 256 KiB. */
         RequestTooLarge: {
             headers: {
@@ -885,6 +917,8 @@ export interface components {
         };
     };
     parameters: {
+        /** @description Required strong ETag returned for the target resource. Omission returns 428. */
+        IfMatch: string;
         CompanyId: string;
         FindingId: string;
         RemediationId: string;
@@ -905,6 +939,8 @@ export interface components {
     headers: {
         /** @description Correlation identifier for this request. */
         RequestId: string;
+        /** @description Strong entity version tag for optimistic concurrency. */
+        EntityTag: string;
     };
     pathItems: never;
 }
@@ -1110,6 +1146,7 @@ export interface operations {
             200: {
                 headers: {
                     "X-Request-ID": components["headers"]["RequestId"];
+                    ETag: components["headers"]["EntityTag"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -1153,7 +1190,10 @@ export interface operations {
     createRemediation: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Required strong ETag returned for the target resource. Omission returns 428. */
+                "If-Match"?: components["parameters"]["IfMatch"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -1168,6 +1208,7 @@ export interface operations {
                 headers: {
                     "X-Request-ID": components["headers"]["RequestId"];
                     Location?: string;
+                    ETag: components["headers"]["EntityTag"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -1177,14 +1218,19 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            412: components["responses"]["PreconditionFailed"];
             413: components["responses"]["RequestTooLarge"];
+            428: components["responses"]["PreconditionRequired"];
             500: components["responses"]["InternalError"];
         };
     };
     completeRemediation: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Required strong ETag returned for the target resource. Omission returns 428. */
+                "If-Match"?: components["parameters"]["IfMatch"];
+            };
             path: {
                 remediationId: components["parameters"]["RemediationId"];
             };
@@ -1200,6 +1246,7 @@ export interface operations {
             200: {
                 headers: {
                     "X-Request-ID": components["headers"]["RequestId"];
+                    ETag: components["headers"]["EntityTag"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -1209,14 +1256,19 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            412: components["responses"]["PreconditionFailed"];
             413: components["responses"]["RequestTooLarge"];
+            428: components["responses"]["PreconditionRequired"];
             500: components["responses"]["InternalError"];
         };
     };
     createVerification: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Required strong ETag returned for the target resource. Omission returns 428. */
+                "If-Match"?: components["parameters"]["IfMatch"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -1231,6 +1283,7 @@ export interface operations {
                 headers: {
                     "X-Request-ID": components["headers"]["RequestId"];
                     Location?: string;
+                    ETag: components["headers"]["EntityTag"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -1240,14 +1293,19 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            412: components["responses"]["PreconditionFailed"];
             413: components["responses"]["RequestTooLarge"];
+            428: components["responses"]["PreconditionRequired"];
             500: components["responses"]["InternalError"];
         };
     };
     createVerificationCheck: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Required strong ETag returned for the target resource. Omission returns 428. */
+                "If-Match"?: components["parameters"]["IfMatch"];
+            };
             path: {
                 verificationId: components["parameters"]["VerificationId"];
             };
@@ -1263,6 +1321,7 @@ export interface operations {
             201: {
                 headers: {
                     "X-Request-ID": components["headers"]["RequestId"];
+                    ETag: components["headers"]["EntityTag"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -1272,14 +1331,19 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            412: components["responses"]["PreconditionFailed"];
             413: components["responses"]["RequestTooLarge"];
+            428: components["responses"]["PreconditionRequired"];
             500: components["responses"]["InternalError"];
         };
     };
     completeVerification: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Required strong ETag returned for the target resource. Omission returns 428. */
+                "If-Match"?: components["parameters"]["IfMatch"];
+            };
             path: {
                 verificationId: components["parameters"]["VerificationId"];
             };
@@ -1295,6 +1359,7 @@ export interface operations {
             200: {
                 headers: {
                     "X-Request-ID": components["headers"]["RequestId"];
+                    ETag: components["headers"]["EntityTag"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -1304,7 +1369,9 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            412: components["responses"]["PreconditionFailed"];
             413: components["responses"]["RequestTooLarge"];
+            428: components["responses"]["PreconditionRequired"];
             500: components["responses"]["InternalError"];
         };
     };

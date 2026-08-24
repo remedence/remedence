@@ -760,6 +760,7 @@ export function seedHarborline(
         (finding) => ({
           ...finding,
           organizationId: ORGANIZATION_ID,
+          version: 1,
         }),
       ),
       verificationHistory: [
@@ -780,6 +781,7 @@ export function seedHarborline(
           startedAt: "2026-08-12T00:00:00.000Z",
           completedAt: HERO_FAILURE_AT,
           createdAt: "2026-08-12T00:00:00.000Z",
+          version: 1,
           checks: [
             {
               id: "check-sec-1042-primary",

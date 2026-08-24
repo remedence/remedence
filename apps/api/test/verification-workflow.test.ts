@@ -27,6 +27,7 @@ import {
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createApp } from "../src/app.js";
+import { entityTag } from "../src/entity-tag.js";
 
 const migrationsDirectory = fileURLToPath(
   new URL("../../../packages/database/migrations", import.meta.url),
@@ -166,6 +167,30 @@ function auditActions(entityType: string, entityId: string): string[] {
     .items.map((event) => event.action);
 }
 
+function findingTag(id: string): string {
+  const finding = fixture.repositories.findings.getById(organizationId, id);
+  if (!finding) throw new Error(`Missing test finding ${id}.`);
+  return entityTag("finding", id, finding.version);
+}
+
+function remediationTag(id: string): string {
+  const remediation = fixture.repositories.remediations.getById(
+    organizationId,
+    id,
+  );
+  if (!remediation) throw new Error(`Missing test remediation ${id}.`);
+  return entityTag("remediation", id, remediation.version);
+}
+
+function verificationTag(id: string): string {
+  const verification = fixture.repositories.verifications.getById(
+    organizationId,
+    id,
+  );
+  if (!verification) throw new Error(`Missing test verification ${id}.`);
+  return entityTag("verification", id, verification.version);
+}
+
 beforeEach(() => {
   fixture = buildFixture();
 });
@@ -176,6 +201,47 @@ afterEach(() => {
 });
 
 describe("Task 12 remediation, verification, and evidence workflow", () => {
+  it("requires current entity tags and rejects stale writes without mutation", async () => {
+    const imported = await request(fixture.app)
+      .post("/api/v1/imports")
+      .send(importBody())
+      .expect(201);
+    const findingId = imported.body.finding.id as string;
+    const initialFinding = fixture.repositories.findings.getById(
+      organizationId,
+      findingId,
+    )!;
+
+    const missing = await request(fixture.app)
+      .post("/api/v1/remediations")
+      .send(remediationBody(findingId, 1))
+      .expect(428);
+    expect(missing.body.code).toBe("PRECONDITION_REQUIRED");
+    expect(
+      fixture.repositories.findings.getById(organizationId, findingId),
+    ).toEqual(initialFinding);
+
+    const remediation = await request(fixture.app)
+      .post("/api/v1/remediations")
+      .set("if-match", findingTag(findingId))
+      .send(remediationBody(findingId, 1))
+      .expect(201);
+    const remediationId = remediation.body.id as string;
+    expect(remediation.headers.etag).toBe(
+      entityTag("remediation", remediationId, remediation.body.version),
+    );
+
+    const stale = await request(fixture.app)
+      .post(`/api/v1/remediations/${remediationId}/complete`)
+      .set("if-match", entityTag("remediation", remediationId, 99))
+      .send({ summary: "Must not commit.", reference: "test://stale" })
+      .expect(412);
+    expect(stale.body.code).toBe("STALE_ENTITY_VERSION");
+    expect(
+      fixture.repositories.remediations.getById(organizationId, remediationId),
+    ).toMatchObject({ status: "In progress", version: 1 });
+  });
+
   it("rejects caller-supplied verifier labels without partial state", async () => {
     const imported = await request(fixture.app)
       .post("/api/v1/imports")
@@ -184,16 +250,19 @@ describe("Task 12 remediation, verification, and evidence workflow", () => {
     const findingId = imported.body.finding.id as string;
     const remediation = await request(fixture.app)
       .post("/api/v1/remediations")
+      .set("if-match", findingTag(findingId))
       .send(remediationBody(findingId, 1))
       .expect(201);
     const remediationId = remediation.body.id as string;
     await request(fixture.app)
       .post(`/api/v1/remediations/${remediationId}/complete`)
+      .set("if-match", remediationTag(remediationId))
       .send({ summary: "Ready for review.", reference: "change://complete" })
       .expect(200);
 
     const rejected = await request(fixture.app)
       .post("/api/v1/verifications")
+      .set("if-match", findingTag(findingId))
       .send({
         ...verificationBody(findingId, remediationId, 1),
         worker_name: " s. PATEL ",
@@ -224,6 +293,7 @@ describe("Task 12 remediation, verification, and evidence workflow", () => {
 
     const remediation1 = await request(fixture.app)
       .post("/api/v1/remediations")
+      .set("if-match", findingTag(findingId))
       .send(remediationBody(findingId, 1))
       .expect(201);
     const remediation1Id = remediation1.body.id as string;
@@ -242,6 +312,7 @@ describe("Task 12 remediation, verification, and evidence workflow", () => {
 
     const completedRemediation1 = await request(fixture.app)
       .post(`/api/v1/remediations/${remediation1Id}/complete`)
+      .set("if-match", remediationTag(remediation1Id))
       .send({
         summary:
           "Primary authorization path patched; ready for independent retest.",
@@ -259,6 +330,7 @@ describe("Task 12 remediation, verification, and evidence workflow", () => {
 
     const verification1 = await request(fixture.app)
       .post("/api/v1/verifications")
+      .set("if-match", findingTag(findingId))
       .send(verificationBody(findingId, remediation1Id, 1))
       .expect(201);
     const verification1Id = verification1.body.verification.id as string;
@@ -285,6 +357,7 @@ describe("Task 12 remediation, verification, and evidence workflow", () => {
 
     const passedCheck = await request(fixture.app)
       .post(`/api/v1/verifications/${verification1Id}/checks`)
+      .set("if-match", verificationTag(verification1Id))
       .send({
         sequence: 1,
         name: expectedChecks[0],
@@ -301,6 +374,7 @@ describe("Task 12 remediation, verification, and evidence workflow", () => {
 
     const duplicateCheck = await request(fixture.app)
       .post(`/api/v1/verifications/${verification1Id}/checks`)
+      .set("if-match", verificationTag(verification1Id))
       .send({
         sequence: 1,
         name: expectedChecks[0],
@@ -318,6 +392,7 @@ describe("Task 12 remediation, verification, and evidence workflow", () => {
 
     const failedCheck = await request(fixture.app)
       .post(`/api/v1/verifications/${verification1Id}/checks`)
+      .set("if-match", verificationTag(verification1Id))
       .send({
         sequence: 2,
         name: expectedChecks[1],
@@ -334,6 +409,7 @@ describe("Task 12 remediation, verification, and evidence workflow", () => {
 
     await request(fixture.app)
       .post(`/api/v1/verifications/${verification1Id}/checks`)
+      .set("if-match", verificationTag(verification1Id))
       .send({
         sequence: 3,
         name: expectedChecks[2],
@@ -345,6 +421,7 @@ describe("Task 12 remediation, verification, and evidence workflow", () => {
 
     const failedCompletion = await request(fixture.app)
       .post(`/api/v1/verifications/${verification1Id}/complete`)
+      .set("if-match", verificationTag(verification1Id))
       .send({
         result: "Failed",
         summary:
@@ -388,6 +465,7 @@ describe("Task 12 remediation, verification, and evidence workflow", () => {
 
     const remediation2 = await request(fixture.app)
       .post("/api/v1/remediations")
+      .set("if-match", findingTag(findingId))
       .send(remediationBody(findingId, 2))
       .expect(201);
     const remediation2Id = remediation2.body.id as string;
@@ -395,6 +473,7 @@ describe("Task 12 remediation, verification, and evidence workflow", () => {
 
     await request(fixture.app)
       .post(`/api/v1/remediations/${remediation2Id}/complete`)
+      .set("if-match", remediationTag(remediation2Id))
       .send({
         summary:
           "Secondary authorization path patched and regression coverage extended.",
@@ -407,6 +486,7 @@ describe("Task 12 remediation, verification, and evidence workflow", () => {
 
     const verification2 = await request(fixture.app)
       .post("/api/v1/verifications")
+      .set("if-match", findingTag(findingId))
       .send(verificationBody(findingId, remediation2Id, 2))
       .expect(201);
     const verification2Id = verification2.body.verification.id as string;
@@ -415,6 +495,7 @@ describe("Task 12 remediation, verification, and evidence workflow", () => {
     for (const [index, name] of expectedChecks.entries()) {
       await request(fixture.app)
         .post(`/api/v1/verifications/${verification2Id}/checks`)
+        .set("if-match", verificationTag(verification2Id))
         .send({
           sequence: index + 1,
           name,
@@ -461,6 +542,7 @@ describe("Task 12 remediation, verification, and evidence workflow", () => {
 
     const passedCompletion = await request(fixture.app)
       .post(`/api/v1/verifications/${verification2Id}/complete`)
+      .set("if-match", verificationTag(verification2Id))
       .send({
         result: "Passed",
         summary:
@@ -558,12 +640,14 @@ describe("Task 12 remediation, verification, and evidence workflow", () => {
 
     const remediation = await request(fixture.app)
       .post("/api/v1/remediations")
+      .set("if-match", findingTag(findingId))
       .send(remediationBody(findingId, 1))
       .expect(201);
     const remediationId = remediation.body.id as string;
 
     await request(fixture.app)
       .post(`/api/v1/remediations/${remediationId}/complete`)
+      .set("if-match", remediationTag(remediationId))
       .send({
         summary: "Ready for one independent verification run.",
         reference: "change://SEC-2099/single-running-verification",
@@ -572,11 +656,13 @@ describe("Task 12 remediation, verification, and evidence workflow", () => {
 
     const first = await request(fixture.app)
       .post("/api/v1/verifications")
+      .set("if-match", findingTag(findingId))
       .send(verificationBody(findingId, remediationId, 1))
       .expect(201);
 
     const second = await request(fixture.app)
       .post("/api/v1/verifications")
+      .set("if-match", findingTag(findingId))
       .send(verificationBody(findingId, remediationId, 2))
       .expect(409);
     expect(second.headers["content-type"]).toMatch(
@@ -612,6 +698,7 @@ describe("Task 12 remediation, verification, and evidence workflow", () => {
 
     const response = await request(fixture.app)
       .post("/api/v1/remediations")
+      .set("if-match", entityTag("finding", "malformed-finding", 1))
       .send(remediationBody("malformed-finding", 1))
       .expect(500);
 

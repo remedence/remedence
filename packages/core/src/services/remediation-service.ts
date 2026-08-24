@@ -1,5 +1,6 @@
 import type { Remediation } from "../domain/entities.js";
 import { assertFindingTransition } from "../domain/finding-state.js";
+import { assertExpectedVersion } from "../domain/version.js";
 import { DomainError } from "../errors/domain-error.js";
 import type { UnitOfWork } from "../ports/repositories.js";
 import type { Clock, IdGenerator } from "../ports/runtime.js";
@@ -18,6 +19,7 @@ export interface StartRemediationInput {
   summary: string;
   reference: string;
   actor: MutationActor;
+  expectedFindingVersion?: number;
 }
 
 export interface CompleteRemediationInput {
@@ -26,6 +28,7 @@ export interface CompleteRemediationInput {
   summary: string;
   reference: string;
   actor: MutationActor;
+  expectedVersion?: number;
 }
 
 function requireText(value: string, code: string, message: string): string {
@@ -50,6 +53,7 @@ export class RemediationService {
           "Finding was not found.",
         );
       }
+      assertExpectedVersion(finding.version, input.expectedFindingVersion);
       assertFindingTransition(finding.state, "Remediating");
 
       const now = this.dependencies.clock.now();
@@ -115,6 +119,7 @@ export class RemediationService {
           "Remediation was not found.",
         );
       }
+      assertExpectedVersion(remediation.version, input.expectedVersion);
       const finding = repositories.findings.getById(
         input.organizationId,
         remediation.findingId,

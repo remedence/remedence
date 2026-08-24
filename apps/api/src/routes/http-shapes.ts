@@ -24,6 +24,7 @@ export function toCompany(company: Company) {
     risk_level: company.riskLevel,
     created_at: company.createdAt,
     updated_at: company.updatedAt,
+    version: company.version,
   };
 }
 
@@ -44,6 +45,7 @@ export function toFinding(finding: Finding) {
     sla_due_at: finding.slaDueAt,
     created_at: finding.createdAt,
     updated_at: finding.updatedAt,
+    version: finding.version,
   };
 }
 
@@ -68,6 +70,7 @@ export function toRemediation(remediation: Remediation) {
     completed_at: remediation.completedAt,
     created_at: remediation.createdAt,
     updated_at: remediation.updatedAt,
+    version: remediation.version,
   };
 }
 
@@ -88,6 +91,7 @@ export function toVerificationRun(verification: VerificationRun) {
     started_at: verification.startedAt,
     completed_at: verification.completedAt,
     created_at: verification.createdAt,
+    version: verification.version,
   };
 }
 

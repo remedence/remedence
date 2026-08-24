@@ -19,6 +19,7 @@ export const dashboardFindingFixture: DashboardFinding = {
   sla_due_at: "2026-08-20T22:00:00.000Z",
   created_at: "2026-08-20T18:00:00.000Z",
   updated_at: "2026-08-20T18:30:00.000Z",
+  version: 1,
   company_name: "Juniper Ridge Dental",
   sla_breached: true,
   priority_bucket: 1,

@@ -8,7 +8,7 @@ import {
 } from "react";
 import type { DashboardFinding } from "../findings/FindingQueue";
 import { LoadingState, ProblemState } from "../shared/AsyncState";
-import { api } from "../../lib/api/client";
+import { api, entityTag } from "../../lib/api/client";
 import {
   ApiProblemError,
   problemFromResponse,
@@ -132,6 +132,13 @@ export function VerificationDrawer({
     VerificationWithChecks
   >(async (body, signal) => {
     const { data, error, response } = await api.POST("/verifications", {
+      headers: {
+        "If-Match": entityTag(
+          "finding",
+          detail.data?.finding.id ?? finding.id,
+          detail.data?.finding.version ?? finding.version,
+        ),
+      },
       body,
       signal,
     });
@@ -143,17 +150,29 @@ export function VerificationDrawer({
     (createMutation.data?.verification.status === "Running"
       ? createMutation.data.verification.id
       : undefined);
+  const activeVerificationVersion =
+    persistedRunning?.verification.version ??
+    (createMutation.data?.verification.status === "Running"
+      ? createMutation.data.verification.version
+      : undefined);
   const completionMutation = useApiMutation<
     CompleteVerificationRequest,
     VerificationCompletion
   >(async (body, signal) => {
-    if (!activeVerificationId) {
+    if (!activeVerificationId || !activeVerificationVersion) {
       throw new Error("No running verification is available to complete.");
     }
     const { data, error, response } = await api.POST(
       "/verifications/{verificationId}/complete",
       {
         params: { path: { verificationId: activeVerificationId } },
+        headers: {
+          "If-Match": entityTag(
+            "verification",
+            activeVerificationId,
+            activeVerificationVersion,
+          ),
+        },
         body,
         signal,
       },
@@ -540,6 +559,7 @@ export function VerificationDrawer({
                   key={`${check.id}:${check.status}:${check.message}`}
                   check={check}
                   verificationId={running.verification.id}
+                  verificationVersion={running.verification.version}
                   onRecorded={() => detail.reload()}
                   onPendingChange={(pending) =>
                     setCheckPending(check.id, pending)
@@ -760,11 +780,13 @@ export function VerificationDrawer({
 
 function VerificationCheckForm({
   verificationId,
+  verificationVersion,
   check,
   onRecorded,
   onPendingChange,
 }: {
   verificationId: string;
+  verificationVersion: number;
   check: VerificationCheck;
   onRecorded: () => void;
   onPendingChange: (pending: boolean) => void;
@@ -783,6 +805,13 @@ function VerificationCheckForm({
       "/verifications/{verificationId}/checks",
       {
         params: { path: { verificationId } },
+        headers: {
+          "If-Match": entityTag(
+            "verification",
+            verificationId,
+            verificationVersion,
+          ),
+        },
         body,
         signal,
       },

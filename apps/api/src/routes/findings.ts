@@ -2,6 +2,7 @@ import { DomainError } from "@remedence/core";
 import { Router } from "express";
 import { organizationIdFrom } from "../authentication.js";
 import type { ApiDependencies } from "../dependencies.js";
+import { setEntityTag } from "../entity-tag.js";
 import { findingQueryFrom } from "./finding-query.js";
 import { toFindingDetail, toFindingPage } from "./http-shapes.js";
 
@@ -32,6 +33,12 @@ export function createFindingsRouter(dependencies: ApiDependencies): Router {
           "Finding was not found.",
         );
       }
+      setEntityTag(
+        response,
+        "finding",
+        detail.finding.id,
+        detail.finding.version,
+      );
       response.json(toFindingDetail(detail));
     } catch (error) {
       next(error);

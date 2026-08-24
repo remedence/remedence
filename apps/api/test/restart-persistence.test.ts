@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { entityTag } from "../src/entity-tag.js";
 
 const repositoryRoot = fileURLToPath(new URL("../../..", import.meta.url));
 const serverPath = join(repositoryRoot, "apps", "api", "dist", "server.js");
@@ -160,7 +161,12 @@ describe("Task 17 restart persistence", () => {
     expect(healthA.body.schema_version).toBe(7);
 
     const imported = await jsonRequest<{
-      finding: { id: string; finding_key: string; state: string };
+      finding: {
+        id: string;
+        finding_key: string;
+        state: string;
+        version: number;
+      };
     }>(baseUrl, "/api/v1/imports", {
       method: "POST",
       body: JSON.stringify({
@@ -185,6 +191,13 @@ describe("Task 17 restart persistence", () => {
       "/api/v1/remediations",
       {
         method: "POST",
+        headers: {
+          "if-match": entityTag(
+            "finding",
+            findingId,
+            imported.body.finding.version,
+          ),
+        },
         body: JSON.stringify({
           finding_id: findingId,
           owner: "Task 17",
@@ -200,6 +213,9 @@ describe("Task 17 restart persistence", () => {
       `/api/v1/remediations/${remediation.body.id}/complete`,
       {
         method: "POST",
+        headers: {
+          "if-match": remediation.response.headers.get("etag") ?? "",
+        },
         body: JSON.stringify({
           summary: "Ready for independent restart verification",
           reference: `task17://restart/${suffix}/remediation-complete`,
@@ -208,11 +224,23 @@ describe("Task 17 restart persistence", () => {
     );
     expect(completedRemediation.response.status).toBe(200);
 
+    const currentFinding = await jsonRequest<{
+      finding: { id: string; version: number };
+    }>(baseUrl, `/api/v1/findings/${encodeURIComponent(findingKey)}`);
+    expect(currentFinding.response.status).toBe(200);
+
     const verification = await jsonRequest<{
       verification: { id: string; status: string };
       checks: Array<{ sequence: number }>;
     }>(baseUrl, "/api/v1/verifications", {
       method: "POST",
+      headers: {
+        "if-match": entityTag(
+          "finding",
+          findingId,
+          currentFinding.body.finding.version,
+        ),
+      },
       body: JSON.stringify({
         finding_id: findingId,
         remediation_id: remediation.body.id,
@@ -230,6 +258,9 @@ describe("Task 17 restart persistence", () => {
       `/api/v1/verifications/${verification.body.verification.id}/checks`,
       {
         method: "POST",
+        headers: {
+          "if-match": verification.response.headers.get("etag") ?? "",
+        },
         body: JSON.stringify({
           sequence: 1,
           name: "Restart persistence check",
@@ -248,6 +279,9 @@ describe("Task 17 restart persistence", () => {
       `/api/v1/verifications/${verification.body.verification.id}/complete`,
       {
         method: "POST",
+        headers: {
+          "if-match": check.response.headers.get("etag") ?? "",
+        },
         body: JSON.stringify({
           result: "Failed",
           summary: "Intentional failure must survive restart.",

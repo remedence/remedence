@@ -105,6 +105,10 @@ export function createVerificationRepository(
      WHERE organization_id = ? AND verification_id = ?
      ORDER BY sequence ASC, id ASC`,
   );
+  const incrementVersionStatement = connection.prepare(
+    `UPDATE verification_runs SET version = version + 1
+     WHERE organization_id = ? AND id = ? AND status = 'Running'`,
+  );
   const completeStatement = connection.prepare(
     `UPDATE verification_runs
      SET status = ?, result_summary = ?, completed_at = ?, version = version + 1
@@ -194,6 +198,11 @@ export function createVerificationRepository(
         name,
       );
       requireOneChange(result.changes, verificationId);
+      const versionResult = incrementVersionStatement.run(
+        organizationId,
+        verificationId,
+      );
+      requireOneChange(versionResult.changes, verificationId);
     },
 
     listChecks(

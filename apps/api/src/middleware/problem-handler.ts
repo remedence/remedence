@@ -28,8 +28,14 @@ function titleFor(status: number): string {
       return "Not Found";
     case 409:
       return "Conflict";
+    case 412:
+      return "Precondition Failed";
     case 413:
       return "Payload Too Large";
+    case 422:
+      return "Unprocessable Content";
+    case 428:
+      return "Precondition Required";
     case 429:
       return "Too Many Requests";
     default:

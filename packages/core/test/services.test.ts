@@ -396,6 +396,17 @@ function createHarness(initialFindings: Finding[] = []): Harness {
           status,
           message,
         };
+        const runIndex = state.verifications.findIndex(
+          (item) =>
+            item.organizationId === organizationId &&
+            item.id === verificationId,
+        );
+        if (runIndex >= 0) {
+          state.verifications[runIndex] = {
+            ...state.verifications[runIndex]!,
+            version: state.verifications[runIndex]!.version + 1,
+          };
+        }
       },
       listChecks(organizationId: string, verificationId: string) {
         return state.checks
@@ -723,6 +734,34 @@ describe("ImportFindingService", () => {
 });
 
 describe("RemediationService", () => {
+  it("rejects a stale finding version before creating remediation state", () => {
+    const base = finding("finding-1042", "SEC-1042", "Needs remediation");
+    const harness = createHarness([base]);
+    const service = new RemediationService({
+      unitOfWork: harness.unitOfWork,
+      clock,
+      idGenerator: ids("remediation-2"),
+    });
+
+    expectDomainError(
+      () =>
+        service.startRemediation({
+          organizationId: ORG,
+          findingId: base.id,
+          owner: "L. Chen",
+          summary: "Must not commit",
+          reference: "CHG-STALE",
+          actor,
+          expectedFindingVersion: base.version + 1,
+        }),
+      "STALE_ENTITY_VERSION",
+      412,
+    );
+    expect(harness.state.findings).toEqual([base]);
+    expect(harness.state.remediations).toEqual([]);
+    expect(harness.state.auditEvents).toEqual([]);
+  });
+
   it.each(["Needs remediation", "Verification failed"] as const)(
     "starts remediation from %s",
     (state) => {

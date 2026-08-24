@@ -4,6 +4,7 @@ import { join } from "node:path";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createApp } from "../src/app.js";
+import { entityTag } from "../src/entity-tag.js";
 import {
   closeDependencies,
   createDependencies,
@@ -55,6 +56,24 @@ function expectSafeProblem(response: request.Response): void {
   );
   expect(serialized).not.toContain("stack");
   expect(serialized).not.toContain("token=");
+}
+
+function findingTag(id: string): string {
+  const finding = fixture.dependencies.repositories.findings.getById(
+    "org-harborline",
+    id,
+  );
+  if (!finding) throw new Error(`Missing test finding ${id}.`);
+  return entityTag("finding", id, finding.version);
+}
+
+function remediationTag(id: string): string {
+  const remediation = fixture.dependencies.repositories.remediations.getById(
+    "org-harborline",
+    id,
+  );
+  if (!remediation) throw new Error(`Missing test remediation ${id}.`);
+  return entityTag("remediation", id, remediation.version);
 }
 
 beforeEach(() => {
@@ -243,6 +262,7 @@ describe("Task 17 production abuse boundaries", () => {
 
     const remediation = await request(fixture.app)
       .post("/api/v1/remediations")
+      .set("if-match", findingTag(findingId))
       .send({
         finding_id: findingId,
         owner: "Task 17",
@@ -254,6 +274,7 @@ describe("Task 17 production abuse boundaries", () => {
 
     const secondStart = await request(fixture.app)
       .post("/api/v1/remediations")
+      .set("if-match", findingTag(findingId))
       .send({
         finding_id: findingId,
         owner: "Task 17",
@@ -265,6 +286,7 @@ describe("Task 17 production abuse boundaries", () => {
 
     await request(fixture.app)
       .post(`/api/v1/remediations/${remediationId}/complete`)
+      .set("if-match", remediationTag(remediationId))
       .send({
         summary: "Ready for verification",
         reference: "task17://repeat/remediation-complete",
@@ -273,6 +295,7 @@ describe("Task 17 production abuse boundaries", () => {
 
     const duplicateCompletion = await request(fixture.app)
       .post(`/api/v1/remediations/${remediationId}/complete`)
+      .set("if-match", remediationTag(remediationId))
       .send({
         summary: "Duplicate completion",
         reference: "task17://repeat/remediation-complete-again",
@@ -295,6 +318,7 @@ describe("Task 17 production abuse boundaries", () => {
       .expect(201);
     const remediation = await request(fixture.app)
       .post("/api/v1/remediations")
+      .set("if-match", findingTag(imported.body.finding.id))
       .send({
         finding_id: imported.body.finding.id,
         owner: "Task 17",
@@ -307,19 +331,22 @@ describe("Task 17 production abuse boundaries", () => {
       summary: "Concurrent completion",
       reference: "task17://race/complete",
     };
+    const currentTag = remediationTag(remediation.body.id);
     const responses = await Promise.all([
       request(fixture.app)
         .post(`/api/v1/remediations/${remediation.body.id}/complete`)
+        .set("if-match", currentTag)
         .send(body),
       request(fixture.app)
         .post(`/api/v1/remediations/${remediation.body.id}/complete`)
+        .set("if-match", currentTag)
         .send(body),
     ]);
 
     expect(responses.map((response) => response.status).sort()).toEqual([
-      200, 409,
+      200, 412,
     ]);
-    expectSafeProblem(responses.find((response) => response.status === 409)!);
+    expectSafeProblem(responses.find((response) => response.status === 412)!);
 
     const detail = await request(fixture.app)
       .get("/api/v1/findings/SEC-ABUSE-RACE")

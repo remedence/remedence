@@ -749,6 +749,7 @@ describe("Remedence API-backed read models", () => {
                 completed_at: null,
                 created_at: "2026-08-21T04:10:00.000Z",
                 updated_at: "2026-08-21T04:10:00.000Z",
+                version: 1,
               };
               return jsonResponse(remediation, 201);
             }
@@ -765,6 +766,7 @@ describe("Remedence API-backed read models", () => {
                 reference: "commit-4001",
                 completed_at: "2026-08-21T04:20:00.000Z",
                 updated_at: "2026-08-21T04:20:00.000Z",
+                version: 2,
               };
               return jsonResponse(remediation);
             }
@@ -857,6 +859,7 @@ describe("Remedence API-backed read models", () => {
         completed_at: "2026-08-21T04:05:00.000Z",
         created_at: "2026-08-21T04:00:00.000Z",
         updated_at: "2026-08-21T04:05:00.000Z",
+        version: 2,
       };
       let state: components["schemas"]["FindingState"] =
         "Awaiting verification";
@@ -944,6 +947,7 @@ describe("Remedence API-backed read models", () => {
                 started_at: "2026-08-21T04:30:00.000Z",
                 completed_at: null,
                 created_at: "2026-08-21T04:30:00.000Z",
+                version: 1,
               };
               checks = [
                 {
@@ -1121,6 +1125,7 @@ describe("Remedence API-backed read models", () => {
           completed_at: "2026-08-21T03:10:00.000Z",
           created_at: "2026-08-21T03:00:00.000Z",
           updated_at: "2026-08-21T03:10:00.000Z",
+          version: 2,
         },
       ];
       let verifications: components["schemas"]["VerificationWithChecks"][] = [
@@ -1141,6 +1146,7 @@ describe("Remedence API-backed read models", () => {
             started_at: "2026-08-21T03:15:00.000Z",
             completed_at: "2026-08-21T03:20:00.000Z",
             created_at: "2026-08-21T03:15:00.000Z",
+            version: 2,
           },
           checks: [
             {
@@ -1233,6 +1239,7 @@ describe("Remedence API-backed read models", () => {
                 completed_at: null,
                 created_at: "2026-08-21T04:00:00.000Z",
                 updated_at: "2026-08-21T04:00:00.000Z",
+                version: 1,
               };
               remediations = [...remediations, remediation];
               return jsonResponse(remediation, 201);
@@ -1252,6 +1259,7 @@ describe("Remedence API-backed read models", () => {
                 reference: body.reference,
                 completed_at: "2026-08-21T04:10:00.000Z",
                 updated_at: "2026-08-21T04:10:00.000Z",
+                version: 2,
               };
               remediations = [...remediations.slice(0, -1), completed];
               return jsonResponse(completed);
@@ -1278,6 +1286,7 @@ describe("Remedence API-backed read models", () => {
                 started_at: "2026-08-21T04:20:00.000Z",
                 completed_at: null,
                 created_at: "2026-08-21T04:20:00.000Z",
+                version: 1,
               };
               const checks: components["schemas"]["VerificationCheck"][] =
                 body.checks.map((name, index) => ({

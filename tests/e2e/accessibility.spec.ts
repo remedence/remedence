@@ -12,6 +12,10 @@ import {
 const repositoryRoot = process.cwd();
 const axeArtifactDirectory = join(repositoryRoot, "artifacts", "task17", "axe");
 
+function entityTag(kind: string, id: string, version: number): string {
+  return `"${kind}.${Buffer.from(id, "utf8").toString("base64url")}.v${version}"`;
+}
+
 function findingRow(page: Page, findingKey: string): Locator {
   return page.getByRole("row").filter({ hasText: findingKey });
 }
@@ -65,9 +69,18 @@ async function createAwaitingVerificationFinding(request: APIRequestContext) {
     },
   });
   expect(imported.status()).toBe(201);
-  const importBody = (await imported.json()) as { finding: { id: string } };
+  const importBody = (await imported.json()) as {
+    finding: { id: string; version: number };
+  };
 
   const remediation = await request.post("/api/v1/remediations", {
+    headers: {
+      "if-match": entityTag(
+        "finding",
+        importBody.finding.id,
+        importBody.finding.version,
+      ),
+    },
     data: {
       finding_id: importBody.finding.id,
       owner: "Task 17",
@@ -76,11 +89,21 @@ async function createAwaitingVerificationFinding(request: APIRequestContext) {
     },
   });
   expect(remediation.status()).toBe(201);
-  const remediationBody = (await remediation.json()) as { id: string };
+  const remediationBody = (await remediation.json()) as {
+    id: string;
+    version: number;
+  };
 
   const completed = await request.post(
     `/api/v1/remediations/${remediationBody.id}/complete`,
     {
+      headers: {
+        "if-match": entityTag(
+          "remediation",
+          remediationBody.id,
+          remediationBody.version,
+        ),
+      },
       data: {
         summary: "Ready for independent accessibility verification.",
         reference: `task17://a11y/${suffix}/complete`,

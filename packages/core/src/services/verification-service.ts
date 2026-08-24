@@ -5,6 +5,7 @@ import type {
   VerificationRun,
 } from "../domain/entities.js";
 import { assertFindingTransition } from "../domain/finding-state.js";
+import { assertExpectedVersion } from "../domain/version.js";
 import { DomainError } from "../errors/domain-error.js";
 import type { UnitOfWork } from "../ports/repositories.js";
 import type { Clock, IdGenerator } from "../ports/runtime.js";
@@ -53,6 +54,7 @@ export interface StartVerificationInput {
   verifier: TrustedVerifierPrincipal;
   checks: string[];
   actor: MutationActor;
+  expectedFindingVersion?: number;
 }
 
 export interface RecordVerificationCheckInput {
@@ -63,6 +65,7 @@ export interface RecordVerificationCheckInput {
   status: Exclude<VerificationCheck["status"], "Pending">;
   message: string;
   actor: MutationActor;
+  expectedVersion?: number;
 }
 
 export interface CompleteVerificationInput {
@@ -72,6 +75,7 @@ export interface CompleteVerificationInput {
   summary: string;
   evidence: VerificationEvidenceInput[];
   actor: MutationActor;
+  expectedVersion?: number;
 }
 
 export interface VerificationCompletion {
@@ -140,6 +144,7 @@ export class VerificationService {
         input.findingId,
         repositories.findings.getById.bind(repositories.findings),
       );
+      assertExpectedVersion(finding.version, input.expectedFindingVersion);
       if (finding.state !== "Awaiting verification") {
         throw new DomainError(
           "INVALID_FINDING_STATE",
@@ -323,6 +328,7 @@ export class VerificationService {
           "Verification run was not found.",
         );
       }
+      assertExpectedVersion(run.version, input.expectedVersion);
       requireOwnedFinding(
         input.organizationId,
         run.findingId,
@@ -422,6 +428,7 @@ export class VerificationService {
           "Verification run was not found.",
         );
       }
+      assertExpectedVersion(run.version, input.expectedVersion);
       requireRunning(run);
       if (input.actor.actorId !== run.verifierPrincipalId) {
         throw new DomainError(
