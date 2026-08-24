@@ -11,16 +11,16 @@ import type {
 import { SandboxExecutionError } from "./docker-sandbox.js";
 
 export interface VerificationWorkerSource {
-  load(job: VerificationJob): {
+  load(job: VerificationJob): Promise<{
     profile: VerificationExecutionProfile;
     input: VerificationExecutionInput;
-  };
+  }>;
   apply(
     job: VerificationJob,
     output: VerificationExecutionOutput,
     receipt: VerificationExecutionReceipt,
-  ): void;
-  cancel(job: VerificationJob, reason: string): void;
+  ): Promise<void>;
+  cancel(job: VerificationJob, reason: string): Promise<void>;
 }
 
 export interface VerificationWorkerOptions {
@@ -54,7 +54,7 @@ export class VerificationWorker {
 
   async runOnce(): Promise<boolean> {
     const claimedAt = this.now();
-    const job = this.options.queue.claim({
+    const job = await this.options.queue.claim({
       workerId: this.options.workerId,
       now: claimedAt,
       leaseExpiresAt: addMilliseconds(claimedAt, this.leaseMs),
@@ -63,20 +63,22 @@ export class VerificationWorker {
 
     const controller = new AbortController();
     const heartbeat = setInterval(() => {
-      const heartbeatAt = this.now();
-      const renewed = this.options.queue.renewLease({
-        organizationId: job.organizationId,
-        jobId: job.id,
-        workerId: this.options.workerId,
-        now: heartbeatAt,
-        leaseExpiresAt: addMilliseconds(heartbeatAt, this.leaseMs),
-      });
-      if (!renewed) controller.abort();
+      void (async () => {
+        const heartbeatAt = this.now();
+        const renewed = await this.options.queue.renewLease({
+          organizationId: job.organizationId,
+          jobId: job.id,
+          workerId: this.options.workerId,
+          now: heartbeatAt,
+          leaseExpiresAt: addMilliseconds(heartbeatAt, this.leaseMs),
+        });
+        if (!renewed) controller.abort();
+      })();
     }, this.heartbeatMs);
     heartbeat.unref();
 
     try {
-      const executionRequest = this.options.source.load(job);
+      const executionRequest = await this.options.source.load(job);
       if (
         executionRequest.profile.id !== job.profileId ||
         executionRequest.input.jobId !== job.id ||
@@ -90,11 +92,11 @@ export class VerificationWorker {
         this.options.workerId,
         controller.signal,
       );
-      this.complete(job, execution);
+      await this.complete(job, execution);
     } catch (error) {
       const failedAt = this.now();
       const delaySeconds = Math.min(300, 2 ** Math.max(0, job.attempt - 1) * 5);
-      this.options.queue.fail({
+      await this.options.queue.fail({
         organizationId: job.organizationId,
         jobId: job.id,
         workerId: this.options.workerId,
@@ -119,12 +121,15 @@ export class VerificationWorker {
     return true;
   }
 
-  private complete(job: VerificationJob, execution: VerificationExecution) {
-    const current = this.options.queue.get(job.organizationId, job.id);
+  private async complete(
+    job: VerificationJob,
+    execution: VerificationExecution,
+  ): Promise<void> {
+    const current = await this.options.queue.get(job.organizationId, job.id);
     if (!current || current.cancellationRequested) {
       throw new Error("Verification job was cancelled before result adoption.");
     }
-    this.options.queue.complete(
+    await this.options.queue.complete(
       {
         organizationId: job.organizationId,
         jobId: job.id,

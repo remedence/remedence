@@ -4,14 +4,35 @@ let savepointSequence = 0;
 
 export function runTransaction<T>(
   database: RemedenceDatabase,
+  operation: () => Promise<T>,
+): Promise<T>;
+export function runTransaction<T>(
+  database: RemedenceDatabase,
   operation: () => T,
-): T {
+): T;
+export function runTransaction<T>(
+  database: RemedenceDatabase,
+  operation: () => T | Promise<T>,
+): T | Promise<T> {
   const connection = getDatabaseConnection(database);
   if (connection.isTransaction) {
     const savepoint = `remedence_nested_${++savepointSequence}`;
     connection.exec(`SAVEPOINT ${savepoint}`);
     try {
       const result = operation();
+      if (result instanceof Promise) {
+        return result.then(
+          (value) => {
+            connection.exec(`RELEASE SAVEPOINT ${savepoint}`);
+            return value;
+          },
+          (error: unknown) => {
+            connection.exec(`ROLLBACK TO SAVEPOINT ${savepoint}`);
+            connection.exec(`RELEASE SAVEPOINT ${savepoint}`);
+            throw error;
+          },
+        );
+      }
       connection.exec(`RELEASE SAVEPOINT ${savepoint}`);
       return result;
     } catch (error) {
@@ -24,6 +45,18 @@ export function runTransaction<T>(
 
   try {
     const result = operation();
+    if (result instanceof Promise) {
+      return result.then(
+        (value) => {
+          connection.exec("COMMIT");
+          return value;
+        },
+        (error: unknown) => {
+          connection.exec("ROLLBACK");
+          throw error;
+        },
+      );
+    }
     connection.exec("COMMIT");
     return result;
   } catch (error) {

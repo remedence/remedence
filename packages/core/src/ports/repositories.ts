@@ -12,6 +12,8 @@ import type {
   VerificationRun,
 } from "../domain/entities.js";
 
+export type RepositoryResult<T> = T | Promise<T>;
+
 export interface CursorPage<T> {
   items: T[];
   pageSize: number;
@@ -48,33 +50,48 @@ export interface FindingDetail {
 }
 
 export interface CompanyRepository {
-  getById(organizationId: string, companyId: string): Company | undefined;
-  list(organizationId: string): Company[];
-  insert(company: Company): void;
+  getById(
+    organizationId: string,
+    companyId: string,
+  ): RepositoryResult<Company | undefined>;
+  list(organizationId: string): RepositoryResult<Company[]>;
+  insert(company: Company): RepositoryResult<void>;
 }
 
 export interface FindingRepository {
-  getById(organizationId: string, findingId: string): Finding | undefined;
-  findByKey(organizationId: string, findingKey: string): Finding | undefined;
-  list(query: FindingQuery): CursorPage<DashboardFinding>;
+  getById(
+    organizationId: string,
+    findingId: string,
+  ): RepositoryResult<Finding | undefined>;
+  findByKey(
+    organizationId: string,
+    findingKey: string,
+  ): RepositoryResult<Finding | undefined>;
+  list(query: FindingQuery): RepositoryResult<CursorPage<DashboardFinding>>;
   getDetail(
     organizationId: string,
     findingKey: string,
-  ): FindingDetail | undefined;
-  insert(finding: Finding): void;
+  ): RepositoryResult<FindingDetail | undefined>;
+  insert(finding: Finding): RepositoryResult<void>;
   updateState(
     organizationId: string,
     id: string,
     expectedState: FindingState,
     state: FindingState,
     updatedAt: string,
-  ): void;
+  ): RepositoryResult<void>;
 }
 
 export interface RemediationRepository {
-  getById(organizationId: string, id: string): Remediation | undefined;
-  listByFinding(organizationId: string, findingId: string): Remediation[];
-  insert(remediation: Remediation): void;
+  getById(
+    organizationId: string,
+    id: string,
+  ): RepositoryResult<Remediation | undefined>;
+  listByFinding(
+    organizationId: string,
+    findingId: string,
+  ): RepositoryResult<Remediation[]>;
+  insert(remediation: Remediation): RepositoryResult<void>;
   complete(
     organizationId: string,
     id: string,
@@ -83,14 +100,20 @@ export interface RemediationRepository {
     remediatorPrincipalId: string,
     completedAt: string,
     updatedAt: string,
-  ): void;
+  ): RepositoryResult<void>;
 }
 
 export interface VerificationRepository {
-  getById(organizationId: string, id: string): VerificationRun | undefined;
-  listByFinding(organizationId: string, findingId: string): VerificationRun[];
-  insert(run: VerificationRun): void;
-  insertCheck(check: VerificationCheck): void;
+  getById(
+    organizationId: string,
+    id: string,
+  ): RepositoryResult<VerificationRun | undefined>;
+  listByFinding(
+    organizationId: string,
+    findingId: string,
+  ): RepositoryResult<VerificationRun[]>;
+  insert(run: VerificationRun): RepositoryResult<void>;
+  insertCheck(check: VerificationCheck): RepositoryResult<void>;
   recordCheck(
     organizationId: string,
     verificationId: string,
@@ -98,18 +121,18 @@ export interface VerificationRepository {
     name: string,
     status: Exclude<VerificationCheck["status"], "Pending">,
     message: string,
-  ): void;
+  ): RepositoryResult<void>;
   listChecks(
     organizationId: string,
     verificationId: string,
-  ): VerificationCheck[];
+  ): RepositoryResult<VerificationCheck[]>;
   complete(
     organizationId: string,
     id: string,
     status: "Passed" | "Failed" | "Cancelled",
     summary: string,
     completedAt: string,
-  ): void;
+  ): RepositoryResult<void>;
 }
 
 export interface EvidenceQuery {
@@ -122,25 +145,34 @@ export interface EvidenceQuery {
 }
 
 export interface EvidenceRepository {
-  getById(organizationId: string, evidenceId: string): EvidenceItem | undefined;
-  list(query: EvidenceQuery): CursorPage<EvidenceItem>;
-  insert(item: EvidenceItem): void;
+  getById(
+    organizationId: string,
+    evidenceId: string,
+  ): RepositoryResult<EvidenceItem | undefined>;
+  list(query: EvidenceQuery): RepositoryResult<CursorPage<EvidenceItem>>;
+  insert(item: EvidenceItem): RepositoryResult<void>;
   getArtifact?(
     organizationId: string,
     artifactId: string,
-  ): EvidenceArtifact | undefined;
-  insertArtifact?(artifact: EvidenceArtifact): void;
+  ): RepositoryResult<EvidenceArtifact | undefined>;
+  insertArtifact?(artifact: EvidenceArtifact): RepositoryResult<void>;
   adoptArtifact?(
     organizationId: string,
     artifactId: string,
     adoptedAt: string,
-  ): boolean;
+  ): RepositoryResult<boolean>;
 }
 
 export interface ReportRepository {
-  getById(organizationId: string, reportId: string): Report | undefined;
-  listByCompany(organizationId: string, companyId: string): Report[];
-  insert(report: Report): void;
+  getById(
+    organizationId: string,
+    reportId: string,
+  ): RepositoryResult<Report | undefined>;
+  listByCompany(
+    organizationId: string,
+    companyId: string,
+  ): RepositoryResult<Report[]>;
+  insert(report: Report): RepositoryResult<void>;
 }
 
 export interface AuditEventQuery {
@@ -154,8 +186,8 @@ export interface AuditEventQuery {
 }
 
 export interface AuditEventRepository {
-  append(event: AuditEvent): void;
-  list(query: AuditEventQuery): CursorPage<AuditEvent>;
+  append(event: AuditEvent): RepositoryResult<void>;
+  list(query: AuditEventQuery): RepositoryResult<CursorPage<AuditEvent>>;
 }
 
 export interface RepositorySet {
@@ -169,5 +201,7 @@ export interface RepositorySet {
 }
 
 export interface UnitOfWork {
-  run<T>(operation: (repositories: RepositorySet) => T): T;
+  run<T>(
+    operation: (repositories: RepositorySet) => RepositoryResult<T>,
+  ): Promise<T>;
 }

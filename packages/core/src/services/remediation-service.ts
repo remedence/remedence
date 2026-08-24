@@ -40,9 +40,9 @@ function requireText(value: string, code: string, message: string): string {
 export class RemediationService {
   constructor(private readonly dependencies: RemediationServiceDependencies) {}
 
-  startRemediation(input: StartRemediationInput): Remediation {
-    return this.dependencies.unitOfWork.run((repositories) => {
-      const finding = repositories.findings.getById(
+  async startRemediation(input: StartRemediationInput): Promise<Remediation> {
+    return this.dependencies.unitOfWork.run(async (repositories) => {
+      const finding = await repositories.findings.getById(
         input.organizationId,
         input.findingId,
       );
@@ -84,15 +84,15 @@ export class RemediationService {
         updatedAt: now,
         version: 1,
       };
-      repositories.remediations.insert(remediation);
-      repositories.findings.updateState(
+      await repositories.remediations.insert(remediation);
+      await repositories.findings.updateState(
         input.organizationId,
         finding.id,
         finding.state,
         "Remediating",
         now,
       );
-      repositories.auditEvents.append({
+      await repositories.auditEvents.append({
         organizationId: input.organizationId,
         actorType: input.actor.actorType,
         actorId: input.actor.actorId,
@@ -106,9 +106,11 @@ export class RemediationService {
     });
   }
 
-  completeRemediation(input: CompleteRemediationInput): Remediation {
-    return this.dependencies.unitOfWork.run((repositories) => {
-      const remediation = repositories.remediations.getById(
+  async completeRemediation(
+    input: CompleteRemediationInput,
+  ): Promise<Remediation> {
+    return this.dependencies.unitOfWork.run(async (repositories) => {
+      const remediation = await repositories.remediations.getById(
         input.organizationId,
         input.remediationId,
       );
@@ -120,7 +122,7 @@ export class RemediationService {
         );
       }
       assertExpectedVersion(remediation.version, input.expectedVersion);
-      const finding = repositories.findings.getById(
+      const finding = await repositories.findings.getById(
         input.organizationId,
         remediation.findingId,
       );
@@ -151,7 +153,7 @@ export class RemediationService {
         "Remediation reference is required.",
       );
       const now = this.dependencies.clock.now();
-      repositories.remediations.complete(
+      await repositories.remediations.complete(
         input.organizationId,
         remediation.id,
         summary,
@@ -160,14 +162,14 @@ export class RemediationService {
         now,
         now,
       );
-      repositories.findings.updateState(
+      await repositories.findings.updateState(
         input.organizationId,
         finding.id,
         finding.state,
         "Awaiting verification",
         now,
       );
-      repositories.auditEvents.append({
+      await repositories.auditEvents.append({
         organizationId: input.organizationId,
         actorType: input.actor.actorType,
         actorId: input.actor.actorId,
@@ -178,7 +180,7 @@ export class RemediationService {
         occurredAt: now,
       });
 
-      const completed = repositories.remediations.getById(
+      const completed = await repositories.remediations.getById(
         input.organizationId,
         remediation.id,
       );

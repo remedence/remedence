@@ -7,7 +7,7 @@ import type {
 import { assertFindingTransition } from "../domain/finding-state.js";
 import { assertExpectedVersion } from "../domain/version.js";
 import { DomainError } from "../errors/domain-error.js";
-import type { UnitOfWork } from "../ports/repositories.js";
+import type { RepositoryResult, UnitOfWork } from "../ports/repositories.js";
 import type { Clock, IdGenerator } from "../ports/runtime.js";
 import type { MutationActor } from "./import-finding.js";
 
@@ -137,12 +137,15 @@ function requireRunning(run: VerificationRun): void {
   }
 }
 
-function requireOwnedFinding(
+async function requireOwnedFinding(
   organizationId: string,
   findingId: string,
-  getById: (organizationId: string, findingId: string) => Finding | undefined,
-): Finding {
-  const finding = getById(organizationId, findingId);
+  getById: (
+    organizationId: string,
+    findingId: string,
+  ) => RepositoryResult<Finding | undefined>,
+): Promise<Finding> {
+  const finding = await getById(organizationId, findingId);
   if (!finding) {
     throw new DomainError("FINDING_NOT_FOUND", 404, "Finding was not found.");
   }
@@ -152,9 +155,11 @@ function requireOwnedFinding(
 export class VerificationService {
   constructor(private readonly dependencies: VerificationServiceDependencies) {}
 
-  startVerification(input: StartVerificationInput): VerificationRun {
-    return this.dependencies.unitOfWork.run((repositories) => {
-      const finding = requireOwnedFinding(
+  async startVerification(
+    input: StartVerificationInput,
+  ): Promise<VerificationRun> {
+    return this.dependencies.unitOfWork.run(async (repositories) => {
+      const finding = await requireOwnedFinding(
         input.organizationId,
         input.findingId,
         repositories.findings.getById.bind(repositories.findings),
@@ -169,9 +174,12 @@ export class VerificationService {
         );
       }
 
-      const runningVerification = repositories.verifications
-        .listByFinding(input.organizationId, finding.id)
-        .find((run) => run.status === "Running");
+      const runningVerification = (
+        await repositories.verifications.listByFinding(
+          input.organizationId,
+          finding.id,
+        )
+      ).find((run) => run.status === "Running");
       if (runningVerification) {
         throw new DomainError(
           "VERIFICATION_ALREADY_RUNNING",
@@ -181,13 +189,16 @@ export class VerificationService {
         );
       }
 
-      const remediation = repositories.remediations.getById(
+      const remediation = await repositories.remediations.getById(
         input.organizationId,
         input.remediationId,
       );
-      const completedRemediations = repositories.remediations
-        .listByFinding(input.organizationId, finding.id)
-        .filter((item) => item.status === "Completed");
+      const completedRemediations = (
+        await repositories.remediations.listByFinding(
+          input.organizationId,
+          finding.id,
+        )
+      ).filter((item) => item.status === "Completed");
       if (
         completedRemediations.length === 0 ||
         !remediation ||
@@ -290,9 +301,9 @@ export class VerificationService {
         createdAt: now,
         version: 1,
       };
-      repositories.verifications.insert(run);
-      checkNames.forEach((name, index) => {
-        repositories.verifications.insertCheck({
+      await repositories.verifications.insert(run);
+      for (const [index, name] of checkNames.entries()) {
+        await repositories.verifications.insertCheck({
           organizationId: input.organizationId,
           id: this.dependencies.idGenerator.next(),
           verificationId: run.id,
@@ -302,8 +313,8 @@ export class VerificationService {
           message: "",
           createdAt: now,
         });
-      });
-      repositories.auditEvents.append({
+      }
+      await repositories.auditEvents.append({
         organizationId: input.organizationId,
         actorType: input.actor.actorType,
         actorId: input.actor.actorId,
@@ -328,9 +339,11 @@ export class VerificationService {
     });
   }
 
-  cancelVerification(input: CancelVerificationInput): VerificationRun {
-    return this.dependencies.unitOfWork.run((repositories) => {
-      const run = repositories.verifications.getById(
+  async cancelVerification(
+    input: CancelVerificationInput,
+  ): Promise<VerificationRun> {
+    return this.dependencies.unitOfWork.run(async (repositories) => {
+      const run = await repositories.verifications.getById(
         input.organizationId,
         input.verificationId,
       );
@@ -349,14 +362,14 @@ export class VerificationService {
         "Verification cancellation requires a reason.",
       );
       const now = this.dependencies.clock.now();
-      repositories.verifications.complete(
+      await repositories.verifications.complete(
         input.organizationId,
         run.id,
         "Cancelled",
         reason,
         now,
       );
-      repositories.auditEvents.append({
+      await repositories.auditEvents.append({
         organizationId: input.organizationId,
         actorType: input.actor.actorType,
         actorId: input.actor.actorId,
@@ -367,7 +380,10 @@ export class VerificationService {
         occurredAt: now,
       });
       return (
-        repositories.verifications.getById(input.organizationId, run.id) ?? {
+        (await repositories.verifications.getById(
+          input.organizationId,
+          run.id,
+        )) ?? {
           ...run,
           status: "Cancelled",
           resultSummary: reason,
@@ -378,11 +394,11 @@ export class VerificationService {
     });
   }
 
-  recordVerificationCheck(
+  async recordVerificationCheck(
     input: RecordVerificationCheckInput,
-  ): VerificationCheck {
-    return this.dependencies.unitOfWork.run((repositories) => {
-      const run = repositories.verifications.getById(
+  ): Promise<VerificationCheck> {
+    return this.dependencies.unitOfWork.run(async (repositories) => {
+      const run = await repositories.verifications.getById(
         input.organizationId,
         input.verificationId,
       );
@@ -394,7 +410,7 @@ export class VerificationService {
         );
       }
       assertExpectedVersion(run.version, input.expectedVersion);
-      requireOwnedFinding(
+      await requireOwnedFinding(
         input.organizationId,
         run.findingId,
         repositories.findings.getById.bind(repositories.findings),
@@ -408,9 +424,12 @@ export class VerificationService {
         );
       }
 
-      const expected = repositories.verifications
-        .listChecks(input.organizationId, run.id)
-        .find((check) => check.sequence === input.sequence);
+      const expected = (
+        await repositories.verifications.listChecks(
+          input.organizationId,
+          run.id,
+        )
+      ).find((check) => check.sequence === input.sequence);
       if (!expected) {
         throw new DomainError(
           "VERIFICATION_CHECK_NOT_FOUND",
@@ -440,7 +459,7 @@ export class VerificationService {
         );
       }
 
-      repositories.verifications.recordCheck(
+      await repositories.verifications.recordCheck(
         input.organizationId,
         run.id,
         input.sequence,
@@ -449,7 +468,7 @@ export class VerificationService {
         input.message,
       );
       const now = this.dependencies.clock.now();
-      repositories.auditEvents.append({
+      await repositories.auditEvents.append({
         organizationId: input.organizationId,
         actorType: input.actor.actorType,
         actorId: input.actor.actorId,
@@ -464,9 +483,12 @@ export class VerificationService {
         occurredAt: now,
       });
 
-      const recorded = repositories.verifications
-        .listChecks(input.organizationId, run.id)
-        .find((check) => check.sequence === input.sequence);
+      const recorded = (
+        await repositories.verifications.listChecks(
+          input.organizationId,
+          run.id,
+        )
+      ).find((check) => check.sequence === input.sequence);
       if (!recorded) {
         throw new DomainError(
           "CONCURRENT_STATE_CHANGE",
@@ -478,11 +500,11 @@ export class VerificationService {
     });
   }
 
-  completeVerification(
+  async completeVerification(
     input: CompleteVerificationInput,
-  ): VerificationCompletion {
-    return this.dependencies.unitOfWork.run((repositories) => {
-      const run = repositories.verifications.getById(
+  ): Promise<VerificationCompletion> {
+    return this.dependencies.unitOfWork.run(async (repositories) => {
+      const run = await repositories.verifications.getById(
         input.organizationId,
         input.verificationId,
       );
@@ -502,7 +524,7 @@ export class VerificationService {
           "Only the authenticated principal assigned to this verification may complete it.",
         );
       }
-      const finding = requireOwnedFinding(
+      const finding = await requireOwnedFinding(
         input.organizationId,
         run.findingId,
         repositories.findings.getById.bind(repositories.findings),
@@ -516,7 +538,7 @@ export class VerificationService {
         );
       }
 
-      const checks = repositories.verifications.listChecks(
+      const checks = await repositories.verifications.listChecks(
         input.organizationId,
         run.id,
       );
@@ -540,21 +562,21 @@ export class VerificationService {
         }
 
         assertFindingTransition(finding.state, "Verification failed");
-        repositories.verifications.complete(
+        await repositories.verifications.complete(
           input.organizationId,
           run.id,
           "Failed",
           summary,
           now,
         );
-        repositories.findings.updateState(
+        await repositories.findings.updateState(
           input.organizationId,
           finding.id,
           finding.state,
           "Verification failed",
           now,
         );
-        repositories.auditEvents.append({
+        await repositories.auditEvents.append({
           organizationId: input.organizationId,
           actorType: input.actor.actorType,
           actorId: input.actor.actorId,
@@ -565,19 +587,19 @@ export class VerificationService {
           occurredAt: now,
         });
         return {
-          verification: repositories.verifications.getById(
+          verification: (await repositories.verifications.getById(
             input.organizationId,
             run.id,
-          ) ?? {
+          )) ?? {
             ...run,
             status: "Failed",
             resultSummary: summary,
             completedAt: now,
           },
-          finding: repositories.findings.getById(
+          finding: (await repositories.findings.getById(
             input.organizationId,
             finding.id,
-          ) ?? {
+          )) ?? {
             ...finding,
             state: "Verification failed",
             updatedAt: now,
@@ -612,136 +634,138 @@ export class VerificationService {
       }
 
       assertFindingTransition(finding.state, "Verified fixed");
-      const evidence = input.evidence.map((item): EvidenceItem => {
-        const kind = requireText(
-          item.kind,
-          "EVIDENCE_KIND_REQUIRED",
-          "Evidence kind is required.",
-        );
-        const label = requireText(
-          item.label,
-          "EVIDENCE_LABEL_REQUIRED",
-          "Evidence label is required.",
-        );
-        const sourceReference = requireText(
-          item.sourceReference,
-          "EVIDENCE_SOURCE_REQUIRED",
-          "Evidence source reference is required.",
-        );
-        const artifact = item.artifactId
-          ? repositories.evidence.getArtifact?.(
-              input.organizationId,
-              item.artifactId,
-            )
-          : undefined;
-        const attestation = item.trustedAttestation;
-        const trustedWorkerAttestation = Boolean(
-          run.credentialType === "worker-profile" &&
-          input.actor.actorType === "local_worker" &&
-          attestation &&
-          /^[0-9a-f]{64}$/.test(attestation.contentHash) &&
-          /^[0-9a-f]{64}$/.test(attestation.manifestHash) &&
-          /^[0-9a-f]{64}$/.test(attestation.signature) &&
-          attestation.attestedBy.trim(),
-        );
-        if (attestation && !trustedWorkerAttestation) {
-          throw new DomainError(
-            "UNTRUSTED_WORKER_ATTESTATION",
-            403,
-            "Only the assigned isolated worker may submit signed execution attestation.",
+      const evidence = await Promise.all(
+        input.evidence.map(async (item): Promise<EvidenceItem> => {
+          const kind = requireText(
+            item.kind,
+            "EVIDENCE_KIND_REQUIRED",
+            "Evidence kind is required.",
           );
-        }
-        if (
-          this.dependencies.signEvidenceManifest &&
-          !artifact &&
-          !trustedWorkerAttestation
-        ) {
-          throw new DomainError(
-            "EVIDENCE_ARTIFACT_REQUIRED",
-            409,
-            "Passed verification evidence must reference a clean uploaded artifact.",
+          const label = requireText(
+            item.label,
+            "EVIDENCE_LABEL_REQUIRED",
+            "Evidence label is required.",
           );
-        }
-        if (artifact && artifact.scanStatus !== "Clean") {
-          throw new DomainError(
-            "EVIDENCE_ARTIFACT_NOT_CLEAN",
-            409,
-            "Evidence artifacts must pass malware scanning before adoption.",
+          const sourceReference = requireText(
+            item.sourceReference,
+            "EVIDENCE_SOURCE_REQUIRED",
+            "Evidence source reference is required.",
           );
-        }
-        if (artifact?.adoptedAt) {
-          throw new DomainError(
-            "EVIDENCE_ARTIFACT_ALREADY_ADOPTED",
-            409,
-            "Evidence artifacts can be adopted exactly once.",
+          const artifact = item.artifactId
+            ? await repositories.evidence.getArtifact?.(
+                input.organizationId,
+                item.artifactId,
+              )
+            : undefined;
+          const attestation = item.trustedAttestation;
+          const trustedWorkerAttestation = Boolean(
+            run.credentialType === "worker-profile" &&
+            input.actor.actorType === "local_worker" &&
+            attestation &&
+            /^[0-9a-f]{64}$/.test(attestation.contentHash) &&
+            /^[0-9a-f]{64}$/.test(attestation.manifestHash) &&
+            /^[0-9a-f]{64}$/.test(attestation.signature) &&
+            attestation.attestedBy.trim(),
           );
-        }
-        const manifest = artifact
-          ? {
-              artifact_id: artifact.id,
-              artifact_sha256: artifact.contentHash,
-              size_bytes: artifact.size,
-              media_type: artifact.mediaType,
-              original_filename: artifact.originalFilename,
-              scan_receipt: artifact.scanReceipt,
+          if (attestation && !trustedWorkerAttestation) {
+            throw new DomainError(
+              "UNTRUSTED_WORKER_ATTESTATION",
+              403,
+              "Only the assigned isolated worker may submit signed execution attestation.",
+            );
+          }
+          if (
+            this.dependencies.signEvidenceManifest &&
+            !artifact &&
+            !trustedWorkerAttestation
+          ) {
+            throw new DomainError(
+              "EVIDENCE_ARTIFACT_REQUIRED",
+              409,
+              "Passed verification evidence must reference a clean uploaded artifact.",
+            );
+          }
+          if (artifact && artifact.scanStatus !== "Clean") {
+            throw new DomainError(
+              "EVIDENCE_ARTIFACT_NOT_CLEAN",
+              409,
+              "Evidence artifacts must pass malware scanning before adoption.",
+            );
+          }
+          if (artifact?.adoptedAt) {
+            throw new DomainError(
+              "EVIDENCE_ARTIFACT_ALREADY_ADOPTED",
+              409,
+              "Evidence artifacts can be adopted exactly once.",
+            );
+          }
+          const manifest = artifact
+            ? {
+                artifact_id: artifact.id,
+                artifact_sha256: artifact.contentHash,
+                size_bytes: artifact.size,
+                media_type: artifact.mediaType,
+                original_filename: artifact.originalFilename,
+                scan_receipt: artifact.scanReceipt,
+                kind,
+                label,
+                source_reference: sourceReference,
+                metadata: cloneMetadata(item.metadata),
+                finding_id: finding.id,
+                verification_id: run.id,
+                locked_at: now,
+              }
+            : undefined;
+          const signed = manifest
+            ? this.dependencies.signEvidenceManifest?.(manifest)
+            : undefined;
+          const contentHash =
+            artifact?.contentHash ??
+            attestation?.contentHash ??
+            this.dependencies.hashEvidence({
               kind,
               label,
-              source_reference: sourceReference,
-              metadata: cloneMetadata(item.metadata),
-              finding_id: finding.id,
-              verification_id: run.id,
-              locked_at: now,
-            }
-          : undefined;
-        const signed = manifest
-          ? this.dependencies.signEvidenceManifest?.(manifest)
-          : undefined;
-        const contentHash =
-          artifact?.contentHash ??
-          attestation?.contentHash ??
-          this.dependencies.hashEvidence({
+              sourceReference,
+              metadata: item.metadata,
+            });
+          if (!/^[0-9a-f]{64}$/.test(contentHash)) {
+            throw new DomainError(
+              "INVALID_EVIDENCE_HASH",
+              409,
+              "Evidence hashing must produce a lowercase SHA-256 digest.",
+            );
+          }
+          return {
+            organizationId: input.organizationId,
+            id: this.dependencies.idGenerator.next(),
+            findingId: finding.id,
+            verificationId: run.id,
             kind,
             label,
             sourceReference,
-            metadata: item.metadata,
-          });
-        if (!/^[0-9a-f]{64}$/.test(contentHash)) {
-          throw new DomainError(
-            "INVALID_EVIDENCE_HASH",
-            409,
-            "Evidence hashing must produce a lowercase SHA-256 digest.",
-          );
-        }
-        return {
-          organizationId: input.organizationId,
-          id: this.dependencies.idGenerator.next(),
-          findingId: finding.id,
-          verificationId: run.id,
-          kind,
-          label,
-          sourceReference,
-          contentHash,
-          artifactId: artifact?.id ?? null,
-          manifestHash:
-            signed?.manifestHash ?? attestation?.manifestHash ?? null,
-          manifestSignature:
-            signed?.signature ?? attestation?.signature ?? null,
-          attestedBy:
-            artifact?.scanner ?? attestation?.attestedBy.trim() ?? null,
-          metadata: cloneMetadata(item.metadata),
-          createdAt: now,
-          lockedAt: now,
-        };
-      });
+            contentHash,
+            artifactId: artifact?.id ?? null,
+            manifestHash:
+              signed?.manifestHash ?? attestation?.manifestHash ?? null,
+            manifestSignature:
+              signed?.signature ?? attestation?.signature ?? null,
+            attestedBy:
+              artifact?.scanner ?? attestation?.attestedBy.trim() ?? null,
+            metadata: cloneMetadata(item.metadata),
+            createdAt: now,
+            lockedAt: now,
+          };
+        }),
+      );
 
       for (const item of evidence) {
         if (
           item.artifactId &&
-          !repositories.evidence.adoptArtifact?.(
+          !(await repositories.evidence.adoptArtifact?.(
             input.organizationId,
             item.artifactId,
             now,
-          )
+          ))
         ) {
           throw new DomainError(
             "EVIDENCE_ARTIFACT_ADOPTION_CONFLICT",
@@ -750,22 +774,22 @@ export class VerificationService {
           );
         }
       }
-      for (const item of evidence) repositories.evidence.insert(item);
-      repositories.verifications.complete(
+      for (const item of evidence) await repositories.evidence.insert(item);
+      await repositories.verifications.complete(
         input.organizationId,
         run.id,
         "Passed",
         summary,
         now,
       );
-      repositories.findings.updateState(
+      await repositories.findings.updateState(
         input.organizationId,
         finding.id,
         finding.state,
         "Verified fixed",
         now,
       );
-      repositories.auditEvents.append({
+      await repositories.auditEvents.append({
         organizationId: input.organizationId,
         actorType: input.actor.actorType,
         actorId: input.actor.actorId,
@@ -780,7 +804,7 @@ export class VerificationService {
         occurredAt: now,
       });
       for (const item of evidence) {
-        repositories.auditEvents.append({
+        await repositories.auditEvents.append({
           organizationId: input.organizationId,
           actorType: input.actor.actorType,
           actorId: input.actor.actorId,
@@ -796,19 +820,19 @@ export class VerificationService {
       }
 
       return {
-        verification: repositories.verifications.getById(
+        verification: (await repositories.verifications.getById(
           input.organizationId,
           run.id,
-        ) ?? {
+        )) ?? {
           ...run,
           status: "Passed",
           resultSummary: summary,
           completedAt: now,
         },
-        finding: repositories.findings.getById(
+        finding: (await repositories.findings.getById(
           input.organizationId,
           finding.id,
-        ) ?? {
+        )) ?? {
           ...finding,
           state: "Verified fixed",
           updatedAt: now,

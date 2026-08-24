@@ -167,7 +167,7 @@ export function createApp(
   app.post(
     "/api/v1/integration-webhooks/:organizationId/:connectionId",
     express.raw({ type: "application/json", limit: "256kb" }),
-    (request, response, next) => {
+    async (request, response, next) => {
       try {
         const organizationId = request.params.organizationId ?? "";
         const connectionId = request.params.connectionId ?? "";
@@ -228,9 +228,13 @@ export function createApp(
         };
         let duplicate = false;
         let result:
-          | ReturnType<ApiDependencies["services"]["imports"]["importFinding"]>
+          | Awaited<
+              ReturnType<
+                ApiDependencies["services"]["imports"]["importFinding"]
+              >
+            >
           | undefined;
-        const operation = () => {
+        const operation = async () => {
           const reservation =
             dependencies.integrations.store.reserveInboundEvent({
               organizationId,
@@ -250,7 +254,7 @@ export function createApp(
             duplicate = true;
             return;
           }
-          result = dependencies.services.imports.importFinding({
+          result = await dependencies.services.imports.importFinding({
             organizationId,
             companyId: payload.company_id,
             findingKey: payload.finding_key,
@@ -269,9 +273,9 @@ export function createApp(
           });
         };
         if (dependencies.runAtomically) {
-          dependencies.runAtomically(operation);
+          await dependencies.runAtomically(operation);
         } else {
-          operation();
+          await operation();
         }
         if (duplicate) {
           response.setHeader("Idempotency-Replayed", "true");

@@ -127,7 +127,7 @@ function createWorkflowServices(options: {
   };
 }
 
-function completeSec1042Successfully(
+async function completeSec1042Successfully(
   ids = {
     remediation: "remediation-sec-1042-2",
     verification: "verification-sec-1042-2",
@@ -151,7 +151,7 @@ function completeSec1042Successfully(
     ],
   });
 
-  const remediation = services.remediation.startRemediation({
+  const remediation = await services.remediation.startRemediation({
     organizationId: ORGANIZATION_ID,
     findingId: finding.id,
     owner: "L. Chen",
@@ -164,7 +164,7 @@ function completeSec1042Successfully(
     findingRepository().findByKey(ORGANIZATION_ID, "SEC-1042")?.state,
   ).toBe("Remediating");
 
-  services.remediation.completeRemediation({
+  await services.remediation.completeRemediation({
     organizationId: ORGANIZATION_ID,
     remediationId: remediation.id,
     summary: "Primary and secondary query paths are parameterized",
@@ -175,7 +175,7 @@ function completeSec1042Successfully(
     findingRepository().findByKey(ORGANIZATION_ID, "SEC-1042")?.state,
   ).toBe("Awaiting verification");
 
-  const verification = services.verification.startVerification({
+  const verification = await services.verification.startVerification({
     organizationId: ORGANIZATION_ID,
     findingId: finding.id,
     remediationId: remediation.id,
@@ -191,7 +191,7 @@ function completeSec1042Successfully(
     [1, "Primary query path"],
     [2, "Secondary query path"],
   ] as const) {
-    services.verification.recordVerificationCheck({
+    await services.verification.recordVerificationCheck({
       organizationId: ORGANIZATION_ID,
       verificationId: verification.id,
       sequence,
@@ -202,7 +202,7 @@ function completeSec1042Successfully(
     });
   }
 
-  const completion = services.verification.completeVerification({
+  const completion = await services.verification.completeVerification({
     organizationId: ORGANIZATION_ID,
     verificationId: verification.id,
     result: "Passed",
@@ -227,8 +227,8 @@ function completeSec1042Successfully(
   return { finding, remediation, verification, completion };
 }
 
-describe("persistent remediation and verification workflow", () => {
-  it("persists a real imported finding, its import result, and its audit event", () => {
+describe("persistent remediation and verification workflow", async () => {
+  it("persists a real imported finding, its import result, and its audit event", async () => {
     const service = new ImportFindingService({
       unitOfWork: createUnitOfWork(database, { referenceTime: REFERENCE_TIME }),
       clock: tickingClock(),
@@ -249,7 +249,7 @@ describe("persistent remediation and verification workflow", () => {
       actor,
     };
 
-    const result = service.importFinding(input);
+    const result = await service.importFinding(input);
 
     expect(result.importRecord).toMatchObject({
       id: "import-record-9000",
@@ -272,14 +272,14 @@ describe("persistent remediation and verification workflow", () => {
 
     let duplicate: unknown;
     try {
-      service.importFinding({ ...input, findingKey: "SEC-9000" });
+      await service.importFinding({ ...input, findingKey: "SEC-9000" });
     } catch (error) {
       duplicate = error;
     }
     expect(duplicate).toMatchObject({ code: "DUPLICATE_FINDING", status: 409 });
   });
 
-  it("takes seeded SEC-1042 from failed verification through remediation #2 to an atomic verified fix", () => {
+  it("takes seeded SEC-1042 from failed verification through remediation #2 to an atomic verified fix", async () => {
     const initial = findingRepository().getDetail(ORGANIZATION_ID, "SEC-1042");
     expect(initial?.finding.state).toBe("Verification failed");
     expect(initial?.remediations.map((item) => item.status)).toEqual([
@@ -295,7 +295,7 @@ describe("persistent remediation and verification workflow", () => {
       initial?.verifications[0]?.checks.map((item) => item.status),
     ).toEqual(["Passed", "Failed"]);
 
-    const { verification, completion } = completeSec1042Successfully();
+    const { verification, completion } = await completeSec1042Successfully();
 
     expect(completion.finding.state).toBe("Verified fixed");
     expect(completion.verification.status).toBe("Passed");
@@ -351,7 +351,7 @@ describe("persistent remediation and verification workflow", () => {
     );
   });
 
-  it("persists a failed verification with its concrete reason and no locked evidence", () => {
+  it("persists a failed verification with its concrete reason and no locked evidence", async () => {
     const target = findingRepository().findByKey(ORGANIZATION_ID, "SEC-1058");
     if (!target) throw new Error("SEC-1058 seed fixture is missing.");
     expect(target.state).toBe("Needs remediation");
@@ -360,7 +360,7 @@ describe("persistent remediation and verification workflow", () => {
       remediationIds: ["remediation-sec-1058-1"],
       verificationIds: ["verification-sec-1058-1", "check-sec-1058-1"],
     });
-    const remediation = services.remediation.startRemediation({
+    const remediation = await services.remediation.startRemediation({
       organizationId: ORGANIZATION_ID,
       findingId: target.id,
       owner: "M. Ortiz",
@@ -368,14 +368,14 @@ describe("persistent remediation and verification workflow", () => {
       reference: "CHG-SEC-1058-1",
       actor,
     });
-    services.remediation.completeRemediation({
+    await services.remediation.completeRemediation({
       organizationId: ORGANIZATION_ID,
       remediationId: remediation.id,
       summary: "MFA enrollment applied",
       reference: "CHG-SEC-1058-1",
       actor,
     });
-    const verification = services.verification.startVerification({
+    const verification = await services.verification.startVerification({
       organizationId: ORGANIZATION_ID,
       findingId: target.id,
       remediationId: remediation.id,
@@ -385,7 +385,7 @@ describe("persistent remediation and verification workflow", () => {
       checks: ["All administrators require MFA"],
       actor: verifierActor,
     });
-    services.verification.recordVerificationCheck({
+    await services.verification.recordVerificationCheck({
       organizationId: ORGANIZATION_ID,
       verificationId: verification.id,
       sequence: 1,
@@ -394,7 +394,7 @@ describe("persistent remediation and verification workflow", () => {
       message: "One administrator still lacks MFA enrollment",
       actor: verifierActor,
     });
-    const completion = services.verification.completeVerification({
+    const completion = await services.verification.completeVerification({
       organizationId: ORGANIZATION_ID,
       verificationId: verification.id,
       result: "Failed",
@@ -424,7 +424,7 @@ describe("persistent remediation and verification workflow", () => {
     ).toBe(true);
   });
 
-  it("rolls back the entire successful-verification transaction when the second evidence insert fails", () => {
+  it("rolls back the entire successful-verification transaction when the second evidence insert fails", async () => {
     const initialFailure = findingRepository().getDetail(
       ORGANIZATION_ID,
       "SEC-1042",
@@ -445,7 +445,7 @@ describe("persistent remediation and verification workflow", () => {
         "evidence-rollback-2",
       ],
     });
-    const remediation = services.remediation.startRemediation({
+    const remediation = await services.remediation.startRemediation({
       organizationId: ORGANIZATION_ID,
       findingId: finding.id,
       owner: "L. Chen",
@@ -453,14 +453,14 @@ describe("persistent remediation and verification workflow", () => {
       reference: "CHG-ROLLBACK-2",
       actor,
     });
-    services.remediation.completeRemediation({
+    await services.remediation.completeRemediation({
       organizationId: ORGANIZATION_ID,
       remediationId: remediation.id,
       summary: "Patch completed",
       reference: "CHG-ROLLBACK-2",
       actor,
     });
-    const verification = services.verification.startVerification({
+    const verification = await services.verification.startVerification({
       organizationId: ORGANIZATION_ID,
       findingId: finding.id,
       remediationId: remediation.id,
@@ -474,7 +474,7 @@ describe("persistent remediation and verification workflow", () => {
       [1, "Primary query path"],
       [2, "Secondary query path"],
     ] as const) {
-      services.verification.recordVerificationCheck({
+      await services.verification.recordVerificationCheck({
         organizationId: ORGANIZATION_ID,
         verificationId: verification.id,
         sequence,
@@ -494,7 +494,7 @@ describe("persistent remediation and verification workflow", () => {
       END;
     `);
 
-    expect(() =>
+    await expect(
       services.verification.completeVerification({
         organizationId: ORGANIZATION_ID,
         verificationId: verification.id,
@@ -516,7 +516,7 @@ describe("persistent remediation and verification workflow", () => {
         ],
         actor: verifierActor,
       }),
-    ).toThrow(/forced second evidence failure/);
+    ).rejects.toThrow(/forced second evidence failure/);
 
     expect(
       findingRepository().findByKey(ORGANIZATION_ID, "SEC-1042")?.state,
@@ -549,8 +549,8 @@ describe("persistent remediation and verification workflow", () => {
     });
   });
 
-  it("keeps locked evidence immutable by exposing no update or delete repository operation", () => {
-    const { completion } = completeSec1042Successfully();
+  it("keeps locked evidence immutable by exposing no update or delete repository operation", async () => {
+    const { completion } = await completeSec1042Successfully();
     const repository = createEvidenceRepository(database) as unknown as Record<
       string,
       unknown
@@ -600,7 +600,7 @@ describe("persistent remediation and verification workflow", () => {
     expect("remove" in repository).toBe(false);
   });
 
-  it("creates immutable report snapshots instead of rewriting report history", () => {
+  it("creates immutable report snapshots instead of rewriting report history", async () => {
     const unitOfWork = createUnitOfWork(database, {
       referenceTime: REFERENCE_TIME,
     });
@@ -611,7 +611,7 @@ describe("persistent remediation and verification workflow", () => {
     });
     const companyId = "company-juniper-ridge-dental";
 
-    const reportA = reportService.createReport({
+    const reportA = await reportService.createReport({
       organizationId: ORGANIZATION_ID,
       companyId,
       periodLabel: "Before verification",
@@ -619,7 +619,7 @@ describe("persistent remediation and verification workflow", () => {
     });
     const storedA = structuredClone(reportA);
 
-    completeSec1042Successfully({
+    await completeSec1042Successfully({
       remediation: "remediation-report-2",
       verification: "verification-report-2",
       check1: "check-report-primary",
@@ -628,7 +628,7 @@ describe("persistent remediation and verification workflow", () => {
       evidence2: "evidence-report-secondary",
     });
 
-    const reportB = reportService.createReport({
+    const reportB = await reportService.createReport({
       organizationId: ORGANIZATION_ID,
       companyId,
       periodLabel: "After verification",
@@ -659,8 +659,8 @@ describe("persistent remediation and verification workflow", () => {
     );
   });
 
-  it("enforces organization isolation for evidence and report reads", () => {
-    const { completion } = completeSec1042Successfully();
+  it("enforces organization isolation for evidence and report reads", async () => {
+    const { completion } = await completeSec1042Successfully();
     const evidenceRepository = createEvidenceRepository(database);
     const reportRepository = createReportRepository(database);
     const reportService = new ReportService({
@@ -668,7 +668,7 @@ describe("persistent remediation and verification workflow", () => {
       clock: tickingClock(),
       idGenerator: sequenceIds("report-isolation"),
     });
-    const report = reportService.createReport({
+    const report = await reportService.createReport({
       organizationId: ORGANIZATION_ID,
       companyId: "company-juniper-ridge-dental",
       periodLabel: "Isolation test",
@@ -691,7 +691,7 @@ describe("persistent remediation and verification workflow", () => {
     ).toEqual([]);
   });
 
-  it("maps a database duplicate verification-check sequence to a conflict", () => {
+  it("maps a database duplicate verification-check sequence to a conflict", async () => {
     const repository = createVerificationRepository(database);
     let caught: unknown;
     try {
@@ -715,7 +715,7 @@ describe("persistent remediation and verification workflow", () => {
     });
   });
 
-  it("surfaces representative zero-row mutations as CONCURRENT_STATE_CHANGE conflicts", () => {
+  it("surfaces representative zero-row mutations as CONCURRENT_STATE_CHANGE conflicts", async () => {
     const findings = findingRepository();
     const remediations = createRemediationRepository(database);
     const verifications = createVerificationRepository(database);
@@ -763,16 +763,18 @@ describe("persistent remediation and verification workflow", () => {
     }
   });
 
-  it("derives the seeded dashboard foundation from repository data and Task 9 priority ordering", () => {
+  it("derives the seeded dashboard foundation from repository data and Task 9 priority ordering", async () => {
     const repositories = createRepositorySet(database, {
       referenceTime: REFERENCE_TIME,
     });
-    const dashboard = new DashboardService({ repositories }).getDashboard({
-      organizationId: ORGANIZATION_ID,
-      sort: "priority",
-      includeVerified: false,
-      pageSize: 25,
-    });
+    const dashboard = await new DashboardService({ repositories }).getDashboard(
+      {
+        organizationId: ORGANIZATION_ID,
+        sort: "priority",
+        includeVerified: false,
+        pageSize: 25,
+      },
+    );
 
     expect(dashboard.metrics).toEqual({
       managedCompanies: 12,

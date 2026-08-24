@@ -590,14 +590,14 @@ const persistedVerificationProvenance = {
 };
 const hashEvidence = () => "a".repeat(64);
 
-function expectDomainError(
-  operation: () => unknown,
+async function expectDomainError(
+  operation: () => unknown | Promise<unknown>,
   code: string,
   status = 409,
-): void {
+): Promise<void> {
   let caught: unknown;
   try {
-    operation();
+    await operation();
   } catch (error) {
     caught = error;
   }
@@ -606,8 +606,8 @@ function expectDomainError(
   expect((caught as DomainError).status).toBe(status);
 }
 
-describe("ImportFindingService", () => {
-  it("rejects a case-insensitive duplicate with DUPLICATE_FINDING 409", () => {
+describe("ImportFindingService", async () => {
+  it("rejects a case-insensitive duplicate with DUPLICATE_FINDING 409", async () => {
     const harness = createHarness([finding("finding-1042", "SEC-1042")]);
     const service = new ImportFindingService({
       unitOfWork: harness.unitOfWork,
@@ -615,7 +615,7 @@ describe("ImportFindingService", () => {
       idGenerator: ids("finding-new", "import-new"),
     });
 
-    expectDomainError(
+    await expectDomainError(
       () =>
         service.importFinding({
           organizationId: ORG,
@@ -635,7 +635,7 @@ describe("ImportFindingService", () => {
     );
   });
 
-  it("rejects an import that attempts to begin Verified fixed", () => {
+  it("rejects an import that attempts to begin Verified fixed", async () => {
     const harness = createHarness();
     const service = new ImportFindingService({
       unitOfWork: harness.unitOfWork,
@@ -643,7 +643,7 @@ describe("ImportFindingService", () => {
       idGenerator: ids("finding-new", "import-new"),
     });
 
-    expectDomainError(
+    await expectDomainError(
       () =>
         service.importFinding({
           organizationId: ORG,
@@ -664,7 +664,7 @@ describe("ImportFindingService", () => {
     );
   });
 
-  it("normalizes imported timestamps with offsets to canonical UTC", () => {
+  it("normalizes imported timestamps with offsets to canonical UTC", async () => {
     const harness = createHarness();
     const service = new ImportFindingService({
       unitOfWork: harness.unitOfWork,
@@ -672,7 +672,7 @@ describe("ImportFindingService", () => {
       idGenerator: ids("finding-new", "import-new"),
     });
 
-    const result = service.importFinding({
+    const result = await service.importFinding({
       organizationId: ORG,
       companyId: COMPANY_ID,
       findingKey: "SEC-UTC-1",
@@ -694,7 +694,7 @@ describe("ImportFindingService", () => {
       slaDueAt: "2026-08-21T11:00:00.000Z",
     });
   });
-  it("normalizes the key, begins Needs remediation, and appends an audit event", () => {
+  it("normalizes the key, begins Needs remediation, and appends an audit event", async () => {
     const harness = createHarness();
     const service = new ImportFindingService({
       unitOfWork: harness.unitOfWork,
@@ -702,7 +702,7 @@ describe("ImportFindingService", () => {
       idGenerator: ids("finding-new", "import-new"),
     });
 
-    const result = service.importFinding({
+    const result = await service.importFinding({
       organizationId: ORG,
       companyId: COMPANY_ID,
       findingKey: " sec-2001 ",
@@ -733,8 +733,8 @@ describe("ImportFindingService", () => {
   });
 });
 
-describe("RemediationService", () => {
-  it("rejects a stale finding version before creating remediation state", () => {
+describe("RemediationService", async () => {
+  it("rejects a stale finding version before creating remediation state", async () => {
     const base = finding("finding-1042", "SEC-1042", "Needs remediation");
     const harness = createHarness([base]);
     const service = new RemediationService({
@@ -743,7 +743,7 @@ describe("RemediationService", () => {
       idGenerator: ids("remediation-2"),
     });
 
-    expectDomainError(
+    await expectDomainError(
       () =>
         service.startRemediation({
           organizationId: ORG,
@@ -764,7 +764,7 @@ describe("RemediationService", () => {
 
   it.each(["Needs remediation", "Verification failed"] as const)(
     "starts remediation from %s",
-    (state) => {
+    async (state) => {
       const base = finding("finding-1042", "SEC-1042", state);
       const harness = createHarness([base]);
       const service = new RemediationService({
@@ -773,7 +773,7 @@ describe("RemediationService", () => {
         idGenerator: ids("remediation-2"),
       });
 
-      const remediation = service.startRemediation({
+      const remediation = await service.startRemediation({
         organizationId: ORG,
         findingId: base.id,
         owner: "L. Chen",
@@ -792,7 +792,7 @@ describe("RemediationService", () => {
 
   it.each(["Awaiting verification", "Verified fixed"] as const)(
     "rejects starting remediation from %s",
-    (state) => {
+    async (state) => {
       const base = finding("finding-1042", "SEC-1042", state);
       const harness = createHarness([base]);
       const service = new RemediationService({
@@ -801,7 +801,7 @@ describe("RemediationService", () => {
         idGenerator: ids("remediation-2"),
       });
 
-      expectDomainError(
+      await expectDomainError(
         () =>
           service.startRemediation({
             organizationId: ORG,
@@ -816,7 +816,7 @@ describe("RemediationService", () => {
     },
   );
 
-  it("completes an in-progress remediation and moves the finding to Awaiting verification", () => {
+  it("completes an in-progress remediation and moves the finding to Awaiting verification", async () => {
     const base = finding("finding-1042", "SEC-1042", "Remediating");
     const harness = createHarness([base]);
     harness.state.remediations.push({
@@ -839,7 +839,7 @@ describe("RemediationService", () => {
       idGenerator: ids("unused"),
     });
 
-    const completed = service.completeRemediation({
+    const completed = await service.completeRemediation({
       organizationId: ORG,
       remediationId: "remediation-2",
       summary: "Both query paths parameterized",
@@ -855,7 +855,7 @@ describe("RemediationService", () => {
   });
 });
 
-describe("VerificationService", () => {
+describe("VerificationService", async () => {
   function eligibleHarness() {
     const base = finding("finding-1042", "SEC-1042", "Awaiting verification");
     const harness = createHarness([base]);
@@ -877,7 +877,7 @@ describe("VerificationService", () => {
     return { base, harness };
   }
 
-  it("requires Awaiting verification and at least one completed remediation", () => {
+  it("requires Awaiting verification and at least one completed remediation", async () => {
     const base = finding("finding-1042", "SEC-1042", "Awaiting verification");
     const harness = createHarness([base]);
     const service = new VerificationService({
@@ -887,7 +887,7 @@ describe("VerificationService", () => {
       hashEvidence,
     });
 
-    expectDomainError(
+    await expectDomainError(
       () =>
         service.startVerification({
           organizationId: ORG,
@@ -903,7 +903,7 @@ describe("VerificationService", () => {
     );
   });
 
-  it("creates a Running verification with unique pending required checks", () => {
+  it("creates a Running verification with unique pending required checks", async () => {
     const { base, harness } = eligibleHarness();
     const service = new VerificationService({
       unitOfWork: harness.unitOfWork,
@@ -912,7 +912,7 @@ describe("VerificationService", () => {
       hashEvidence,
     });
 
-    const run = service.startVerification({
+    const run = await service.startVerification({
       organizationId: ORG,
       findingId: base.id,
       remediationId: "remediation-2",
@@ -935,7 +935,7 @@ describe("VerificationService", () => {
     );
   });
 
-  it("rejects the authenticated principal that performed the remediation", () => {
+  it("rejects the authenticated principal that performed the remediation", async () => {
     const { base, harness } = eligibleHarness();
     const service = new VerificationService({
       unitOfWork: harness.unitOfWork,
@@ -944,7 +944,7 @@ describe("VerificationService", () => {
       hashEvidence,
     });
 
-    expectDomainError(
+    await expectDomainError(
       () =>
         service.startVerification({
           organizationId: ORG,
@@ -966,7 +966,7 @@ describe("VerificationService", () => {
     expect(harness.state.checks).toHaveLength(0);
   });
 
-  it("rejects a second running verification for the same finding", () => {
+  it("rejects a second running verification for the same finding", async () => {
     const { base, harness } = eligibleHarness();
     const service = new VerificationService({
       unitOfWork: harness.unitOfWork,
@@ -980,7 +980,7 @@ describe("VerificationService", () => {
       hashEvidence,
     });
 
-    service.startVerification({
+    await service.startVerification({
       organizationId: ORG,
       findingId: base.id,
       remediationId: "remediation-2",
@@ -991,7 +991,7 @@ describe("VerificationService", () => {
       actor,
     });
 
-    expectDomainError(
+    await expectDomainError(
       () =>
         service.startVerification({
           organizationId: ORG,
@@ -1008,7 +1008,7 @@ describe("VerificationService", () => {
     expect(harness.state.verifications).toHaveLength(1);
   });
 
-  it("rejects duplicate expected check names before creating the run", () => {
+  it("rejects duplicate expected check names before creating the run", async () => {
     const { base, harness } = eligibleHarness();
     const service = new VerificationService({
       unitOfWork: harness.unitOfWork,
@@ -1017,7 +1017,7 @@ describe("VerificationService", () => {
       hashEvidence,
     });
 
-    expectDomainError(
+    await expectDomainError(
       () =>
         service.startVerification({
           organizationId: ORG,
@@ -1033,7 +1033,7 @@ describe("VerificationService", () => {
     );
   });
 
-  it("records one required check exactly once", () => {
+  it("records one required check exactly once", async () => {
     const { base, harness } = eligibleHarness();
     const service = new VerificationService({
       unitOfWork: harness.unitOfWork,
@@ -1041,7 +1041,7 @@ describe("VerificationService", () => {
       idGenerator: ids("verification-2", "check-1"),
       hashEvidence,
     });
-    service.startVerification({
+    await service.startVerification({
       organizationId: ORG,
       findingId: base.id,
       remediationId: "remediation-2",
@@ -1052,7 +1052,7 @@ describe("VerificationService", () => {
       actor,
     });
 
-    expectDomainError(
+    await expectDomainError(
       () =>
         service.recordVerificationCheck({
           organizationId: ORG,
@@ -1066,7 +1066,7 @@ describe("VerificationService", () => {
       "VERIFICATION_PRINCIPAL_MISMATCH",
       403,
     );
-    const recorded = service.recordVerificationCheck({
+    const recorded = await service.recordVerificationCheck({
       organizationId: ORG,
       verificationId: "verification-2",
       sequence: 1,
@@ -1076,7 +1076,7 @@ describe("VerificationService", () => {
       actor,
     });
     expect(recorded.status).toBe("Passed");
-    expectDomainError(
+    await expectDomainError(
       () =>
         service.recordVerificationCheck({
           organizationId: ORG,
@@ -1091,7 +1091,7 @@ describe("VerificationService", () => {
     );
   });
 
-  it("requires a concrete failed check and nonblank summary to complete Failed", () => {
+  it("requires a concrete failed check and nonblank summary to complete Failed", async () => {
     const { base, harness } = eligibleHarness();
     const service = new VerificationService({
       unitOfWork: harness.unitOfWork,
@@ -1099,7 +1099,7 @@ describe("VerificationService", () => {
       idGenerator: ids("verification-2", "check-1"),
       hashEvidence,
     });
-    service.startVerification({
+    await service.startVerification({
       organizationId: ORG,
       findingId: base.id,
       remediationId: "remediation-2",
@@ -1109,7 +1109,7 @@ describe("VerificationService", () => {
       checks: ["Secondary query path"],
       actor,
     });
-    service.recordVerificationCheck({
+    await service.recordVerificationCheck({
       organizationId: ORG,
       verificationId: "verification-2",
       sequence: 1,
@@ -1119,7 +1119,7 @@ describe("VerificationService", () => {
       actor,
     });
 
-    expectDomainError(
+    await expectDomainError(
       () =>
         service.completeVerification({
           organizationId: ORG,
@@ -1132,7 +1132,7 @@ describe("VerificationService", () => {
       "VERIFICATION_FAILURE_SUMMARY_REQUIRED",
     );
 
-    const completion = service.completeVerification({
+    const completion = await service.completeVerification({
       organizationId: ORG,
       verificationId: "verification-2",
       result: "Failed",
@@ -1148,7 +1148,7 @@ describe("VerificationService", () => {
     );
   });
 
-  it("cancels a running verification without changing finding truth", () => {
+  it("cancels a running verification without changing finding truth", async () => {
     const { base, harness } = eligibleHarness();
     const service = new VerificationService({
       unitOfWork: harness.unitOfWork,
@@ -1156,7 +1156,7 @@ describe("VerificationService", () => {
       idGenerator: ids("verification-2", "check-1"),
       hashEvidence,
     });
-    service.startVerification({
+    await service.startVerification({
       organizationId: ORG,
       findingId: base.id,
       remediationId: "remediation-2",
@@ -1167,7 +1167,7 @@ describe("VerificationService", () => {
       actor,
     });
 
-    const cancelled = service.cancelVerification({
+    const cancelled = await service.cancelVerification({
       organizationId: ORG,
       verificationId: "verification-2",
       reason: "Cancelled by an administrator.",
@@ -1189,7 +1189,7 @@ describe("VerificationService", () => {
 
   it.each(["Pending", "Failed"] as const)(
     "rejects Passed completion while a required check is %s",
-    (status) => {
+    async (status) => {
       const { base, harness } = eligibleHarness();
       const service = new VerificationService({
         unitOfWork: harness.unitOfWork,
@@ -1197,7 +1197,7 @@ describe("VerificationService", () => {
         idGenerator: ids("verification-2", "check-1", "evidence-1"),
         hashEvidence,
       });
-      service.startVerification({
+      await service.startVerification({
         organizationId: ORG,
         findingId: base.id,
         remediationId: "remediation-2",
@@ -1208,7 +1208,7 @@ describe("VerificationService", () => {
         actor,
       });
       if (status === "Failed") {
-        service.recordVerificationCheck({
+        await service.recordVerificationCheck({
           organizationId: ORG,
           verificationId: "verification-2",
           sequence: 1,
@@ -1219,7 +1219,7 @@ describe("VerificationService", () => {
         });
       }
 
-      expectDomainError(
+      await expectDomainError(
         () =>
           service.completeVerification({
             organizationId: ORG,
@@ -1241,7 +1241,7 @@ describe("VerificationService", () => {
     },
   );
 
-  it("rejects worker receipt attestation from an authenticated operator run", () => {
+  it("rejects worker receipt attestation from an authenticated operator run", async () => {
     const { base, harness } = eligibleHarness();
     const service = new VerificationService({
       unitOfWork: harness.unitOfWork,
@@ -1249,7 +1249,7 @@ describe("VerificationService", () => {
       idGenerator: ids("verification-2", "check-1", "evidence-1"),
       hashEvidence,
     });
-    service.startVerification({
+    await service.startVerification({
       organizationId: ORG,
       findingId: base.id,
       remediationId: "remediation-2",
@@ -1259,7 +1259,7 @@ describe("VerificationService", () => {
       checks: ["Required check"],
       actor,
     });
-    service.recordVerificationCheck({
+    await service.recordVerificationCheck({
       organizationId: ORG,
       verificationId: "verification-2",
       sequence: 1,
@@ -1269,7 +1269,7 @@ describe("VerificationService", () => {
       actor,
     });
 
-    expectDomainError(
+    await expectDomainError(
       () =>
         service.completeVerification({
           organizationId: ORG,
@@ -1299,7 +1299,7 @@ describe("VerificationService", () => {
     expect(harness.state.evidence).toEqual([]);
   });
 
-  it("passes only after every required check passes, creates locked evidence, and preserves earlier failure history", () => {
+  it("passes only after every required check passes, creates locked evidence, and preserves earlier failure history", async () => {
     const { base, harness } = eligibleHarness();
     harness.state.verifications.push({
       organizationId: ORG,
@@ -1338,7 +1338,7 @@ describe("VerificationService", () => {
       ),
       hashEvidence,
     });
-    service.startVerification({
+    await service.startVerification({
       organizationId: ORG,
       findingId: base.id,
       remediationId: "remediation-2",
@@ -1352,7 +1352,7 @@ describe("VerificationService", () => {
       [1, "Primary query path"],
       [2, "Secondary query path"],
     ] as const) {
-      service.recordVerificationCheck({
+      await service.recordVerificationCheck({
         organizationId: ORG,
         verificationId: "verification-2",
         sequence,
@@ -1363,7 +1363,7 @@ describe("VerificationService", () => {
       });
     }
 
-    const completion = service.completeVerification({
+    const completion = await service.completeVerification({
       organizationId: ORG,
       verificationId: "verification-2",
       result: "Passed",
@@ -1425,8 +1425,8 @@ describe("VerificationService", () => {
   });
 });
 
-describe("DashboardService", () => {
-  it("derives metrics, queue, risk summaries, activity, notifications, and latest report from repositories", () => {
+describe("DashboardService", async () => {
+  it("derives metrics, queue, risk summaries, activity, notifications, and latest report from repositories", async () => {
     const findings = [
       finding("finding-failed", "SEC-1042", "Verification failed", {
         severity: "Critical",
@@ -1478,7 +1478,7 @@ describe("DashboardService", () => {
       repositories: harness.repositories,
     });
 
-    const snapshot = service.getDashboard({
+    const snapshot = await service.getDashboard({
       organizationId: ORG,
       sort: "priority",
       includeVerified: false,
@@ -1516,8 +1516,8 @@ describe("DashboardService", () => {
   });
 });
 
-describe("ReportService", () => {
-  it("creates immutable report snapshots and regeneration inserts a new row", () => {
+describe("ReportService", async () => {
+  it("creates immutable report snapshots and regeneration inserts a new row", async () => {
     const base = finding("finding-1042", "SEC-1042", "Verification failed", {
       severity: "Critical",
       slaDueAt: "2026-08-19T00:00:00.000Z",
@@ -1529,7 +1529,7 @@ describe("ReportService", () => {
       idGenerator: ids("report-a", "report-b"),
     });
 
-    const reportA = service.createReport({
+    const reportA = await service.createReport({
       organizationId: ORG,
       companyId: COMPANY_ID,
       periodLabel: "August 2026",
@@ -1543,7 +1543,7 @@ describe("ReportService", () => {
       updatedAt: NOW,
     };
 
-    const reportB = service.createReport({
+    const reportB = await service.createReport({
       organizationId: ORG,
       companyId: COMPANY_ID,
       periodLabel: "August 2026 refreshed",

@@ -21,22 +21,23 @@ export function createRemediationsRouter(
 ): Router {
   const router = Router();
 
-  router.post("/remediations", (request, response, next) => {
+  router.post("/remediations", async (request, response, next) => {
     try {
       const body = request.body as CreateRemediationBody;
-      const remediation = dependencies.services.remediation.startRemediation({
-        organizationId: organizationIdFrom(response),
-        findingId: body.finding_id,
-        owner: body.owner,
-        summary: body.summary,
-        reference: body.reference,
-        actor: mutationActorFrom(response),
-        expectedFindingVersion: requireIfMatch(
-          request,
-          "finding",
-          body.finding_id,
-        ),
-      });
+      const remediation =
+        await dependencies.services.remediation.startRemediation({
+          organizationId: organizationIdFrom(response),
+          findingId: body.finding_id,
+          owner: body.owner,
+          summary: body.summary,
+          reference: body.reference,
+          actor: mutationActorFrom(response),
+          expectedFindingVersion: requireIfMatch(
+            request,
+            "finding",
+            body.finding_id,
+          ),
+        });
 
       response.location(
         `/api/v1/remediations/${encodeURIComponent(remediation.id)}`,
@@ -55,11 +56,11 @@ export function createRemediationsRouter(
 
   router.post(
     "/remediations/:remediationId/complete",
-    (request, response, next) => {
+    async (request, response, next) => {
       try {
         const body = request.body as CompleteRemediationBody;
         const remediation =
-          dependencies.services.remediation.completeRemediation({
+          await dependencies.services.remediation.completeRemediation({
             organizationId: organizationIdFrom(response),
             remediationId: request.params.remediationId ?? "",
             summary: body.summary,

@@ -7,9 +7,9 @@ import { toCompany } from "./http-shapes.js";
 export function createCompaniesRouter(dependencies: ApiDependencies): Router {
   const router = Router();
 
-  router.get("/companies", (_request, response, next) => {
+  router.get("/companies", async (_request, response, next) => {
     try {
-      const companies = dependencies.repositories.companies.list(
+      const companies = await dependencies.repositories.companies.list(
         organizationIdFrom(response),
       );
       response.json(companies.map(toCompany));
@@ -18,9 +18,9 @@ export function createCompaniesRouter(dependencies: ApiDependencies): Router {
     }
   });
 
-  router.get("/companies/:companyId", (request, response, next) => {
+  router.get("/companies/:companyId", async (request, response, next) => {
     try {
-      const company = dependencies.repositories.companies.getById(
+      const company = await dependencies.repositories.companies.getById(
         organizationIdFrom(response),
         request.params.companyId ?? "",
       );

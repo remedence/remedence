@@ -20,10 +20,10 @@ interface CreateImportBody {
 export function createImportsRouter(dependencies: ApiDependencies): Router {
   const router = Router();
 
-  router.post("/imports", (request, response, next) => {
+  router.post("/imports", async (request, response, next) => {
     try {
       const body = request.body as CreateImportBody;
-      const result = dependencies.services.imports.importFinding({
+      const result = await dependencies.services.imports.importFinding({
         organizationId: organizationIdFrom(response),
         companyId: body.company_id,
         findingKey: body.finding_key,

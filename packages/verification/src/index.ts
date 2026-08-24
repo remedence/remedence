@@ -71,36 +71,45 @@ export interface VerificationExecution {
   receipt: VerificationExecutionReceipt;
 }
 
+export type VerificationQueueResult<T> = T | Promise<T>;
+
 export interface VerificationJobQueue {
-  enqueue(job: VerificationJob): void;
-  get(organizationId: string, jobId: string): VerificationJob | undefined;
+  enqueue(job: VerificationJob): VerificationQueueResult<void>;
+  get(
+    organizationId: string,
+    jobId: string,
+  ): VerificationQueueResult<VerificationJob | undefined>;
   getByVerification(
     organizationId: string,
     verificationId: string,
-  ): VerificationJob | undefined;
+  ): VerificationQueueResult<VerificationJob | undefined>;
   listReceipts(
     organizationId: string,
     jobId: string,
-  ): VerificationExecutionReceipt[];
+  ): VerificationQueueResult<VerificationExecutionReceipt[]>;
   claim(input: {
     workerId: string;
     now: string;
     leaseExpiresAt: string;
-  }): VerificationJob | undefined;
+  }): VerificationQueueResult<VerificationJob | undefined>;
   renewLease(input: {
     organizationId: string;
     jobId: string;
     workerId: string;
     now: string;
     leaseExpiresAt: string;
-  }): boolean;
+  }): VerificationQueueResult<boolean>;
   requestCancellation(
     organizationId: string,
     jobId: string,
     now: string,
-    cancelRun?: () => void,
-  ): boolean;
-  retryDeadLetter(organizationId: string, jobId: string, now: string): boolean;
+    cancelRun?: () => void | Promise<void>,
+  ): VerificationQueueResult<boolean>;
+  retryDeadLetter(
+    organizationId: string,
+    jobId: string,
+    now: string,
+  ): VerificationQueueResult<boolean>;
   complete(
     input: {
       organizationId: string;
@@ -109,8 +118,8 @@ export interface VerificationJobQueue {
       receipt: VerificationExecutionReceipt;
       now: string;
     },
-    applyResult: () => void,
-  ): void;
+    applyResult: () => void | Promise<void>,
+  ): VerificationQueueResult<void>;
   fail(input: {
     organizationId: string;
     jobId: string;
@@ -119,8 +128,8 @@ export interface VerificationJobQueue {
     retryAt: string;
     receipt?: VerificationExecutionReceipt;
     now: string;
-    onCancelled?: () => void;
-  }): VerificationJobStatus;
+    onCancelled?: () => void | Promise<void>;
+  }): VerificationQueueResult<VerificationJobStatus>;
 }
 
 export interface VerificationSandbox {

@@ -7,9 +7,9 @@ import { toDashboard } from "./http-shapes.js";
 export function createDashboardRouter(dependencies: ApiDependencies): Router {
   const router = Router();
 
-  router.get("/dashboard", (request, response, next) => {
+  router.get("/dashboard", async (request, response, next) => {
     try {
-      const snapshot = dependencies.services.dashboard.getDashboard(
+      const snapshot = await dependencies.services.dashboard.getDashboard(
         findingQueryFrom(request, organizationIdFrom(response)),
       );
       response.json(toDashboard(snapshot));

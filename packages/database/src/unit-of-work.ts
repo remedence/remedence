@@ -35,8 +35,8 @@ export function createUnitOfWork(
   options: RepositorySetOptions,
 ): UnitOfWork {
   return {
-    run<T>(operation: (repositories: RepositorySet) => T): T {
-      return runTransaction(database, () =>
+    run<T>(operation: (repositories: RepositorySet) => T | Promise<T>) {
+      return runTransaction(database, async () =>
         operation(createRepositorySet(database, options)),
       );
     },

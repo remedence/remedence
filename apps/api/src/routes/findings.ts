@@ -9,9 +9,9 @@ import { toFindingDetail, toFindingPage } from "./http-shapes.js";
 export function createFindingsRouter(dependencies: ApiDependencies): Router {
   const router = Router();
 
-  router.get("/findings", (request, response, next) => {
+  router.get("/findings", async (request, response, next) => {
     try {
-      const page = dependencies.repositories.findings.list(
+      const page = await dependencies.repositories.findings.list(
         findingQueryFrom(request, organizationIdFrom(response)),
       );
       response.json(toFindingPage(page));
@@ -20,9 +20,9 @@ export function createFindingsRouter(dependencies: ApiDependencies): Router {
     }
   });
 
-  router.get("/findings/:findingId", (request, response, next) => {
+  router.get("/findings/:findingId", async (request, response, next) => {
     try {
-      const detail = dependencies.repositories.findings.getDetail(
+      const detail = await dependencies.repositories.findings.getDetail(
         organizationIdFrom(response),
         request.params.findingId ?? "",
       );
@@ -40,7 +40,7 @@ export function createFindingsRouter(dependencies: ApiDependencies): Router {
         detail.finding.version,
       );
       response.json(
-        toFindingDetail(detail, (verificationId) =>
+        await toFindingDetail(detail, (verificationId) =>
           dependencies.verificationExecution?.queue.getByVerification(
             detail.finding.organizationId,
             verificationId,

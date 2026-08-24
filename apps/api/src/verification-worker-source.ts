@@ -20,11 +20,11 @@ export class ApiVerificationWorkerSource implements VerificationWorkerSource {
     }
   }
 
-  load(job: VerificationJob) {
+  async load(job: VerificationJob) {
     const profile = this.dependencies.verificationExecution?.profiles.get(
       job.profileId,
     );
-    const run = this.dependencies.repositories.verifications.getById(
+    const run = await this.dependencies.repositories.verifications.getById(
       job.organizationId,
       job.verificationId,
     );
@@ -35,10 +35,11 @@ export class ApiVerificationWorkerSource implements VerificationWorkerSource {
         "Verification job no longer has an approved profile-bound run.",
       );
     }
-    const checks = this.dependencies.repositories.verifications.listChecks(
-      job.organizationId,
-      run.id,
-    );
+    const checks =
+      await this.dependencies.repositories.verifications.listChecks(
+        job.organizationId,
+        run.id,
+      );
     return {
       profile,
       input: {
@@ -51,13 +52,13 @@ export class ApiVerificationWorkerSource implements VerificationWorkerSource {
     };
   }
 
-  cancel(job: VerificationJob, reason: string): void {
-    const run = this.dependencies.repositories.verifications.getById(
+  async cancel(job: VerificationJob, reason: string): Promise<void> {
+    const run = await this.dependencies.repositories.verifications.getById(
       job.organizationId,
       job.verificationId,
     );
     if (!run || run.status !== "Running") return;
-    this.dependencies.services.verification.cancelVerification({
+    await this.dependencies.services.verification.cancelVerification({
       organizationId: job.organizationId,
       verificationId: run.id,
       reason,
@@ -69,12 +70,12 @@ export class ApiVerificationWorkerSource implements VerificationWorkerSource {
     });
   }
 
-  apply(
+  async apply(
     job: VerificationJob,
     output: VerificationExecutionOutput,
     receipt: VerificationExecutionReceipt,
-  ): void {
-    const run = this.dependencies.repositories.verifications.getById(
+  ): Promise<void> {
+    const run = await this.dependencies.repositories.verifications.getById(
       job.organizationId,
       job.verificationId,
     );
@@ -97,12 +98,13 @@ export class ApiVerificationWorkerSource implements VerificationWorkerSource {
       actorId: run.verifierPrincipalId,
     } as const;
     for (const check of output.checks) {
-      const current = this.dependencies.repositories.verifications.getById(
-        job.organizationId,
-        run.id,
-      );
+      const current =
+        await this.dependencies.repositories.verifications.getById(
+          job.organizationId,
+          run.id,
+        );
       if (!current) throw new Error("Verification run disappeared.");
-      this.dependencies.services.verification.recordVerificationCheck({
+      await this.dependencies.services.verification.recordVerificationCheck({
         organizationId: job.organizationId,
         verificationId: run.id,
         sequence: check.sequence,
@@ -113,12 +115,12 @@ export class ApiVerificationWorkerSource implements VerificationWorkerSource {
         expectedVersion: current.version,
       });
     }
-    const current = this.dependencies.repositories.verifications.getById(
+    const current = await this.dependencies.repositories.verifications.getById(
       job.organizationId,
       run.id,
     );
     if (!current) throw new Error("Verification run disappeared.");
-    this.dependencies.services.verification.completeVerification({
+    await this.dependencies.services.verification.completeVerification({
       organizationId: job.organizationId,
       verificationId: run.id,
       result: output.result,

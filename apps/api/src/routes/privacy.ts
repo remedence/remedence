@@ -81,7 +81,7 @@ export function createPrivacyRouter(dependencies: ApiDependencies): Router {
 
   router.post(
     "/privacy/artifacts/:artifactId/legal-hold",
-    (request, response, next) => {
+    async (request, response, next) => {
       try {
         const principal = requireRole(response, ["Owner", "Administrator"]);
         const organizationId = organizationIdFrom(response);
@@ -90,7 +90,7 @@ export function createPrivacyRouter(dependencies: ApiDependencies): Router {
           (request.body as { legal_hold: boolean }).legal_hold,
         );
         const now = dependencies.evidenceProtection.clock.now();
-        const apply = () => {
+        const apply = async () => {
           if (
             !dependencies.privacy.setArtifactLegalHold(
               organizationId,
@@ -104,7 +104,7 @@ export function createPrivacyRouter(dependencies: ApiDependencies): Router {
               "Evidence artifact was not found.",
             );
           }
-          dependencies.repositories.auditEvents.append({
+          await dependencies.repositories.auditEvents.append({
             organizationId,
             actorType: "user",
             actorId: principal.userId,
@@ -117,8 +117,8 @@ export function createPrivacyRouter(dependencies: ApiDependencies): Router {
             occurredAt: now,
           });
         };
-        if (dependencies.runAtomically) dependencies.runAtomically(apply);
-        else apply();
+        if (dependencies.runAtomically) await dependencies.runAtomically(apply);
+        else await apply();
         response.json({
           id: artifactId,
           legal_hold: legalHold,

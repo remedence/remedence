@@ -232,19 +232,24 @@ export function toAuditEventPage(page: CursorPage<AuditEvent>) {
   };
 }
 
-export function toFindingDetail(
+export async function toFindingDetail(
   detail: FindingDetail,
-  verificationJob?: (verificationId: string) => VerificationJob | undefined,
+  verificationJob?: (
+    verificationId: string,
+  ) => VerificationJob | undefined | Promise<VerificationJob | undefined>,
 ) {
+  const verifications = await Promise.all(
+    detail.verifications.map(async (verification) => {
+      const shaped = toVerificationWithChecks(verification);
+      const job = await verificationJob?.(verification.id);
+      return job ? { ...shaped, job: toVerificationJob(job) } : shaped;
+    }),
+  );
   return {
     finding: toFinding(detail.finding),
     company: toCompany(detail.company),
     remediations: detail.remediations.map(toRemediation),
-    verifications: detail.verifications.map((verification) => {
-      const shaped = toVerificationWithChecks(verification);
-      const job = verificationJob?.(verification.id);
-      return job ? { ...shaped, job: toVerificationJob(job) } : shaped;
-    }),
+    verifications,
     evidence: detail.evidence.map(toEvidence),
     audit_events: detail.auditEvents.map(toAuditEvent),
   };

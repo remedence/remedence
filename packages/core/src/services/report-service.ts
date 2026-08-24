@@ -37,16 +37,16 @@ function toFinding(row: DashboardFinding): Finding {
   return finding;
 }
 
-function listCompanyFindings(
+async function listCompanyFindings(
   repositories: RepositorySet,
   organizationId: string,
   companyId: string,
-): DashboardFinding[] {
+): Promise<DashboardFinding[]> {
   const rows: DashboardFinding[] = [];
   const pageSize = 100;
   let cursor: string | undefined;
   do {
-    const result = repositories.findings.list({
+    const result = await repositories.findings.list({
       organizationId,
       companyId,
       sort: "priority",
@@ -60,20 +60,30 @@ function listCompanyFindings(
   return rows;
 }
 
-function verificationHistory(
+async function verificationHistory(
   repositories: RepositorySet,
   organizationId: string,
   findingRows: DashboardFinding[],
-): Array<VerificationRun & { checks: VerificationCheck[] }> {
-  return findingRows
-    .flatMap((finding) =>
-      repositories.verifications
-        .listByFinding(organizationId, finding.id)
-        .map((run) => ({
+): Promise<Array<VerificationRun & { checks: VerificationCheck[] }>> {
+  const groups = await Promise.all(
+    findingRows.map(async (finding) => {
+      const runs = await repositories.verifications.listByFinding(
+        organizationId,
+        finding.id,
+      );
+      return Promise.all(
+        runs.map(async (run) => ({
           ...run,
-          checks: repositories.verifications.listChecks(organizationId, run.id),
+          checks: await repositories.verifications.listChecks(
+            organizationId,
+            run.id,
+          ),
         })),
-    )
+      );
+    }),
+  );
+  return groups
+    .flat()
     .sort(
       (left, right) =>
         left.createdAt.localeCompare(right.createdAt) ||
@@ -84,9 +94,9 @@ function verificationHistory(
 export class ReportService {
   constructor(private readonly dependencies: ReportServiceDependencies) {}
 
-  createReport(input: CreateReportInput): Report {
-    return this.dependencies.unitOfWork.run((repositories) => {
-      const company = repositories.companies.getById(
+  async createReport(input: CreateReportInput): Promise<Report> {
+    return this.dependencies.unitOfWork.run(async (repositories) => {
+      const company = await repositories.companies.getById(
         input.organizationId,
         input.companyId,
       );
@@ -106,7 +116,7 @@ export class ReportService {
         );
       }
 
-      const rows = listCompanyFindings(
+      const rows = await listCompanyFindings(
         repositories,
         input.organizationId,
         input.companyId,
@@ -128,7 +138,7 @@ export class ReportService {
                 ((openRows.length - slaBreaches) / openRows.length) * 10_000,
               ) / 100,
         findings: rows.map(toFinding),
-        verificationHistory: verificationHistory(
+        verificationHistory: await verificationHistory(
           repositories,
           input.organizationId,
           rows,
@@ -147,8 +157,8 @@ export class ReportService {
         generatedAt: now,
         createdAt: now,
       };
-      repositories.reports.insert(report);
-      repositories.auditEvents.append({
+      await repositories.reports.insert(report);
+      await repositories.auditEvents.append({
         organizationId: input.organizationId,
         actorType: input.actor.actorType,
         actorId: input.actor.actorId,

@@ -76,11 +76,11 @@ afterEach(() => {
 });
 
 describe("verification job queue", () => {
-  it("claims one due job with an owner lease and stores its signed receipt", () => {
+  it("claims one due job with an owner lease and stores its signed receipt", async () => {
     const queue = createVerificationJobQueue(database);
     queue.enqueue(job());
 
-    const claimed = queue.claim({
+    const claimed = await queue.claim({
       workerId: "worker-one",
       now,
       leaseExpiresAt: "2026-08-23T12:01:00.000Z",
@@ -91,7 +91,7 @@ describe("verification job queue", () => {
       leaseOwner: "worker-one",
     });
     expect(
-      queue.claim({
+      await queue.claim({
         workerId: "worker-two",
         now,
         leaseExpiresAt: "2026-08-23T12:01:00.000Z",
@@ -99,7 +99,7 @@ describe("verification job queue", () => {
     ).toBeUndefined();
 
     let applied = false;
-    queue.complete(
+    await queue.complete(
       {
         organizationId,
         jobId: "job-one",
@@ -112,11 +112,15 @@ describe("verification job queue", () => {
       },
     );
     expect(applied).toBe(true);
-    expect(queue.get(organizationId, "job-one")?.status).toBe("Succeeded");
-    expect(queue.listReceipts(organizationId, "job-one")).toEqual([receipt(1)]);
+    expect((await queue.get(organizationId, "job-one"))?.status).toBe(
+      "Succeeded",
+    );
+    expect(await queue.listReceipts(organizationId, "job-one")).toEqual([
+      receipt(1),
+    ]);
   });
 
-  it("recovers expired leases and dead-letters after bounded retries", () => {
+  it("recovers expired leases and dead-letters after bounded retries", async () => {
     const queue = createVerificationJobQueue(database);
     queue.enqueue(job());
     queue.claim({
@@ -125,14 +129,14 @@ describe("verification job queue", () => {
       leaseExpiresAt: "2026-08-23T12:00:10.000Z",
     });
 
-    const recovered = queue.claim({
+    const recovered = await queue.claim({
       workerId: "worker-one",
       now: "2026-08-23T12:00:11.000Z",
       leaseExpiresAt: "2026-08-23T12:01:11.000Z",
     });
     expect(recovered).toMatchObject({ attempt: 2, leaseOwner: "worker-one" });
     expect(
-      queue.fail({
+      await queue.fail({
         organizationId,
         jobId: "job-one",
         workerId: "worker-one",
@@ -142,37 +146,39 @@ describe("verification job queue", () => {
         now: "2026-08-23T12:00:12.000Z",
       }),
     ).toBe("Dead letter");
-    expect(queue.get(organizationId, "job-one")).toMatchObject({
+    expect(await queue.get(organizationId, "job-one")).toMatchObject({
       status: "Dead letter",
       lastError: "sandbox unavailable",
     });
     expect(
-      queue.retryDeadLetter(
+      await queue.retryDeadLetter(
         organizationId,
         "job-one",
         "2026-08-23T12:00:20.000Z",
       ),
     ).toBe(true);
-    expect(queue.get(organizationId, "job-one")).toMatchObject({
+    expect(await queue.get(organizationId, "job-one")).toMatchObject({
       status: "Queued",
       attempt: 0,
     });
   });
 
-  it("cancels queued jobs immediately", () => {
+  it("cancels queued jobs immediately", async () => {
     const queue = createVerificationJobQueue(database);
     queue.enqueue(job());
     let runCancelled = false;
     expect(
-      queue.requestCancellation(organizationId, "job-one", now, () => {
+      await queue.requestCancellation(organizationId, "job-one", now, () => {
         runCancelled = true;
       }),
     ).toBe(true);
-    expect(queue.get(organizationId, "job-one")?.status).toBe("Cancelled");
+    expect((await queue.get(organizationId, "job-one"))?.status).toBe(
+      "Cancelled",
+    );
     expect(runCancelled).toBe(true);
   });
 
-  it("marks a running job for cancellation and lets its lease owner settle it", () => {
+  it("marks a running job for cancellation and lets its lease owner settle it", async () => {
     const queue = createVerificationJobQueue(database);
     queue.enqueue(job());
     queue.claim({
@@ -180,15 +186,15 @@ describe("verification job queue", () => {
       now,
       leaseExpiresAt: "2026-08-23T12:01:00.000Z",
     });
-    expect(queue.requestCancellation(organizationId, "job-one", now)).toBe(
-      true,
-    );
-    expect(queue.get(organizationId, "job-one")?.cancellationRequested).toBe(
-      true,
-    );
+    expect(
+      await queue.requestCancellation(organizationId, "job-one", now),
+    ).toBe(true);
+    expect(
+      (await queue.get(organizationId, "job-one"))?.cancellationRequested,
+    ).toBe(true);
     let runCancelled = false;
     expect(
-      queue.fail({
+      await queue.fail({
         organizationId,
         jobId: "job-one",
         workerId: "worker-one",

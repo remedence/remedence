@@ -115,7 +115,7 @@ export function createEvidenceRouter(dependencies: ApiDependencies): Router {
         legalHold: false,
         adoptedAt: null,
       } as const;
-      dependencies.repositories.evidence.insertArtifact?.(artifact);
+      await dependencies.repositories.evidence.insertArtifact?.(artifact);
       response
         .location(
           `/api/v1/evidence/artifacts/${encodeURIComponent(artifact.id)}`,
@@ -141,9 +141,9 @@ export function createEvidenceRouter(dependencies: ApiDependencies): Router {
     }
   });
 
-  router.get("/evidence", (request, response, next) => {
+  router.get("/evidence", async (request, response, next) => {
     try {
-      const evidence = dependencies.repositories.evidence.list(
+      const evidence = await dependencies.repositories.evidence.list(
         evidenceQueryFrom(request, organizationIdFrom(response)),
       );
       response.json({
@@ -157,9 +157,9 @@ export function createEvidenceRouter(dependencies: ApiDependencies): Router {
     }
   });
 
-  router.get("/evidence/:evidenceId", (request, response, next) => {
+  router.get("/evidence/:evidenceId", async (request, response, next) => {
     try {
-      const evidence = dependencies.repositories.evidence.getById(
+      const evidence = await dependencies.repositories.evidence.getById(
         organizationIdFrom(response),
         request.params.evidenceId ?? "",
       );
@@ -181,12 +181,12 @@ export function createEvidenceRouter(dependencies: ApiDependencies): Router {
     async (request, response, next) => {
       try {
         const organizationId = organizationIdFrom(response);
-        const evidence = dependencies.repositories.evidence.getById(
+        const evidence = await dependencies.repositories.evidence.getById(
           organizationId,
           request.params.evidenceId ?? "",
         );
         const artifact = evidence?.artifactId
-          ? dependencies.repositories.evidence.getArtifact?.(
+          ? await dependencies.repositories.evidence.getArtifact?.(
               organizationId,
               evidence.artifactId,
             )

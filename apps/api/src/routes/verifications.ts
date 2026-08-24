@@ -67,7 +67,7 @@ export function createVerificationsRouter(
     );
   });
 
-  router.post("/verifications", (request, response, next) => {
+  router.post("/verifications", async (request, response, next) => {
     try {
       const body = request.body as CreateVerificationBody;
       const execution = dependencies.verificationExecution;
@@ -89,9 +89,9 @@ export function createVerificationsRouter(
         );
       }
       let job: VerificationJob | undefined;
-      const create = () => {
+      const create = async () => {
         const verification =
-          dependencies.services.verification.startVerification({
+          await dependencies.services.verification.startVerification({
             organizationId: organizationIdFrom(response),
             findingId: body.finding_id,
             remediationId: body.remediation_id,
@@ -134,15 +134,15 @@ export function createVerificationsRouter(
             createdAt: now,
             updatedAt: now,
           };
-          execution.queue.enqueue(queued);
+          await execution.queue.enqueue(queued);
           job = queued;
         }
         return verification;
       };
       const verification = dependencies.runAtomically
-        ? dependencies.runAtomically(create)
-        : create();
-      const checks = dependencies.repositories.verifications.listChecks(
+        ? await dependencies.runAtomically(create)
+        : await create();
+      const checks = await dependencies.repositories.verifications.listChecks(
         organizationIdFrom(response),
         verification.id,
       );
@@ -168,13 +168,15 @@ export function createVerificationsRouter(
     }
   });
 
-  router.get("/verification-jobs/:jobId", (request, response, next) => {
+  router.get("/verification-jobs/:jobId", async (request, response, next) => {
     try {
       const execution = dependencies.verificationExecution;
-      const job = execution?.queue.get(
-        organizationIdFrom(response),
-        request.params.jobId ?? "",
-      );
+      const job = execution
+        ? await execution.queue.get(
+            organizationIdFrom(response),
+            request.params.jobId ?? "",
+          )
+        : undefined;
       if (!job || !execution) {
         throw new DomainError(
           "VERIFICATION_JOB_NOT_FOUND",
@@ -185,96 +187,7 @@ export function createVerificationsRouter(
       response.json(
         toVerificationJob(
           job,
-          execution.queue.listReceipts(job.organizationId, job.id),
-        ),
-      );
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  router.post("/verification-jobs/:jobId/cancel", (request, response, next) => {
-    try {
-      const principal = authenticatedPrincipalFrom(response);
-      if (!principal || !["Owner", "Administrator"].includes(principal.role)) {
-        throw new DomainError(
-          "VERIFICATION_JOB_CANCEL_FORBIDDEN",
-          403,
-          "Only an owner or administrator can cancel a verification job.",
-        );
-      }
-      const execution = dependencies.verificationExecution;
-      const organizationId = organizationIdFrom(response);
-      const jobId = request.params.jobId ?? "";
-      if (
-        !execution?.queue.requestCancellation(
-          organizationId,
-          jobId,
-          dependencies.evidenceProtection.clock.now(),
-          () => {
-            const job = execution.queue.get(organizationId, jobId);
-            if (!job) throw new Error("Verification job disappeared.");
-            const run = dependencies.repositories.verifications.getById(
-              organizationId,
-              job.verificationId,
-            );
-            if (!run) throw new Error("Verification run disappeared.");
-            dependencies.services.verification.cancelVerification({
-              organizationId,
-              verificationId: run.id,
-              reason: "Cancelled by an administrator before execution.",
-              actor: verificationActorFrom(response),
-              expectedVersion: run.version,
-            });
-          },
-        )
-      ) {
-        throw new DomainError(
-          "VERIFICATION_JOB_NOT_CANCELLABLE",
-          409,
-          "Verification job is not queued or running.",
-        );
-      }
-      const job = execution.queue.get(organizationId, jobId);
-      if (!job) throw new Error("Cancelled verification job disappeared.");
-      response.json(toVerificationJob(job));
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  router.post("/verification-jobs/:jobId/retry", (request, response, next) => {
-    try {
-      const principal = authenticatedPrincipalFrom(response);
-      if (!principal || !["Owner", "Administrator"].includes(principal.role)) {
-        throw new DomainError(
-          "VERIFICATION_JOB_RETRY_FORBIDDEN",
-          403,
-          "Only an owner or administrator can retry a dead-letter job.",
-        );
-      }
-      const execution = dependencies.verificationExecution;
-      const organizationId = organizationIdFrom(response);
-      const jobId = request.params.jobId ?? "";
-      if (
-        !execution?.queue.retryDeadLetter(
-          organizationId,
-          jobId,
-          dependencies.evidenceProtection.clock.now(),
-        )
-      ) {
-        throw new DomainError(
-          "VERIFICATION_JOB_NOT_RETRYABLE",
-          409,
-          "Only a dead-letter verification job can be retried.",
-        );
-      }
-      const job = execution.queue.get(organizationId, jobId);
-      if (!job) throw new Error("Retried verification job disappeared.");
-      response.json(
-        toVerificationJob(
-          job,
-          execution.queue.listReceipts(organizationId, jobId),
+          await execution.queue.listReceipts(job.organizationId, job.id),
         ),
       );
     } catch (error) {
@@ -283,12 +196,115 @@ export function createVerificationsRouter(
   });
 
   router.post(
+    "/verification-jobs/:jobId/cancel",
+    async (request, response, next) => {
+      try {
+        const principal = authenticatedPrincipalFrom(response);
+        if (
+          !principal ||
+          !["Owner", "Administrator"].includes(principal.role)
+        ) {
+          throw new DomainError(
+            "VERIFICATION_JOB_CANCEL_FORBIDDEN",
+            403,
+            "Only an owner or administrator can cancel a verification job.",
+          );
+        }
+        const execution = dependencies.verificationExecution;
+        const organizationId = organizationIdFrom(response);
+        const jobId = request.params.jobId ?? "";
+        if (
+          !execution ||
+          !(await execution.queue.requestCancellation(
+            organizationId,
+            jobId,
+            dependencies.evidenceProtection.clock.now(),
+            async () => {
+              const job = await execution.queue.get(organizationId, jobId);
+              if (!job) throw new Error("Verification job disappeared.");
+              const run = await dependencies.repositories.verifications.getById(
+                organizationId,
+                job.verificationId,
+              );
+              if (!run) throw new Error("Verification run disappeared.");
+              await dependencies.services.verification.cancelVerification({
+                organizationId,
+                verificationId: run.id,
+                reason: "Cancelled by an administrator before execution.",
+                actor: verificationActorFrom(response),
+                expectedVersion: run.version,
+              });
+            },
+          ))
+        ) {
+          throw new DomainError(
+            "VERIFICATION_JOB_NOT_CANCELLABLE",
+            409,
+            "Verification job is not queued or running.",
+          );
+        }
+        const job = await execution.queue.get(organizationId, jobId);
+        if (!job) throw new Error("Cancelled verification job disappeared.");
+        response.json(toVerificationJob(job));
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
+
+  router.post(
+    "/verification-jobs/:jobId/retry",
+    async (request, response, next) => {
+      try {
+        const principal = authenticatedPrincipalFrom(response);
+        if (
+          !principal ||
+          !["Owner", "Administrator"].includes(principal.role)
+        ) {
+          throw new DomainError(
+            "VERIFICATION_JOB_RETRY_FORBIDDEN",
+            403,
+            "Only an owner or administrator can retry a dead-letter job.",
+          );
+        }
+        const execution = dependencies.verificationExecution;
+        const organizationId = organizationIdFrom(response);
+        const jobId = request.params.jobId ?? "";
+        if (
+          !execution ||
+          !(await execution.queue.retryDeadLetter(
+            organizationId,
+            jobId,
+            dependencies.evidenceProtection.clock.now(),
+          ))
+        ) {
+          throw new DomainError(
+            "VERIFICATION_JOB_NOT_RETRYABLE",
+            409,
+            "Only a dead-letter verification job can be retried.",
+          );
+        }
+        const job = await execution.queue.get(organizationId, jobId);
+        if (!job) throw new Error("Retried verification job disappeared.");
+        response.json(
+          toVerificationJob(
+            job,
+            await execution.queue.listReceipts(organizationId, jobId),
+          ),
+        );
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
+
+  router.post(
     "/verifications/:verificationId/checks",
-    (request, response, next) => {
+    async (request, response, next) => {
       try {
         const body = request.body as CreateVerificationCheckBody;
         const check =
-          dependencies.services.verification.recordVerificationCheck({
+          await dependencies.services.verification.recordVerificationCheck({
             organizationId: organizationIdFrom(response),
             verificationId: request.params.verificationId ?? "",
             sequence: body.sequence,
@@ -302,7 +318,7 @@ export function createVerificationsRouter(
               request.params.verificationId ?? "",
             ),
           });
-        const updated = dependencies.repositories.verifications.getById(
+        const updated = await dependencies.repositories.verifications.getById(
           organizationIdFrom(response),
           request.params.verificationId ?? "",
         );
@@ -318,11 +334,11 @@ export function createVerificationsRouter(
 
   router.post(
     "/verifications/:verificationId/complete",
-    (request, response, next) => {
+    async (request, response, next) => {
       try {
         const body = request.body as CompleteVerificationBody;
         const completion =
-          dependencies.services.verification.completeVerification({
+          await dependencies.services.verification.completeVerification({
             organizationId: organizationIdFrom(response),
             verificationId: request.params.verificationId ?? "",
             result: body.result,

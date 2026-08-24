@@ -84,7 +84,7 @@ export interface ApiDependencies {
     credentials: IntegrationCredentialProtector;
   };
   privacy: PrivacyStore;
-  runAtomically?: <T>(operation: () => T) => T;
+  runAtomically?: <T>(operation: () => T | Promise<T>) => Promise<T>;
   evidenceProtection: {
     objectStore: EvidenceObjectStore;
     scanner: MalwareScanner;
@@ -281,7 +281,8 @@ export function createDependencies(
           config.authentication?.mode === "required" &&
           config.authentication.baseURL.startsWith("https://"),
       },
-      runAtomically: (operation) => runTransaction(database, operation),
+      runAtomically: (operation) =>
+        runTransaction(database, async () => operation()),
       evidenceProtection: {
         objectStore: evidenceObjectStore,
         scanner: malwareScanner,

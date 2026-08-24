@@ -53,7 +53,7 @@ export class ImportFindingService {
     private readonly dependencies: ImportFindingServiceDependencies,
   ) {}
 
-  importFinding(input: ImportFindingInput): ImportResult {
+  async importFinding(input: ImportFindingInput): Promise<ImportResult> {
     const normalizedKey = normalizeFindingKey(input.findingKey);
     if (input.state !== undefined && input.state !== "Needs remediation") {
       throw new DomainError(
@@ -64,9 +64,12 @@ export class ImportFindingService {
       );
     }
 
-    return this.dependencies.unitOfWork.run((repositories) => {
+    return this.dependencies.unitOfWork.run(async (repositories) => {
       if (
-        repositories.findings.findByKey(input.organizationId, normalizedKey)
+        await repositories.findings.findByKey(
+          input.organizationId,
+          normalizedKey,
+        )
       ) {
         throw new DomainError(
           "DUPLICATE_FINDING",
@@ -77,7 +80,10 @@ export class ImportFindingService {
       }
 
       if (
-        !repositories.companies.getById(input.organizationId, input.companyId)
+        !(await repositories.companies.getById(
+          input.organizationId,
+          input.companyId,
+        ))
       ) {
         throw new DomainError(
           "COMPANY_NOT_FOUND",
@@ -106,7 +112,7 @@ export class ImportFindingService {
         updatedAt: now,
         version: 1,
       };
-      repositories.findings.insert(finding);
+      await repositories.findings.insert(finding);
 
       const importRecord: ImportRecord = {
         id: this.dependencies.idGenerator.next(),
@@ -114,7 +120,7 @@ export class ImportFindingService {
         findingId,
         createdAt: now,
       };
-      repositories.auditEvents.append({
+      await repositories.auditEvents.append({
         organizationId: input.organizationId,
         actorType: input.actor.actorType,
         actorId: input.actor.actorId,

@@ -55,9 +55,9 @@ export function createAuditEventsRouter(dependencies: ApiDependencies): Router {
   router.get(
     "/audit-events",
     requirePrincipalRole(["Owner", "Administrator"]),
-    (request, response, next) => {
+    async (request, response, next) => {
       try {
-        const page = dependencies.repositories.auditEvents.list(
+        const page = await dependencies.repositories.auditEvents.list(
           auditQueryFrom(request, organizationIdFrom(response)),
         );
         response.json(toAuditEventPage(page));

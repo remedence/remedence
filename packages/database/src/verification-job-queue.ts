@@ -250,10 +250,10 @@ export function createVerificationJobQueue(
     },
 
     requestCancellation(organizationId, jobId, now, cancelRun) {
-      return runTransaction(database, () => {
+      return runTransaction(database, async () => {
         const queued = cancelQueued.run(now, organizationId, jobId);
         if (queued.changes === 1) {
-          cancelRun?.();
+          await cancelRun?.();
           return true;
         }
         return cancelRunning.run(now, organizationId, jobId).changes === 1;
@@ -277,8 +277,8 @@ export function createVerificationJobQueue(
     },
 
     complete(input, applyResult) {
-      runTransaction(database, () => {
-        applyResult();
+      return runTransaction(database, async () => {
+        await applyResult();
         appendReceipt(input.organizationId, input.receipt);
         const result = finishJob.run(
           input.now,
@@ -293,7 +293,7 @@ export function createVerificationJobQueue(
     },
 
     fail(input) {
-      return runTransaction(database, () => {
+      return runTransaction(database, async () => {
         const current = getById.get(input.organizationId, input.jobId) as
           JobRow | undefined;
         if (
@@ -309,7 +309,7 @@ export function createVerificationJobQueue(
           : current.attempt >= current.max_attempts
             ? "Dead letter"
             : "Queued";
-        if (status === "Cancelled") input.onCancelled?.();
+        if (status === "Cancelled") await input.onCancelled?.();
         const result = retryJob.run(
           status,
           input.retryAt,

@@ -32,16 +32,16 @@ export interface DashboardServiceDependencies {
   repositories: RepositorySet;
 }
 
-function listAllFindings(
+async function listAllFindings(
   repositories: RepositorySet,
   organizationId: string,
-): DashboardFinding[] {
+): Promise<DashboardFinding[]> {
   const pageSize = 100;
   const items: DashboardFinding[] = [];
   let cursor: string | undefined;
 
   do {
-    const result = repositories.findings.list({
+    const result = await repositories.findings.list({
       organizationId,
       sort: "priority",
       includeVerified: true,
@@ -54,15 +54,19 @@ function listAllFindings(
   return items;
 }
 
-function latestReport(
+async function latestReport(
   repositories: RepositorySet,
   organizationId: string,
   companyIds: string[],
-): Report | undefined {
-  return companyIds
-    .flatMap((companyId) =>
-      repositories.reports.listByCompany(organizationId, companyId),
+): Promise<Report | undefined> {
+  return (
+    await Promise.all(
+      companyIds.map((companyId) =>
+        repositories.reports.listByCompany(organizationId, companyId),
+      ),
     )
+  )
+    .flat()
     .sort(
       (left, right) =>
         right.generatedAt.localeCompare(left.generatedAt) ||
@@ -73,11 +77,14 @@ function latestReport(
 export class DashboardService {
   constructor(private readonly dependencies: DashboardServiceDependencies) {}
 
-  getDashboard(query: FindingQuery): DashboardSnapshot {
+  async getDashboard(query: FindingQuery): Promise<DashboardSnapshot> {
     const repositories = this.dependencies.repositories;
-    const companies = repositories.companies.list(query.organizationId);
-    const allFindings = listAllFindings(repositories, query.organizationId);
-    const actionQueue = repositories.findings.list(query).items;
+    const [companies, allFindings, actionQueuePage] = await Promise.all([
+      repositories.companies.list(query.organizationId),
+      listAllFindings(repositories, query.organizationId),
+      repositories.findings.list(query),
+    ]);
+    const actionQueue = actionQueuePage.items;
 
     const metrics: DashboardMetrics = {
       managedCompanies: companies.length,
@@ -120,11 +127,15 @@ export class DashboardService {
     const companyNames = new Map(
       companies.map((company) => [company.id, company.name] as const),
     );
-    const verificationActivity: VerificationActivity[] = allFindings
-      .flatMap((finding) =>
-        repositories.verifications
-          .listByFinding(query.organizationId, finding.id)
-          .map((run) => ({
+    const verificationActivity: VerificationActivity[] = (
+      await Promise.all(
+        allFindings.map(async (finding) =>
+          (
+            await repositories.verifications.listByFinding(
+              query.organizationId,
+              finding.id,
+            )
+          ).map((run) => ({
             verificationId: run.id,
             findingKey: finding.findingKey,
             companyName:
@@ -134,7 +145,10 @@ export class DashboardService {
             completedAt: run.completedAt,
             sortAt: run.completedAt ?? run.createdAt,
           })),
+        ),
       )
+    )
+      .flat()
       .sort(
         (left, right) =>
           right.sortAt.localeCompare(left.sortAt) ||
@@ -163,7 +177,7 @@ export class DashboardService {
       });
     }
 
-    const report = latestReport(
+    const report = await latestReport(
       repositories,
       query.organizationId,
       companies.map((company) => company.id),

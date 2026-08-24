@@ -27,12 +27,12 @@ function reportDownloadFilename(report: Report): string {
   return `${slugSegment(report.snapshot.companyName)}-${slugSegment(report.periodLabel)}-security-review.md`;
 }
 
-function requireReport(
+async function requireReport(
   dependencies: ApiDependencies,
   organizationId: string,
   reportId: string,
-): Report {
-  const report = dependencies.repositories.reports.getById(
+): Promise<Report> {
+  const report = await dependencies.repositories.reports.getById(
     organizationId,
     reportId,
   );
@@ -45,10 +45,10 @@ function requireReport(
 export function createReportsRouter(dependencies: ApiDependencies): Router {
   const router = Router();
 
-  router.post("/reports", (request, response, next) => {
+  router.post("/reports", async (request, response, next) => {
     try {
       const body = request.body as CreateReportBody;
-      const report = dependencies.services.reports.createReport({
+      const report = await dependencies.services.reports.createReport({
         organizationId: organizationIdFrom(response),
         companyId: body.company_id,
         periodLabel: body.period_label,
@@ -62,9 +62,9 @@ export function createReportsRouter(dependencies: ApiDependencies): Router {
     }
   });
 
-  router.get("/reports/:reportId", (request, response, next) => {
+  router.get("/reports/:reportId", async (request, response, next) => {
     try {
-      const report = requireReport(
+      const report = await requireReport(
         dependencies,
         organizationIdFrom(response),
         request.params.reportId ?? "",
@@ -75,9 +75,9 @@ export function createReportsRouter(dependencies: ApiDependencies): Router {
     }
   });
 
-  router.get("/reports/:reportId/download", (request, response, next) => {
+  router.get("/reports/:reportId/download", async (request, response, next) => {
     try {
-      const report = requireReport(
+      const report = await requireReport(
         dependencies,
         organizationIdFrom(response),
         request.params.reportId ?? "",
