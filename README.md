@@ -1,18 +1,18 @@
 # Remedence
 
-Open-source remediation verification, evidence, and reporting infrastructure for MSPs and security teams.
+Remedence is open-source remediation verification, evidence, and reporting infrastructure for MSPs and security teams.
 
-**Security work. Proven complete.**
+**A patch is not proof. Verification is.**
 
-Remedence connects findings from heterogeneous security tools to remediation work, a separate persisted verification path, locked evidence, append-only audit history, and immutable client reporting.
+**Current release: Remedence 0.x Beta**
+
+Security work is usually spread across scanners, tickets, remediation tools, chat, and reports. Remedence connects that work without letting any one tool declare its own success. It keeps findings, remediation, independent verification, locked evidence, audit history, and client reporting in one durable workflow.
 
 `Remediate -> Verify -> Prove`
 
-## What Remedence is
+## Why Remedence exists
 
-Remedence is the verification and evidence system of record between security findings, remediation work, and defensible closure. Findings and remediations may originate from heterogeneous external tools; Remedence keeps the closure truth separate from whichever tool found or patched the issue.
-
-The core rule is:
+The rule is simple: do not call a security finding fixed because a patch exists. Record the remediation, verify it separately, and keep the proof.
 
 ```text
 PATCH CREATED != PATCH MERGED != FINDING CLOSED
@@ -30,21 +30,9 @@ Independent persisted verification
    `---- Passed -> locked evidence -> VERIFIED FIXED
 ```
 
-A remediation can move a finding to **Awaiting verification**. It cannot move the finding directly to **Verified fixed**. A separate persisted verification result must pass first. Successful verification can then lock evidence that becomes part of the audit and client-proof chain.
+A remediation can move a finding to **Awaiting verification**. It cannot move the finding directly to **Verified fixed**. A separately persisted verification result must pass first. Failed verification stays in the record. Successful verification can lock the evidence used for audit and client reporting.
 
-## What Remedence is not
-
-Remedence is not intended to replace every scanner, code-remediation agent, RMM, CI security product, offensive-security tool, or future verification provider. Those systems can be upstream sources of findings, remediation records, or verification inputs.
-
-Remedence local v1 does **not** provide autonomous patch generation, a supported hosted SaaS deployment, or a managed verification worker fleet. The repository provides required-authentication mode, managed integration connections, and separately deployable integration and isolated-verification workers, but those components do not by themselves satisfy every production release gate.
-
-The supported release model is defined in [`docs/release-model.md`](docs/release-model.md). The current `0.x` product is local beta only; supported self-hosted and hosted multi-tenant modes remain gated future targets.
-
-Authentication implementation status and its fail-closed activation requirements are documented in [`docs/authentication.md`](docs/authentication.md).
-
-Export, retention, legal-hold, and offboarding behavior is documented in [`docs/privacy-lifecycle.md`](docs/privacy-lifecycle.md).
-
-## Implemented in local v1
+## What Remedence does
 
 - Canonical `/api/v1` OpenAPI 3.1 API.
 - Persistent SQLite local mode and pooled PostgreSQL production mode with controlled migrations.
@@ -65,17 +53,21 @@ Export, retention, legal-hold, and offboarding behavior is documented in [`docs/
 - Repository-wide checks and GitHub Actions CI on supported Node releases.
 - Reproducible digest-pinned container deployment with authenticated network binding, environment preflight, a controlled migration job, health checks, workers, TLS edge, staging promotion, and restore-based rollback.
 
-## Planned, not implemented
+## Product boundaries
 
-The supported container topology uses PostgreSQL, ClamAV, isolated workers, and a Caddy TLS edge. Managed hosted control-plane operations remain a separate release gate. See [`docs/release-model.md`](docs/release-model.md).
+Remedence works with scanners, remediation agents, RMM platforms, CI security tools, and verification providers. It does not try to replace them. Those systems can submit findings, remediation records, or verification inputs while Remedence owns the closure record.
 
-## Security and trust boundary
+The current `0.x` release is a beta for evaluation and controlled deployments. It includes a loopback application mode and a controlled single-host container topology using PostgreSQL, ClamAV, isolated workers, and a Caddy TLS edge.
 
-Remedence local mode binds to `127.0.0.1` and uses the operating-system user session as its trust boundary. Required-authentication mode adds durable sessions and active organization membership isolation, but the product must not be exposed publicly until the remaining production gates in `docs/release-model.md` are complete.
+Remedence does **not** provide autonomous patch generation, a hosted SaaS service, or a managed verification worker fleet. Broader supported self-hosted and hosted multi-tenant operations remain behind the release gates in [`docs/release-model.md`](docs/release-model.md).
 
-The local server does not default to `0.0.0.0`. Put authentication and an appropriate trusted boundary in front of Remedence before any future network exposure.
+## Security boundary
 
-Local HTTP defense-in-depth and the still-blocked public-edge requirements are documented in [`docs/http-edge-security.md`](docs/http-edge-security.md).
+Local mode binds to `127.0.0.1` and uses the operating-system user session as its default trust boundary. Required-authentication mode adds durable sessions and active organization membership isolation. Do not expose the local server directly to an untrusted network.
+
+The server does not default to `0.0.0.0`. Any network deployment needs required authentication, TLS, protected evidence storage, production malware scanning, and the deployment controls documented in this repository.
+
+Read [`docs/authentication.md`](docs/authentication.md) for identity requirements, [`docs/privacy-lifecycle.md`](docs/privacy-lifecycle.md) for export and deletion behavior, and [`docs/http-edge-security.md`](docs/http-edge-security.md) for the HTTP trust boundary.
 
 ## Requirements
 
@@ -102,15 +94,15 @@ The supervisor owns only the two process trees it creates. API output is prefixe
 
 The API remains loopback-only on port `43180` by default. Vite proxies `/api` and `/healthz` to that API during development. Development mode does not serve stale `apps/web/dist` files from the API process.
 
-## Production local mode
+## Run the local application
 
-Build everything required by the local product:
+Build the application:
 
 ```text
 bun run build
 ```
 
-Then start the single production-local Node process:
+Start the single Node process:
 
 ```text
 bun run start
@@ -210,4 +202,4 @@ Repository boundaries:
 - `api/openapi.yaml` canonical REST contract used for generated TypeScript types.
 - `docs` architecture and demo workflow documentation.
 
-See `docs/architecture.md` and `docs/demo-workflow.md` for the full v1 boundaries and failed-first-verification scenario.
+See [`docs/architecture.md`](docs/architecture.md) for ownership and trust boundaries. Use [`docs/demo-workflow.md`](docs/demo-workflow.md) to run the failed-first verification scenario from remediation through retained proof.
