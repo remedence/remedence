@@ -5,17 +5,28 @@ import { AuthenticationGate, useAuthentication } from "./AuthenticationGate";
 
 const authMocks = vi.hoisted(() => ({
   signInEmail: vi.fn(),
+  signInSso: vi.fn(),
   signOut: vi.fn(),
   changePassword: vi.fn(),
   disableMfa: vi.fn(),
+  enableMfa: vi.fn(),
+  verifyTotp: vi.fn(),
+  requestPasswordReset: vi.fn(),
+  resetPassword: vi.fn(),
 }));
 
 vi.mock("better-auth/client", () => ({
   createAuthClient: () => ({
-    signIn: { email: authMocks.signInEmail },
+    signIn: { email: authMocks.signInEmail, sso: authMocks.signInSso },
     signOut: authMocks.signOut,
     changePassword: authMocks.changePassword,
-    twoFactor: { disable: authMocks.disableMfa },
+    requestPasswordReset: authMocks.requestPasswordReset,
+    resetPassword: authMocks.resetPassword,
+    twoFactor: {
+      disable: authMocks.disableMfa,
+      enable: authMocks.enableMfa,
+      verifyTotp: authMocks.verifyTotp,
+    },
   }),
 }));
 
@@ -37,6 +48,7 @@ function statusResponse(body: unknown): Response {
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.clearAllMocks();
+  window.history.replaceState({}, "", "/");
 });
 
 describe("AuthenticationGate", () => {
@@ -191,6 +203,233 @@ describe("AuthenticationGate", () => {
       currentPassword: "current-password",
       newPassword: "new-secure-password",
       revokeOtherSessions: true,
+    });
+  });
+
+  it("requests password recovery without disclosing account existence", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        statusResponse({
+          mode: "required",
+          authenticated: false,
+          user: null,
+          password_reset_enabled: true,
+        }),
+      ),
+    );
+    authMocks.requestPasswordReset.mockResolvedValue({ data: {}, error: null });
+    const user = userEvent.setup();
+
+    render(
+      <AuthenticationGate>
+        <p>Protected workspace</p>
+      </AuthenticationGate>,
+    );
+
+    await user.click(
+      await screen.findByRole("button", { name: "Forgot password?" }),
+    );
+    await user.type(
+      screen.getByLabelText("Account email"),
+      "owner@example.com",
+    );
+    await user.click(screen.getByRole("button", { name: "Send reset link" }));
+
+    expect(authMocks.requestPasswordReset).toHaveBeenCalledWith({
+      email: "owner@example.com",
+      redirectTo: window.location.origin + "/",
+    });
+    expect(
+      await screen.findByText(
+        "If that account exists, a reset link has been sent.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("completes a reset link without rendering provider errors", async () => {
+    window.history.replaceState({}, "", "/?token=one-time-reset-token");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        statusResponse({
+          mode: "required",
+          authenticated: false,
+          user: null,
+        }),
+      ),
+    );
+    authMocks.resetPassword.mockResolvedValue({ data: {}, error: null });
+    const user = userEvent.setup();
+
+    render(
+      <AuthenticationGate>
+        <p>Protected workspace</p>
+      </AuthenticationGate>,
+    );
+
+    await user.type(
+      await screen.findByLabelText("New password"),
+      "new-secure-password",
+    );
+    await user.click(screen.getByRole("button", { name: "Change password" }));
+
+    expect(authMocks.resetPassword).toHaveBeenCalledWith({
+      newPassword: "new-secure-password",
+      token: "one-time-reset-token",
+    });
+    expect(
+      await screen.findByText("Password changed. Return to sign in."),
+    ).toBeInTheDocument();
+  });
+
+  it("finishes a sign-in TOTP challenge before rendering the workspace", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          statusResponse({
+            mode: "required",
+            authenticated: false,
+            user: null,
+          }),
+        )
+        .mockResolvedValueOnce(
+          statusResponse({
+            mode: "required",
+            authenticated: true,
+            user: {
+              id: "user-owner",
+              name: "Initial Owner",
+              email: "owner@example.com",
+            },
+            mfa: { required: true, enrolled: true },
+          }),
+        ),
+    );
+    authMocks.signInEmail.mockResolvedValue({
+      data: { twoFactorRedirect: true },
+      error: null,
+    });
+    authMocks.verifyTotp.mockResolvedValue({ data: {}, error: null });
+    const user = userEvent.setup();
+
+    render(
+      <AuthenticationGate>
+        <p>Protected workspace</p>
+      </AuthenticationGate>,
+    );
+
+    await user.type(await screen.findByLabelText("Email"), "owner@example.com");
+    await user.type(screen.getByLabelText("Password"), "current-password");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    await user.type(
+      await screen.findByLabelText("Authenticator code"),
+      "123456",
+    );
+    await user.click(screen.getByRole("button", { name: "Verify" }));
+
+    expect(authMocks.verifyTotp).toHaveBeenCalledWith({
+      code: "123456",
+      trustDevice: false,
+    });
+    expect(await screen.findByText("Protected workspace")).toBeInTheDocument();
+  });
+
+  it("requires TOTP enrollment before an authenticated user enters the workspace", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          statusResponse({
+            mode: "required",
+            authenticated: true,
+            user: {
+              id: "user-owner",
+              name: "Initial Owner",
+              email: "owner@example.com",
+            },
+            mfa: { required: true, enrolled: false },
+          }),
+        )
+        .mockResolvedValueOnce(
+          statusResponse({
+            mode: "required",
+            authenticated: true,
+            user: {
+              id: "user-owner",
+              name: "Initial Owner",
+              email: "owner@example.com",
+            },
+            mfa: { required: true, enrolled: true },
+          }),
+        ),
+    );
+    authMocks.enableMfa.mockResolvedValue({
+      data: {
+        totpURI: "otpauth://totp/Remedence:owner",
+        backupCodes: ["backup-one", "backup-two"],
+      },
+      error: null,
+    });
+    authMocks.verifyTotp.mockResolvedValue({ data: {}, error: null });
+    const user = userEvent.setup();
+
+    render(
+      <AuthenticationGate>
+        <p>Protected workspace</p>
+      </AuthenticationGate>,
+    );
+
+    await user.type(
+      await screen.findByLabelText("Current password"),
+      "current-password",
+    );
+    await user.click(screen.getByRole("button", { name: "Set up MFA" }));
+    expect(await screen.findByText(/backup-one/)).toBeInTheDocument();
+    await user.type(screen.getByLabelText("Authenticator code"), "654321");
+    await user.click(screen.getByRole("button", { name: "Finish enrollment" }));
+
+    expect(authMocks.enableMfa).toHaveBeenCalledWith({
+      password: "current-password",
+      method: "totp",
+    });
+    expect(await screen.findByText("Protected workspace")).toBeInTheDocument();
+  });
+
+  it("routes workforce sign-in through the configured SSO provider", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        statusResponse({
+          mode: "required",
+          authenticated: false,
+          user: null,
+          federation_protocols: ["oidc", "saml"],
+        }),
+      ),
+    );
+    authMocks.signInSso.mockResolvedValue({ data: {}, error: null });
+    const user = userEvent.setup();
+
+    render(
+      <AuthenticationGate>
+        <p>Protected workspace</p>
+      </AuthenticationGate>,
+    );
+
+    await user.type(
+      await screen.findByLabelText("Work email for SSO"),
+      "owner@enterprise.example",
+    );
+    await user.click(screen.getByRole("button", { name: "Continue with SSO" }));
+
+    expect(authMocks.signInSso).toHaveBeenCalledWith({
+      email: "owner@enterprise.example",
+      callbackURL: window.location.origin,
+      errorCallbackURL: window.location.origin,
     });
   });
 });
